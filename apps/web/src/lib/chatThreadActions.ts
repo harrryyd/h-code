@@ -30,7 +30,6 @@ export interface ChatThreadActionContext {
   readonly activeDraftThread: DraftThreadContextLike | null;
   readonly activeThread: ThreadContextLike | undefined;
   readonly defaultProjectRef: ScopedProjectRef | null;
-  readonly defaultThreadEnvMode: DraftThreadEnvMode;
   readonly handleNewThread: NewThreadHandler;
 }
 
@@ -49,28 +48,43 @@ export function resolveThreadActionProjectRef(
   return context.defaultProjectRef;
 }
 
-function buildContextualThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
-  return {
-    branch: context.activeThread?.branch ?? context.activeDraftThread?.branch ?? null,
-    worktreePath:
-      context.activeThread?.worktreePath ?? context.activeDraftThread?.worktreePath ?? null,
-    envMode:
-      context.activeDraftThread?.envMode ??
-      (context.activeThread?.worktreePath ? "worktree" : "local"),
-  };
+function matchesProjectRef(
+  projectRef: ScopedProjectRef,
+  context: Pick<ThreadContextLike, "environmentId" | "projectId">,
+): boolean {
+  return (
+    projectRef.environmentId === context.environmentId && projectRef.projectId === context.projectId
+  );
 }
 
-function buildDefaultThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
-  return {
-    envMode: context.defaultThreadEnvMode,
-  };
+function buildContextualThreadOptions(
+  context: ChatThreadActionContext,
+  projectRef: ScopedProjectRef,
+): NewThreadOptions | undefined {
+  if (context.activeDraftThread && matchesProjectRef(projectRef, context.activeDraftThread)) {
+    return {
+      branch: context.activeDraftThread.branch,
+      worktreePath: context.activeDraftThread.worktreePath,
+      envMode: context.activeDraftThread.envMode,
+    };
+  }
+
+  if (context.activeThread && matchesProjectRef(projectRef, context.activeThread)) {
+    return {
+      branch: context.activeThread.branch,
+      worktreePath: context.activeThread.worktreePath,
+      envMode: context.activeThread.worktreePath ? "worktree" : "local",
+    };
+  }
+
+  return undefined;
 }
 
 export async function startNewThreadInProjectFromContext(
   context: ChatThreadActionContext,
   projectRef: ScopedProjectRef,
 ): Promise<void> {
-  await context.handleNewThread(projectRef, buildContextualThreadOptions(context));
+  await context.handleNewThread(projectRef, buildContextualThreadOptions(context, projectRef));
 }
 
 export async function startNewThreadFromContext(
@@ -93,6 +107,6 @@ export async function startNewLocalThreadFromContext(
     return false;
   }
 
-  await context.handleNewThread(projectRef, buildDefaultThreadOptions(context));
+  await context.handleNewThread(projectRef);
   return true;
 }

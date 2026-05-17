@@ -5654,6 +5654,67 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
+  it("uses the selected project's thread default when project search creates a draft", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotWithSecondaryProject({ includeSecondaryThread: false }),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          settings: {
+            ...nextFixture.serverConfig.settings,
+            defaultThreadEnvMode: "worktree",
+            projectThreadDefaults: {
+              [`${LOCAL_ENVIRONMENT_ID}:/repo/clients/docs-portal`]: "local",
+            },
+          },
+          keybindings: [
+            {
+              command: "commandPalette.toggle",
+              shortcut: {
+                key: "k",
+                metaKey: false,
+                ctrlKey: false,
+                shiftKey: false,
+                altKey: false,
+                modKey: true,
+              },
+              whenAst: {
+                type: "not",
+                node: { type: "identifier", name: "terminalFocus" },
+              },
+            },
+          ],
+        };
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      await waitForCommandPaletteShortcutLabel();
+      const palette = page.getByTestId("command-palette");
+      await openCommandPaletteFromTrigger();
+
+      await expect.element(palette).toBeInTheDocument();
+      await page.getByPlaceholder("Search commands, projects, and threads...").fill("clients/docs");
+      await expect.element(palette.getByText("Docs Portal", { exact: true })).toBeInTheDocument();
+      await palette.getByText("Docs Portal", { exact: true }).click();
+
+      const nextPath = await waitForURL(
+        mounted.router,
+        (path) => UUID_ROUTE_RE.test(path),
+        "Route should have changed to a new draft thread UUID from the project search result.",
+      );
+      const nextDraftId = draftIdFromPath(nextPath);
+      const draftThread = useComposerDraftStore.getState().getDraftSession(nextDraftId);
+      expect(draftThread?.projectId).toBe(SECOND_PROJECT_ID);
+      expect(draftThread?.envMode).toBe("local");
+      expect(draftThread?.worktreePath).toBeNull();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("filters archived threads out of command palette search results", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,

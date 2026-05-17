@@ -6,6 +6,13 @@
   - If changing native mobile code, `vp run lint:mobile` must also pass.
 - Use `vp test` for the built-in Vite+ test command and `vp run test` when you specifically need the `test` package script.
 
+## Running Tests
+
+- Use `bun run test` from the repo root for package-wide test runs.
+- Do not pass test file paths to the root `bun run test` command. The root script goes through Turbo, and Turbo interprets extra arguments as task names.
+- To run a single test file, run `bun run test <path-to-test-file>` from the owning package directory such as `apps/web`, `apps/server`, `packages/contracts`, or `packages/shared`.
+- Run web test files from `apps/web` so the app-local Vitest config and path aliases such as `~/*` are applied.
+
 ## Project Snapshot
 
 T3 Code is a minimal web GUI for using coding agents like Codex and Claude.
