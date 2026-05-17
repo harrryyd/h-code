@@ -626,17 +626,9 @@ function OpenCommandPaletteDialog() {
         return;
       }
 
-      await handleNewThread(scopeProjectRef(project.environmentId, project.id), {
-        envMode: settings.defaultThreadEnvMode,
-      });
+      await handleNewThread(scopeProjectRef(project.environmentId, project.id));
     },
-    [
-      handleNewThread,
-      navigate,
-      settings.defaultThreadEnvMode,
-      settings.sidebarThreadSortOrder,
-      threads,
-    ],
+    [handleNewThread, navigate, settings.sidebarThreadSortOrder, threads],
   );
 
   const projectSearchItems = useMemo(
@@ -674,21 +666,13 @@ function OpenCommandPaletteDialog() {
               activeDraftThread,
               activeThread,
               defaultProjectRef,
-              defaultThreadEnvMode: settings.defaultThreadEnvMode,
               handleNewThread,
             },
             scopeProjectRef(project.environmentId, project.id),
           );
         },
       }),
-    [
-      activeDraftThread,
-      activeThread,
-      defaultProjectRef,
-      handleNewThread,
-      projects,
-      settings.defaultThreadEnvMode,
-    ],
+    [activeDraftThread, activeThread, defaultProjectRef, handleNewThread, projects],
   );
 
   const allThreadItems = useMemo(
@@ -1003,7 +987,6 @@ function OpenCommandPaletteDialog() {
             activeDraftThread,
             activeThread,
             defaultProjectRef,
-            defaultThreadEnvMode: settings.defaultThreadEnvMode,
             handleNewThread,
           });
         },
@@ -1121,9 +1104,9 @@ function OpenCommandPaletteDialog() {
             ),
           });
         } else {
-          await handleNewThread(scopeProjectRef(existing.environmentId, existing.id), {
-            envMode: settings.defaultThreadEnvMode,
-          }).catch(() => undefined);
+          await handleNewThread(scopeProjectRef(existing.environmentId, existing.id)).catch(
+            () => undefined,
+          );
         }
         setOpen(false);
         return;
@@ -1144,9 +1127,9 @@ function OpenCommandPaletteDialog() {
           },
           createdAt: new Date().toISOString(),
         });
-        await handleNewThread(scopeProjectRef(browseEnvironmentId, projectId), {
-          envMode: settings.defaultThreadEnvMode,
-        }).catch(() => undefined);
+        await handleNewThread(scopeProjectRef(browseEnvironmentId, projectId)).catch(
+          () => undefined,
+        );
         setOpen(false);
       } catch (error) {
         toastManager.add(
@@ -1166,7 +1149,6 @@ function OpenCommandPaletteDialog() {
       navigate,
       projects,
       setOpen,
-      settings.defaultThreadEnvMode,
       settings.sidebarThreadSortOrder,
       threads,
     ],
