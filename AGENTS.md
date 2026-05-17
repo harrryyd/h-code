@@ -51,3 +51,17 @@ Docs:
 - Codex-Monitor (Tauri, feature-complete, strong reference implementation): https://github.com/Dimillian/CodexMonitor
 
 Use these as implementation references when designing protocol handling, UX flows, and operational safeguards.
+
+## Agent skills
+
+### Issue tracker
+
+Issues for this repo are tracked in GitHub Issues for `harrryyd/h-code`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+This repo uses the default triage label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo is configured as a single-context repo with a root `CONTEXT.md` and root `docs/adr/` when present. See `docs/agents/domain.md`.
