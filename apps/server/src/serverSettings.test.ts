@@ -465,6 +465,52 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 
+  it.effect("persists project thread defaults keyed by physical project identity", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsService;
+      const serverConfig = yield* ServerConfig;
+      const fileSystem = yield* FileSystem.FileSystem;
+
+      const projectThreadDefaults = {
+        "primary:/Users/julius/Code/t3code": "worktree" as const,
+        "remote-1:/Users/julius/Code/t3code": "inherit" as const,
+      };
+
+      const next = yield* serverSettings.updateSettings({
+        projectThreadDefaults,
+      });
+
+      assert.deepEqual(next.projectThreadDefaults, projectThreadDefaults);
+
+      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      assert.deepEqual(JSON.parse(raw).projectThreadDefaults, projectThreadDefaults);
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
+  it.effect("replaces project thread defaults when settings updates remove stale overrides", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsService;
+
+      yield* serverSettings.updateSettings({
+        projectThreadDefaults: {
+          "primary:/Users/julius/Code/t3code": "worktree",
+          "remote-1:/Users/julius/Code/t3code": "local",
+        },
+      });
+
+      const next = yield* serverSettings.updateSettings({
+        projectThreadDefaults: {
+          "primary:/Users/julius/Code/t3code": "inherit",
+        },
+      });
+
+      assert.deepEqual(next.projectThreadDefaults, {
+        "primary:/Users/julius/Code/t3code": "inherit",
+      });
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
   it.effect("stores sensitive provider instance environment values outside settings.json", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsService;

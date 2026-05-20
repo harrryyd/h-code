@@ -9,12 +9,17 @@ const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 
 describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
+  it("defaults projectThreadDefaults to an empty record", () => {
+    expect(DEFAULT_SERVER_SETTINGS.projectThreadDefaults).toEqual({});
+  });
+
   it("defaults to an empty record so legacy configs without the key still decode", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});
   });
 
   it("decodes a fully empty config (legacy on-disk shape) without complaint", () => {
     const decoded = decodeServerSettings({});
+    expect(decoded.projectThreadDefaults).toEqual({});
     expect(decoded.providerInstances).toEqual({});
     // Legacy `providers` struct is still hydrated with its per-driver defaults
     // so existing call sites keep working through the migration.
@@ -65,6 +70,20 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
 });
 
 describe("ServerSettingsPatch.providerInstances", () => {
+  it("decodes project thread defaults as an optional map", () => {
+    const patch = decodeServerSettingsPatch({
+      projectThreadDefaults: {
+        "primary:/Users/julius/Code/t3code": "worktree",
+        "remote-1:/Users/julius/Code/t3code": "inherit",
+      },
+    });
+
+    expect(patch.projectThreadDefaults).toEqual({
+      "primary:/Users/julius/Code/t3code": "worktree",
+      "remote-1:/Users/julius/Code/t3code": "inherit",
+    });
+  });
+
   it("treats providerInstances as an optional whole-map replacement", () => {
     const patch = decodeServerSettingsPatch({});
     expect(patch.providerInstances).toBeUndefined();

@@ -76,13 +76,14 @@ export function applyServerSettingsPatch(
   patch: ServerSettingsPatch,
 ): ServerSettings {
   const selectionPatch = patch.textGenerationModelSelection;
-  const { automaticGitFetchInterval, ...patchForMerge } = patch;
+  const { automaticGitFetchInterval, projectThreadDefaults, ...patchForMerge } = patch;
   const next = deepMerge(current, patchForMerge);
   const nextWithReplacements = {
     ...next,
     ...(patch.providerInstances !== undefined
       ? { providerInstances: patch.providerInstances }
       : {}),
+    ...(projectThreadDefaults !== undefined ? { projectThreadDefaults } : {}),
     ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
   };
   if (!selectionPatch) {

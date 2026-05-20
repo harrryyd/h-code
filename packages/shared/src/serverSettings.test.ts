@@ -194,4 +194,24 @@ describe("serverSettings helpers", () => {
       config: { homePath: "~/.codex" },
     });
   });
+
+  it("replaces projectThreadDefaults maps so stale project overrides are removed", () => {
+    const current = {
+      ...DEFAULT_SERVER_SETTINGS,
+      projectThreadDefaults: {
+        "primary:/Users/julius/Code/t3code": "worktree" as const,
+        "remote-1:/Users/julius/Code/t3code": "local" as const,
+      },
+    };
+
+    expect(
+      applyServerSettingsPatch(current, {
+        projectThreadDefaults: {
+          "primary:/Users/julius/Code/t3code": "inherit",
+        },
+      }).projectThreadDefaults,
+    ).toEqual({
+      "primary:/Users/julius/Code/t3code": "inherit",
+    });
+  });
 });

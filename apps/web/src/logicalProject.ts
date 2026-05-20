@@ -1,6 +1,10 @@
 import { scopedProjectKey, scopeProjectRef } from "@t3tools/client-runtime";
 import type { ScopedProjectRef, SidebarProjectGroupingMode } from "@t3tools/contracts";
-import type { UnifiedSettings } from "@t3tools/contracts/settings";
+import type {
+  ProjectThreadDefaultMode,
+  ThreadEnvMode,
+  UnifiedSettings,
+} from "@t3tools/contracts/settings";
 import { normalizeProjectPathForComparison } from "./lib/projectPaths";
 import type { Project } from "./types";
 
@@ -9,12 +13,26 @@ export interface ProjectGroupingSettings {
   sidebarProjectGroupingOverrides: Record<string, SidebarProjectGroupingMode>;
 }
 
+export interface ProjectThreadDefaultsSettings {
+  defaultThreadEnvMode: ThreadEnvMode;
+  projectThreadDefaults: Record<string, ProjectThreadDefaultMode>;
+}
+
 export type ProjectGroupingMode = SidebarProjectGroupingMode;
 
 export function selectProjectGroupingSettings(settings: UnifiedSettings): ProjectGroupingSettings {
   return {
     sidebarProjectGroupingMode: settings.sidebarProjectGroupingMode,
     sidebarProjectGroupingOverrides: settings.sidebarProjectGroupingOverrides,
+  };
+}
+
+export function selectProjectThreadDefaultsSettings(
+  settings: UnifiedSettings,
+): ProjectThreadDefaultsSettings {
+  return {
+    defaultThreadEnvMode: settings.defaultThreadEnvMode,
+    projectThreadDefaults: settings.projectThreadDefaults,
   };
 }
 
@@ -73,6 +91,12 @@ export function deriveProjectGroupingOverrideKey(
   return derivePhysicalProjectKey(project);
 }
 
+export function deriveProjectThreadDefaultOverrideKey(
+  project: Pick<Project, "environmentId" | "cwd">,
+): string {
+  return derivePhysicalProjectKey(project);
+}
+
 // Key under which a project's manual sort order (projectOrder) is stored.
 // Must stay aligned with the writer side in `uiStateStore.syncProjects` and
 // the drag handlers in `Sidebar` so readers and writers agree.
@@ -88,6 +112,23 @@ export function resolveProjectGroupingMode(
     settings.sidebarProjectGroupingOverrides?.[deriveProjectGroupingOverrideKey(project)] ??
     settings.sidebarProjectGroupingMode
   );
+}
+
+export function resolveProjectThreadDefaultMode(
+  project: Pick<Project, "environmentId" | "cwd">,
+  settings: ProjectThreadDefaultsSettings,
+): ProjectThreadDefaultMode {
+  return (
+    settings.projectThreadDefaults?.[deriveProjectThreadDefaultOverrideKey(project)] ?? "inherit"
+  );
+}
+
+export function resolveProjectThreadEnvMode(
+  project: Pick<Project, "environmentId" | "cwd">,
+  settings: ProjectThreadDefaultsSettings,
+): ThreadEnvMode {
+  const projectDefaultMode = resolveProjectThreadDefaultMode(project, settings);
+  return projectDefaultMode === "inherit" ? settings.defaultThreadEnvMode : projectDefaultMode;
 }
 
 function deriveRepositoryScopedKey(

@@ -42,7 +42,6 @@ import {
   ProjectId,
   type ScopedThreadRef,
   type SidebarProjectGroupingMode,
-  type ThreadEnvMode,
   ThreadId,
 } from "@t3tools/contracts";
 import {
@@ -163,7 +162,6 @@ import {
   isContextMenuPointerDown,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadSeedContext,
-  resolveSidebarNewThreadEnvMode,
   resolveThreadRowClassName,
   resolveThreadStatusPill,
   orderItemsByPreferredIds,
@@ -183,7 +181,9 @@ import {
   derivePhysicalProjectKey,
   deriveProjectGroupingOverrideKey,
   getProjectOrderKey,
+  resolveProjectThreadEnvMode,
   selectProjectGroupingSettings,
+  selectProjectThreadDefaultsSettings,
 } from "../logicalProject";
 import {
   useSavedEnvironmentRegistryStore,
@@ -938,10 +938,8 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   const appSettingsConfirmThreadArchive = useSettings<boolean>(
     (settings) => settings.confirmThreadArchive,
   );
-  const defaultThreadEnvMode = useSettings<ThreadEnvMode>(
-    (settings) => settings.defaultThreadEnvMode,
-  );
   const projectGroupingSettings = useSettings(selectProjectGroupingSettings);
+  const projectThreadDefaultsSettings = useSettings(selectProjectThreadDefaultsSettings);
   const { updateSettings } = useUpdateSettings();
   const sidebarThreadPreviewCount = useSettings<SidebarThreadPreviewCount>(
     (settings) => settings.sidebarThreadPreviewCount,
@@ -1667,9 +1665,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
             : null;
       const seedContext = resolveSidebarNewThreadSeedContext({
         projectId: member.id,
-        defaultEnvMode: resolveSidebarNewThreadEnvMode({
-          defaultEnvMode: defaultThreadEnvMode,
-        }),
+        defaultEnvMode: resolveProjectThreadEnvMode(member, projectThreadDefaultsSettings),
         activeThread:
           currentActiveThread && currentActiveThread.projectId === member.id
             ? {
@@ -1699,7 +1695,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
         envMode: seedContext.envMode,
       });
     },
-    [defaultThreadEnvMode, handleNewThread, isMobile, router, setOpenMobile],
+    [handleNewThread, isMobile, projectThreadDefaultsSettings, router, setOpenMobile],
   );
 
   const handleCreateThreadClick = useCallback(

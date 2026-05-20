@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>T3 Code Overview</title>
+    <style>
+      :root {
+        --bg: #f6f2e8;
+        --panel: rgba(255, 252, 245, 0.88);
+        --panel-strong: #fffaf0;
+        --text: #1e2a2f;
+        --muted: #58666d;
+        --line: rgba(30, 42, 47, 0.12);
+        --accent: #0f766e;
+        --accent-soft: rgba(15, 118, 110, 0.12);
+        --accent-strong: #134e4a;
+        --shadow: 0 20px 60px rgba(35, 41, 46, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 28%),
+          radial-gradient(circle at top right, rgba(202, 138, 4, 0.12), transparent 22%),
+          linear-gradient(180deg, #f9f5ec 0%, var(--bg) 100%);
+        line-height: 1.55;
+      }
+
+      .page {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 48px 20px 72px;
+      }
+
+      .hero {
+        padding: 34px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background:
+          linear-gradient(135deg, rgba(15, 118, 110, 0.09), rgba(255, 250, 240, 0.92)), var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--accent-strong);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+
+      h1 {
+        font-size: clamp(2.4rem, 4vw, 4.1rem);
+        max-width: 12ch;
+      }
+
+      h2 {
+        font-size: 1.55rem;
+        margin-bottom: 14px;
+      }
+
+      h3 {
+        font-size: 1.05rem;
+        margin-bottom: 10px;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .hero p {
+        max-width: 70ch;
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      .grid {
+        display: grid;
+        gap: 18px;
+        margin-top: 22px;
+      }
+
+      .grid.two {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .section {
+        margin-top: 28px;
+        padding: 28px;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .card {
+        padding: 20px;
+        border-radius: 18px;
+        background: var(--panel-strong);
+        border: 1px solid rgba(30, 42, 47, 0.08);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        margin-bottom: 12px;
+      }
+
+      ul,
+      ol {
+        margin: 12px 0 0 20px;
+        padding: 0;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      code {
+        font-family:
+          "SFMono-Regular", ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+        font-size: 0.92em;
+        background: rgba(15, 118, 110, 0.08);
+        padding: 0.1em 0.35em;
+        border-radius: 6px;
+      }
+
+      .flow {
+        display: grid;
+        gap: 14px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 48px 1fr;
+        gap: 16px;
+        align-items: start;
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: var(--panel-strong);
+        border: 1px solid rgba(30, 42, 47, 0.08);
+      }
+
+      .step-number {
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, var(--accent), #155e75);
+        color: white;
+        font-weight: 700;
+        font-size: 1.05rem;
+      }
+
+      .step p {
+        margin-top: 6px;
+        color: var(--muted);
+      }
+
+      .callout {
+        margin-top: 18px;
+        padding: 16px 18px;
+        border-left: 4px solid var(--accent);
+        background: rgba(15, 118, 110, 0.08);
+        border-radius: 0 16px 16px 0;
+      }
+
+      .mini-map {
+        display: grid;
+        gap: 12px;
+      }
+
+      .mini-map div {
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: var(--panel-strong);
+        border: 1px solid rgba(30, 42, 47, 0.08);
+      }
+
+      .mini-map strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .footer {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      @media (max-width: 720px) {
+        .page {
+          padding: 24px 14px 44px;
+        }
+
+        .hero,
+        .section {
+          padding: 22px;
+          border-radius: 22px;
+        }
+
+        .step {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">T3 Code / High-Level Overview</p>
+        <h1>A coding-agent app with a browser front end and an event-driven server core.</h1>
+        <p>
+          If you know Spring Boot, the easiest mental model is: <strong>React UI</strong> as the web
+          client, <strong>Node/Effect server</strong> as the application service layer,
+          <strong>WebSocket RPC</strong> instead of REST for most live operations, and
+          <strong>SQLite-backed projections</strong> acting like read models built from domain
+          events.
+        </p>
+      </section>
+
+      <section class="section">
+        <h2>1. What Lives Where</h2>
+        <div class="grid two">
+          <article class="card">
+            <span class="badge">Core Apps</span>
+            <div class="mini-map">
+              <div>
+                <strong><code>apps/server</code></strong>
+                The backend process. It serves the UI, owns WebSocket RPC, starts provider runtimes,
+                persists orchestration state, and turns raw provider activity into stable domain
+                events.
+              </div>
+              <div>
+                <strong><code>apps/web</code></strong>
+                The browser UI. It connects to the server, subscribes to live updates, keeps a
+                client-side store, and renders chat, threads, plans, diffs, terminals, and settings.
+              </div>
+              <div>
+                <strong><code>apps/marketing</code></strong>
+                Separate marketing site. Not part of the runtime flow of the coding app.
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="badge">Shared Packages</span>
+            <div class="mini-map">
+              <div>
+                <strong><code>packages/contracts</code></strong>
+                Shared schemas and types. Think of this as the shared DTO/API contract module.
+              </div>
+              <div>
+                <strong><code>packages/shared</code></strong>
+                Reusable runtime helpers used by both server and web.
+              </div>
+              <div>
+                <strong><code>packages/client-runtime</code></strong>
+                Small client helpers for environment/thread/project identity and scoping.
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>2. Spring Boot Translation</h2>
+        <div class="grid two">
+          <article class="card">
+            <h3>What feels familiar</h3>
+            <ul>
+              <li>
+                <code>Layers</code> in the server are similar to Spring bean wiring/configuration.
+              </li>
+              <li><code>Services</code> are real application services with typed interfaces.</li>
+              <li>
+                SQLite persistence plus projection tables plays the role of repositories/read
+                models.
+              </li>
+              <li>
+                <code>packages/contracts</code> is the shared API model package you might share
+                between modules.
+              </li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <h3>What is different</h3>
+            <ul>
+              <li>
+                The code is strongly event-driven: commands produce domain events, then projections
+                are updated.
+              </li>
+              <li>
+                Most live app behavior uses WebSocket RPC and subscriptions, not controller-style
+                REST endpoints.
+              </li>
+              <li>
+                The server talks to coding providers as long-running runtime sessions, not short
+                request/response calls.
+              </li>
+              <li>
+                The frontend keeps a substantial in-memory state store because the UI is
+                continuously streaming.
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>3. Main Runtime Flow</h2>
+        <div class="flow">
+          <article class="step">
+            <div class="step-number">1</div>
+            <div>
+              <h3>Browser starts</h3>
+              <p>
+                <code>apps/web/src/main.tsx</code> boots React and the router. The root route then
+                prepares auth, environment state, tracing, and WebSocket coordination.
+              </p>
+            </div>
+          </article>
+
+          <article class="step">
+            <div class="step-number">2</div>
+            <div>
+              <h3>Web UI opens a live connection</h3>
+              <p>
+                The client creates a WebSocket transport and RPC client. The runtime service keeps
+                that connection alive, reconnects when needed, and subscribes to shell-level and
+                thread-level orchestration streams.
+              </p>
+            </div>
+          </article>
+
+          <article class="step">
+            <div class="step-number">3</div>
+            <div>
+              <h3>Server exposes one live API surface</h3>
+              <p>
+                <code>apps/server/src/ws.ts</code> is the main RPC boundary. You can think of it as
+                the equivalent of a controller layer, except it supports streaming subscriptions in
+                addition to command-style calls.
+              </p>
+            </div>
+          </article>
+
+          <article class="step">
+            <div class="step-number">4</div>
+            <div>
+              <h3>User action becomes an orchestration command</h3>
+              <p>
+                When the user creates a thread, sends a prompt, archives a thread, or similar, the
+                server normalizes that input into an <strong>orchestration command</strong> and
+                dispatches it through the orchestration engine.
+              </p>
+            </div>
+          </article>
+
+          <article class="step">
+            <div class="step-number">5</div>
+            <div>
+              <h3>Orchestration engine is the domain core</h3>
+              <p>
+                <code>apps/server/src/orchestration/Layers/OrchestrationEngine.ts</code> is the
+                heart of the app. It validates commands against the current read model, writes
+                domain events, updates projections, and publishes those events to subscribers.
+              </p>
+            </div>
+          </article>
+
+          <article class="step">
+            <div class="step-number">6</div>
+            <div>
+              <h3>Provider runtime does the actual agent work</h3>
+              <p>
+                The provider layer starts and manages long-lived sessions for Codex or other
+                providers. <code>ProviderService</code> is the cross-provider facade; adapters hide
+                the provider-specific protocol details.
+              </p>
+            </div>
+          </article>
+
+          <article class="step">
+            <div class="step-number">7</div>
+            <div>
+              <h3>Raw provider events are translated into app events</h3>
+              <p>
+                <code>ProviderRuntimeIngestion</code> listens to provider runtime events and turns
+                them into stable orchestration events such as message updates, approval requests,
+                plan updates, checkpoints, and session status changes.
+              </p>
+            </div>
+          </article>
+
+          <article class="step">
+            <div class="step-number">8</div>
+            <div>
+              <h3>Read models are pushed back to the UI</h3>
+              <p>
+                The server exposes a shell snapshot stream for the sidebar/list view and a thread
+                detail stream for the open conversation. The client store applies those updates and
+                React re-renders the page.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>4. The Most Important Design Idea</h2>
+        <div class="callout">
+          The app does <strong>not</strong> let provider-specific runtime events directly drive the
+          UI. Instead, provider events are first translated into a stable
+          <strong>orchestration domain model</strong>, then projected into snapshots the UI can
+          safely consume. That is the main reason the app can stay predictable under reconnects,
+          partial streams, and session restarts.
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>5. Files Worth Reading First</h2>
+        <div class="grid two">
+          <article class="card">
+            <h3>Server</h3>
+            <ul>
+              <li><code>apps/server/src/server.ts</code> for top-level runtime wiring.</li>
+              <li><code>apps/server/src/ws.ts</code> for the live API boundary.</li>
+              <li>
+                <code>apps/server/src/orchestration/Layers/OrchestrationEngine.ts</code> for the
+                command → event → projection flow.
+              </li>
+              <li>
+                <code>apps/server/src/orchestration/Layers/ProviderRuntimeIngestion.ts</code> for
+                provider event translation.
+              </li>
+              <li>
+                <code>apps/server/src/provider/Layers/ProviderService.ts</code> for provider session
+                orchestration.
+              </li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <h3>Web</h3>
+            <ul>
+              <li><code>apps/web/src/routes/__root.tsx</code> for app bootstrapping.</li>
+              <li>
+                <code>apps/web/src/environments/runtime/service.ts</code> for connection and
+                subscription management.
+              </li>
+              <li><code>apps/web/src/store.ts</code> for the main client state model.</li>
+              <li>
+                <code>apps/web/src/rpc/wsTransport.ts</code> for the reconnecting WebSocket
+                transport.
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>6. One-Sentence Summary</h2>
+        <p>
+          T3 Code is essentially a <strong>live, event-driven coding workspace</strong> where the
+          server manages agent runtimes and converts everything into a stable orchestration model,
+          while the React client stays subscribed to that model and renders the current project,
+          thread, and agent state in real time.
+        </p>
+        <p class="footer">
+          Good next step: read <code>ws.ts</code>, then <code>OrchestrationEngine.ts</code>, then
+          <code>ProviderRuntimeIngestion.ts</code>. That will reveal most of the application flow.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
