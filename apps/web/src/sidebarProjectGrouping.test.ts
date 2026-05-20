@@ -160,4 +160,41 @@ describe("buildSidebarProjectCollection", () => {
       ungroupedSnapshot?.projectKey,
     );
   });
+
+  it("falls back to ungrouped when an assignment points at a missing manual group", () => {
+    const orphanedProject = makeProject({
+      id: ProjectId.make("orphaned"),
+      environmentId: primaryEnvId,
+      name: "orphaned",
+      cwd: "/tmp/orphaned",
+    });
+
+    const result = buildSidebarProjectCollection({
+      projects: [orphanedProject],
+      groupingSettings: {
+        sidebarProjectGroupingMode: "repository",
+        sidebarProjectGroupingOverrides: {},
+      },
+      manualGroupSettings: {
+        manualSidebarGroups: [],
+        projectManualSidebarGroupAssignments: {
+          "env-primary:/tmp/orphaned": "missing",
+        },
+      },
+      primaryEnvironmentId: primaryEnvId,
+      resolveEnvironmentLabel: () => null,
+    });
+
+    expect(result.sections).toEqual([
+      {
+        id: "ungrouped",
+        kind: "ungrouped",
+        title: "Ungrouped",
+        collapsed: false,
+        projectKeys: ["ungrouped::env-primary:/tmp/orphaned"],
+      },
+    ]);
+    expect(result.snapshots).toHaveLength(1);
+    expect(result.snapshots[0]?.projectKey).toBe("ungrouped::env-primary:/tmp/orphaned");
+  });
 });
