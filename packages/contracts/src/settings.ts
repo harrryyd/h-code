@@ -105,6 +105,16 @@ export type ThreadEnvMode = typeof ThreadEnvMode.Type;
 export const ProjectThreadDefaultMode = Schema.Literals(["inherit", "local", "worktree"]);
 export type ProjectThreadDefaultMode = typeof ProjectThreadDefaultMode.Type;
 
+export const ManualSidebarGroupId = TrimmedNonEmptyString;
+export type ManualSidebarGroupId = typeof ManualSidebarGroupId.Type;
+
+export const ManualSidebarGroup = Schema.Struct({
+  id: ManualSidebarGroupId,
+  name: TrimmedNonEmptyString,
+  collapsed: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+});
+export type ManualSidebarGroup = typeof ManualSidebarGroup.Type;
+
 const makeBinaryPathSetting = (fallback: string) =>
   TrimmedString.pipe(
     Schema.decodeTo(
@@ -379,6 +389,13 @@ export const ServerSettings = Schema.Struct({
   projectThreadDefaults: Schema.Record(TrimmedNonEmptyString, ProjectThreadDefaultMode).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
+  manualSidebarGroups: Schema.Array(ManualSidebarGroup).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  projectManualSidebarGroupAssignments: Schema.Record(
+    TrimmedNonEmptyString,
+    ManualSidebarGroupId,
+  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   addProjectBaseDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   textGenerationModelSelection: ModelSelection.pipe(
     Schema.withDecodingDefault(
@@ -489,6 +506,10 @@ export const ServerSettingsPatch = Schema.Struct({
   defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
   projectThreadDefaults: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, ProjectThreadDefaultMode),
+  ),
+  manualSidebarGroups: Schema.optionalKey(Schema.Array(ManualSidebarGroup)),
+  projectManualSidebarGroupAssignments: Schema.optionalKey(
+    Schema.Record(TrimmedNonEmptyString, ManualSidebarGroupId),
   ),
   addProjectBaseDirectory: Schema.optionalKey(TrimmedString),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),

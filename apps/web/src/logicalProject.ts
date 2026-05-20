@@ -1,6 +1,7 @@
 import { scopedProjectKey, scopeProjectRef } from "@t3tools/client-runtime";
 import type { ScopedProjectRef, SidebarProjectGroupingMode } from "@t3tools/contracts";
 import type {
+  ManualSidebarGroup,
   ProjectThreadDefaultMode,
   ThreadEnvMode,
   UnifiedSettings,
@@ -18,6 +19,11 @@ export interface ProjectThreadDefaultsSettings {
   projectThreadDefaults: Record<string, ProjectThreadDefaultMode>;
 }
 
+export interface ManualSidebarGroupsSettings {
+  manualSidebarGroups: readonly ManualSidebarGroup[];
+  projectManualSidebarGroupAssignments: Record<string, string>;
+}
+
 export type ProjectGroupingMode = SidebarProjectGroupingMode;
 
 export function selectProjectGroupingSettings(settings: UnifiedSettings): ProjectGroupingSettings {
@@ -33,6 +39,15 @@ export function selectProjectThreadDefaultsSettings(
   return {
     defaultThreadEnvMode: settings.defaultThreadEnvMode,
     projectThreadDefaults: settings.projectThreadDefaults,
+  };
+}
+
+export function selectManualSidebarGroupsSettings(
+  settings: UnifiedSettings,
+): ManualSidebarGroupsSettings {
+  return {
+    manualSidebarGroups: settings.manualSidebarGroups,
+    projectManualSidebarGroupAssignments: settings.projectManualSidebarGroupAssignments,
   };
 }
 
@@ -97,6 +112,12 @@ export function deriveProjectThreadDefaultOverrideKey(
   return derivePhysicalProjectKey(project);
 }
 
+export function deriveProjectManualSidebarGroupAssignmentKey(
+  project: Pick<Project, "environmentId" | "cwd">,
+): string {
+  return derivePhysicalProjectKey(project);
+}
+
 // Key under which a project's manual sort order (projectOrder) is stored.
 // Must stay aligned with the writer side in `uiStateStore.syncProjects` and
 // the drag handlers in `Sidebar` so readers and writers agree.
@@ -129,6 +150,17 @@ export function resolveProjectThreadEnvMode(
 ): ThreadEnvMode {
   const projectDefaultMode = resolveProjectThreadDefaultMode(project, settings);
   return projectDefaultMode === "inherit" ? settings.defaultThreadEnvMode : projectDefaultMode;
+}
+
+export function resolveProjectManualSidebarGroupId(
+  project: Pick<Project, "environmentId" | "cwd">,
+  settings: ManualSidebarGroupsSettings,
+): string | null {
+  return (
+    settings.projectManualSidebarGroupAssignments?.[
+      deriveProjectManualSidebarGroupAssignmentKey(project)
+    ] ?? null
+  );
 }
 
 function deriveRepositoryScopedKey(

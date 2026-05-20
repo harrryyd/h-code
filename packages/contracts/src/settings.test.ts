@@ -13,6 +13,11 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
     expect(DEFAULT_SERVER_SETTINGS.projectThreadDefaults).toEqual({});
   });
 
+  it("defaults manual sidebar group settings to empty collections", () => {
+    expect(DEFAULT_SERVER_SETTINGS.manualSidebarGroups).toEqual([]);
+    expect(DEFAULT_SERVER_SETTINGS.projectManualSidebarGroupAssignments).toEqual({});
+  });
+
   it("defaults to an empty record so legacy configs without the key still decode", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});
   });
@@ -20,6 +25,8 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   it("decodes a fully empty config (legacy on-disk shape) without complaint", () => {
     const decoded = decodeServerSettings({});
     expect(decoded.projectThreadDefaults).toEqual({});
+    expect(decoded.manualSidebarGroups).toEqual([]);
+    expect(decoded.projectManualSidebarGroupAssignments).toEqual({});
     expect(decoded.providerInstances).toEqual({});
     // Legacy `providers` struct is still hydrated with its per-driver defaults
     // so existing call sites keep working through the migration.
@@ -81,6 +88,26 @@ describe("ServerSettingsPatch.providerInstances", () => {
     expect(patch.projectThreadDefaults).toEqual({
       "primary:/Users/julius/Code/t3code": "worktree",
       "remote-1:/Users/julius/Code/t3code": "inherit",
+    });
+  });
+
+  it("decodes manual sidebar groups and project assignments as optional settings", () => {
+    const patch = decodeServerSettingsPatch({
+      manualSidebarGroups: [
+        { id: "ops", name: "Ops" },
+        { id: "frontend", name: "Frontend", collapsed: true },
+      ],
+      projectManualSidebarGroupAssignments: {
+        "primary:/Users/julius/Code/t3code": "frontend",
+      },
+    });
+
+    expect(patch.manualSidebarGroups).toEqual([
+      { id: "ops", name: "Ops", collapsed: false },
+      { id: "frontend", name: "Frontend", collapsed: true },
+    ]);
+    expect(patch.projectManualSidebarGroupAssignments).toEqual({
+      "primary:/Users/julius/Code/t3code": "frontend",
     });
   });
 
