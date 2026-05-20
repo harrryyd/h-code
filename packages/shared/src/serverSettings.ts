@@ -66,6 +66,16 @@ function mergeModelSelectionOptionsById(input: {
   return [...merged.entries()].map(([id, value]) => ({ id, value }));
 }
 
+function normalizeProjectManualSidebarGroupAssignments(input: {
+  groups: ReadonlyArray<{ readonly id: string }>;
+  assignments: Record<string, string>;
+}): Record<string, string> {
+  const validGroupIds = new Set(input.groups.map((group) => group.id));
+  return Object.fromEntries(
+    Object.entries(input.assignments).filter(([, groupId]) => validGroupIds.has(groupId)),
+  );
+}
+
 /**
  * Applies a server settings patch while treating textGenerationModelSelection as
  * replace-on-provider/model updates. This prevents stale nested options from
@@ -76,18 +86,35 @@ export function applyServerSettingsPatch(
   patch: ServerSettingsPatch,
 ): ServerSettings {
   const selectionPatch = patch.textGenerationModelSelection;
-  const { automaticGitFetchInterval, projectThreadDefaults, ...patchForMerge } = patch;
+  const {
+    automaticGitFetchInterval,
+    manualSidebarGroups,
+    projectManualSidebarGroupAssignments,
+    projectThreadDefaults,
+    ...patchForMerge
+  } = patch;
   const next = deepMerge(current, patchForMerge);
   const nextWithReplacements = {
     ...next,
     ...(patch.providerInstances !== undefined
       ? { providerInstances: patch.providerInstances }
       : {}),
+    ...(manualSidebarGroups !== undefined ? { manualSidebarGroups } : {}),
+    ...(projectManualSidebarGroupAssignments !== undefined
+      ? { projectManualSidebarGroupAssignments }
+      : {}),
     ...(projectThreadDefaults !== undefined ? { projectThreadDefaults } : {}),
     ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
   };
+  const nextWithNormalizedManualGroups = {
+    ...nextWithReplacements,
+    projectManualSidebarGroupAssignments: normalizeProjectManualSidebarGroupAssignments({
+      groups: nextWithReplacements.manualSidebarGroups,
+      assignments: nextWithReplacements.projectManualSidebarGroupAssignments,
+    }),
+  };
   if (!selectionPatch) {
-    return nextWithReplacements;
+    return nextWithNormalizedManualGroups;
   }
 
   const instanceId = selectionPatch.instanceId ?? current.textGenerationModelSelection.instanceId;
@@ -100,7 +127,7 @@ export function applyServerSettingsPatch(
       });
 
   return {
-    ...nextWithReplacements,
+    ...nextWithNormalizedManualGroups,
     textGenerationModelSelection: createModelSelection(instanceId, model, options),
   };
 }

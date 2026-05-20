@@ -511,6 +511,70 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 
+  it.effect("persists manual sidebar groups and project assignments", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsService;
+      const serverConfig = yield* ServerConfig;
+      const fileSystem = yield* FileSystem.FileSystem;
+
+      const manualSidebarGroups = [
+        { id: "frontend", name: "Frontend", collapsed: false },
+        { id: "ops", name: "Ops", collapsed: true },
+      ];
+      const projectManualSidebarGroupAssignments = {
+        "primary:/Users/julius/Code/t3code": "frontend",
+      };
+
+      const next = yield* serverSettings.updateSettings({
+        manualSidebarGroups,
+        projectManualSidebarGroupAssignments,
+      });
+
+      assert.deepEqual(next.manualSidebarGroups, manualSidebarGroups);
+      assert.deepEqual(
+        next.projectManualSidebarGroupAssignments,
+        projectManualSidebarGroupAssignments,
+      );
+
+      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      const parsed = JSON.parse(raw);
+      assert.deepEqual(parsed.manualSidebarGroups, manualSidebarGroups);
+      assert.deepEqual(
+        parsed.projectManualSidebarGroupAssignments,
+        projectManualSidebarGroupAssignments,
+      );
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
+  it.effect("removes stale manual sidebar group assignments when groups are deleted", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsService;
+
+      yield* serverSettings.updateSettings({
+        manualSidebarGroups: [
+          { id: "frontend", name: "Frontend", collapsed: false },
+          { id: "ops", name: "Ops", collapsed: false },
+        ],
+        projectManualSidebarGroupAssignments: {
+          "primary:/Users/julius/Code/t3code": "frontend",
+          "remote-1:/Users/julius/Code/t3code": "ops",
+        },
+      });
+
+      const next = yield* serverSettings.updateSettings({
+        manualSidebarGroups: [{ id: "frontend", name: "Frontend", collapsed: true }],
+      });
+
+      assert.deepEqual(next.manualSidebarGroups, [
+        { id: "frontend", name: "Frontend", collapsed: true },
+      ]);
+      assert.deepEqual(next.projectManualSidebarGroupAssignments, {
+        "primary:/Users/julius/Code/t3code": "frontend",
+      });
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
   it.effect("stores sensitive provider instance environment values outside settings.json", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsService;
