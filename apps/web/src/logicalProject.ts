@@ -156,11 +156,17 @@ export function resolveProjectManualSidebarGroupId(
   project: Pick<Project, "environmentId" | "cwd">,
   settings: ManualSidebarGroupsSettings,
 ): string | null {
-  return (
+  const assignedGroupId =
     settings.projectManualSidebarGroupAssignments?.[
       deriveProjectManualSidebarGroupAssignmentKey(project)
-    ] ?? null
-  );
+    ] ?? null;
+  if (assignedGroupId === null) {
+    return null;
+  }
+
+  return settings.manualSidebarGroups.some((group) => group.id === assignedGroupId)
+    ? assignedGroupId
+    : null;
 }
 
 function deriveRepositoryScopedKey(
