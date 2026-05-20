@@ -3,8 +3,11 @@ import { ProviderDriverKind } from "@t3tools/contracts";
 
 import {
   createThreadJumpHintVisibilityController,
+  getVisibleSidebarProjects,
   getSidebarThreadIdsToPrewarm,
   getVisibleSidebarThreadIds,
+  orderSidebarSectionProjectsByPreferredIds,
+  resolveEffectiveSidebarProjectSortOrder,
   resolveAdjacentThreadId,
   getFallbackThreadIdAfterDelete,
   getVisibleThreadsForProject,
@@ -187,6 +190,26 @@ describe("resolveSidebarNewThreadEnvMode", () => {
         defaultEnvMode: "worktree",
       }),
     ).toBe("local");
+  });
+});
+
+describe("resolveEffectiveSidebarProjectSortOrder", () => {
+  it("preserves manual sort order when no manual sidebar groups exist", () => {
+    expect(
+      resolveEffectiveSidebarProjectSortOrder({
+        sortOrder: "manual",
+        hasManualSidebarGroups: false,
+      }),
+    ).toBe("manual");
+  });
+
+  it("falls back to the default automatic sort when manual groups are present", () => {
+    expect(
+      resolveEffectiveSidebarProjectSortOrder({
+        sortOrder: "manual",
+        hasManualSidebarGroups: true,
+      }),
+    ).toBe("updated_at");
   });
 });
 
@@ -437,6 +460,69 @@ describe("getVisibleSidebarThreadIds", () => {
         },
       ]),
     ).toEqual([ThreadId.make("thread-12"), ThreadId.make("thread-11")]);
+  });
+});
+
+describe("getVisibleSidebarProjects", () => {
+  it("skips projects inside collapsed manual groups while keeping ungrouped projects visible", () => {
+    expect(
+      getVisibleSidebarProjects({
+        sections: [
+          {
+            kind: "manual",
+            collapsed: true,
+            projects: ["hidden-a", "hidden-b"],
+          },
+          {
+            kind: "manual",
+            collapsed: false,
+            projects: ["shown-c"],
+          },
+          {
+            kind: "ungrouped",
+            collapsed: false,
+            projects: ["shown-d"],
+          },
+        ],
+      }),
+    ).toEqual(["shown-c", "shown-d"]);
+  });
+});
+
+describe("orderSidebarSectionProjectsByPreferredIds", () => {
+  it("reorders projects inside each section to match the computed sidebar sort order", () => {
+    expect(
+      orderSidebarSectionProjectsByPreferredIds({
+        preferredProjectKeys: ["manual-b", "ungrouped-b", "manual-a", "ungrouped-a"],
+        sections: [
+          {
+            id: "group:frontend",
+            kind: "manual" as const,
+            collapsed: false,
+            projects: [{ projectKey: "manual-a" }, { projectKey: "manual-b" }],
+          },
+          {
+            id: "ungrouped",
+            kind: "ungrouped" as const,
+            collapsed: false,
+            projects: [{ projectKey: "ungrouped-a" }, { projectKey: "ungrouped-b" }],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        id: "group:frontend",
+        kind: "manual",
+        collapsed: false,
+        projects: [{ projectKey: "manual-b" }, { projectKey: "manual-a" }],
+      },
+      {
+        id: "ungrouped",
+        kind: "ungrouped",
+        collapsed: false,
+        projects: [{ projectKey: "ungrouped-b" }, { projectKey: "ungrouped-a" }],
+      },
+    ]);
   });
 });
 

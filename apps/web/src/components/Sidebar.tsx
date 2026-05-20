@@ -162,7 +162,10 @@ import {
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { useCommandPaletteStore } from "../commandPaletteStore";
 import {
+  getVisibleSidebarProjects,
   getSidebarThreadIdsToPrewarm,
+  orderSidebarSectionProjectsByPreferredIds,
+  resolveEffectiveSidebarProjectSortOrder,
   resolveAdjacentThreadId,
   isContextMenuPointerDown,
   resolveProjectStatusIndicator,
@@ -3310,6 +3313,11 @@ export default function Sidebar() {
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const savedEnvironmentRegistry = useSavedEnvironmentRegistryStore((s) => s.byId);
   const savedEnvironmentRuntimeById = useSavedEnvironmentRuntimeStore((s) => s.byId);
+  const hasManualSidebarGroups = manualSidebarGroupsSettings.manualSidebarGroups.length > 0;
+  const effectiveSidebarProjectSortOrder = resolveEffectiveSidebarProjectSortOrder({
+    sortOrder: sidebarProjectSortOrder,
+    hasManualSidebarGroups,
+  });
   const orderedProjects = useMemo(() => {
     return orderItemsByPreferredIds({
       items: projects,
@@ -3466,7 +3474,7 @@ export default function Sidebar() {
 
   const handleProjectDragEnd = useCallback(
     (event: DragEndEvent) => {
-      if (sidebarProjectSortOrder !== "manual") {
+      if (effectiveSidebarProjectSortOrder !== "manual") {
         dragInProgressRef.current = false;
         return;
       }
@@ -3482,18 +3490,18 @@ export default function Sidebar() {
       const overMemberKeys = overProject.memberProjects.map((member) => member.physicalProjectKey);
       reorderProjects(activeMemberKeys, overMemberKeys);
     },
-    [sidebarProjectSortOrder, reorderProjects, sidebarProjects],
+    [effectiveSidebarProjectSortOrder, reorderProjects, sidebarProjects],
   );
 
   const handleProjectDragStart = useCallback(
     (_event: DragStartEvent) => {
-      if (sidebarProjectSortOrder !== "manual") {
+      if (effectiveSidebarProjectSortOrder !== "manual") {
         return;
       }
       dragInProgressRef.current = true;
       suppressProjectClickAfterDragRef.current = true;
     },
-    [sidebarProjectSortOrder],
+    [effectiveSidebarProjectSortOrder],
   );
 
   const handleProjectDragCancel = useCallback((_event: DragCancelEvent) => {
@@ -3540,13 +3548,13 @@ export default function Sidebar() {
     return sortProjectsForSidebar(
       sortableProjects,
       sortableThreads,
-      sidebarProjectSortOrder,
+      effectiveSidebarProjectSortOrder,
     ).flatMap((project) => {
       const resolvedProject = sidebarProjectByKey.get(project.id);
       return resolvedProject ? [resolvedProject] : [];
     });
   }, [
-    sidebarProjectSortOrder,
+    effectiveSidebarProjectSortOrder,
     physicalToSnapshotProjectKey,
     projectPhysicalKeyByScopedRef,
     sidebarProjectByKey,
@@ -3557,20 +3565,28 @@ export default function Sidebar() {
     const projectByKey = new Map(
       sortedProjects.map((project) => [project.projectKey, project] as const),
     );
-    return sidebarProjectSections.map((section) => {
-      return {
+    return orderSidebarSectionProjectsByPreferredIds({
+      preferredProjectKeys: sortedProjects.map((project) => project.projectKey),
+      sections: sidebarProjectSections.map((section) => ({
         ...section,
         projects: section.projectKeys.flatMap((projectKey) => {
           const project = projectByKey.get(projectKey);
           return project ? [project] : [];
         }),
-      };
+      })),
     });
   }, [sidebarProjectSections, sortedProjects]);
-  const isManualProjectSorting = sidebarProjectSortOrder === "manual";
+  const visibleSortedProjects = useMemo(
+    () =>
+      getVisibleSidebarProjects({
+        sections: sortedProjectSections,
+      }),
+    [sortedProjectSections],
+  );
+  const isManualProjectSorting = effectiveSidebarProjectSortOrder === "manual";
   const visibleSidebarThreadKeys = useMemo(
     () =>
-      sortedProjects.flatMap((project) => {
+      visibleSortedProjects.flatMap((project) => {
         const projectThreads = sortThreads(
           (threadsByProjectKey.get(project.projectKey) ?? []).filter(
             (thread) => thread.archivedAt === null,
@@ -3608,7 +3624,7 @@ export default function Sidebar() {
       expandedThreadListsByProject,
       projectExpandedById,
       routeThreadKey,
-      sortedProjects,
+      visibleSortedProjects,
       threadsByProjectKey,
     ],
   );
@@ -3924,7 +3940,7 @@ export default function Sidebar() {
             desktopUpdateButtonAction={desktopUpdateButtonAction}
             desktopUpdateButtonDisabled={desktopUpdateButtonDisabled}
             handleDesktopUpdateButtonClick={handleDesktopUpdateButtonClick}
-            projectSortOrder={sidebarProjectSortOrder}
+            projectSortOrder={effectiveSidebarProjectSortOrder}
             threadSortOrder={sidebarThreadSortOrder}
             projectGroupingMode={sidebarProjectGroupingMode}
             threadPreviewCount={sidebarThreadPreviewCount}
