@@ -52,10 +52,8 @@ import {
   getSourceControlDiscoverySnapshot,
   refreshSourceControlDiscovery,
 } from "../lib/sourceControlDiscoveryState";
-import {
-  startNewThreadInProjectFromContext,
-  startNewThreadFromContext,
-} from "../lib/chatThreadActions";
+import { startNewThreadFromContext } from "../lib/chatThreadActions";
+import { resolveProjectDefaultedNewThreadSeedContext } from "../lib/newThreadSeedContext";
 import {
   appendBrowsePathSegment,
   canNavigateUp,
@@ -74,6 +72,10 @@ import {
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { getLatestThreadForProject } from "../lib/threadSort";
 import { cn, isMacPlatform, isWindowsPlatform, newCommandId, newProjectId } from "../lib/utils";
+import {
+  resolveProjectThreadEnvMode,
+  selectProjectThreadDefaultsSettings,
+} from "../logicalProject";
 import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
@@ -402,6 +404,7 @@ function OpenCommandPaletteDialog() {
   const queryClient = useQueryClient();
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
   const settings = useSettings();
+  const projectThreadDefaultsSettings = useSettings(selectProjectThreadDefaultsSettings);
   const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread } =
     useHandleNewThread();
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
@@ -647,18 +650,37 @@ function OpenCommandPaletteDialog() {
           />
         ),
         runProject: async (project) => {
-          await startNewThreadInProjectFromContext(
-            {
-              activeDraftThread,
-              activeThread,
-              defaultProjectRef,
-              handleNewThread,
-            },
-            scopeProjectRef(project.environmentId, project.id),
-          );
+          const seedContext = resolveProjectDefaultedNewThreadSeedContext({
+            projectId: project.id,
+            defaultEnvMode: resolveProjectThreadEnvMode(project, projectThreadDefaultsSettings),
+            activeThread:
+              activeThread == null
+                ? null
+                : {
+                    projectId: activeThread.projectId,
+                    branch: activeThread.branch,
+                    worktreePath: activeThread.worktreePath,
+                  },
+            activeDraftThread:
+              activeDraftThread == null
+                ? null
+                : {
+                    projectId: activeDraftThread.projectId,
+                    branch: activeDraftThread.branch,
+                    worktreePath: activeDraftThread.worktreePath,
+                    envMode: activeDraftThread.envMode,
+                  },
+          });
+          await handleNewThread(scopeProjectRef(project.environmentId, project.id), {
+            ...(seedContext.branch !== undefined ? { branch: seedContext.branch } : {}),
+            ...(seedContext.worktreePath !== undefined
+              ? { worktreePath: seedContext.worktreePath }
+              : {}),
+            envMode: seedContext.envMode,
+          });
         },
       }),
-    [activeDraftThread, activeThread, defaultProjectRef, handleNewThread, projects],
+    [activeDraftThread, activeThread, handleNewThread, projectThreadDefaultsSettings, projects],
   );
 
   const allThreadItems = useMemo(
