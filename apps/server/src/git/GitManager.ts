@@ -109,6 +109,10 @@ interface OpenPrInfo {
   url: string;
   baseRefName: string;
   headRefName: string;
+  labels?: ReadonlyArray<{
+    name: string;
+    color?: string;
+  }>;
 }
 
 interface PullRequestInfo extends OpenPrInfo, PullRequestHeadRemoteInfo {
@@ -307,6 +311,7 @@ function toPullRequestInfo(summary: ChangeRequest): PullRequestInfo {
     baseRefName: summary.baseRefName,
     headRefName: summary.headRefName,
     state: summary.state ?? "open",
+    ...(summary.labels ? { labels: [...summary.labels] } : {}),
     updatedAt: summary.updatedAt,
     ...(summary.isCrossRepository !== undefined
       ? { isCrossRepository: summary.isCrossRepository }
@@ -469,6 +474,10 @@ function toStatusPr(pr: PullRequestInfo): {
   baseRef: string;
   headRef: string;
   state: "open" | "closed" | "merged";
+  labels?: ReadonlyArray<{
+    name: string;
+    color?: string;
+  }>;
 } {
   return {
     number: pr.number,
@@ -477,6 +486,7 @@ function toStatusPr(pr: PullRequestInfo): {
     baseRef: pr.baseRefName,
     headRef: pr.headRefName,
     state: pr.state,
+    ...(pr.labels ? { labels: [...pr.labels] } : {}),
   };
 }
 
@@ -926,6 +936,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
           baseRefName: firstPullRequest.baseRefName,
           headRefName: firstPullRequest.headRefName,
           state: "open",
+          ...(firstPullRequest.labels ? { labels: [...firstPullRequest.labels] } : {}),
           updatedAt: Option.none(),
         } satisfies PullRequestInfo;
       }
