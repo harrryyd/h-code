@@ -47,11 +47,29 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedCommandPalette.command, "commandPalette.toggle");
 
+    const parsedFocusChat = yield* decode(KeybindingRule, {
+      key: "mod+i",
+      command: "chat.focus",
+    });
+    assert.strictEqual(parsedFocusChat.command, "chat.focus");
+
+    const parsedProjectPicker = yield* decode(KeybindingRule, {
+      key: "mod+alt+n",
+      command: "chat.newInProject",
+    });
+    assert.strictEqual(parsedProjectPicker.command, "chat.newInProject");
+
     const parsedLocal = yield* decode(KeybindingRule, {
       key: "mod+shift+n",
       command: "chat.newLocal",
     });
     assert.strictEqual(parsedLocal.command, "chat.newLocal");
+
+    const parsedRenameCurrent = yield* decode(KeybindingRule, {
+      key: "mod+shift+e",
+      command: "thread.renameCurrent",
+    });
+    assert.strictEqual(parsedRenameCurrent.command, "thread.renameCurrent");
 
     const parsedModelPickerToggle = yield* decode(KeybindingRule, {
       key: "mod+shift+m",

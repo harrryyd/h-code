@@ -118,6 +118,10 @@ import { newCommandId, newDraftId, newMessageId, newThreadId } from "~/lib/utils
 import { getProviderModelCapabilities, resolveSelectableProvider } from "../providerModels";
 import { useSettings } from "../hooks/useSettings";
 import { resolveAppModelSelectionForInstance } from "../modelSelection";
+import {
+  isEditableShortcutTarget,
+  isModalShortcutCaptureActive,
+} from "../lib/globalShortcutGuards";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -2474,6 +2478,19 @@ export default function ChatView(props: ChatViewProps) {
         context: shortcutContext,
       });
       if (!command) return;
+
+      if (command === "chat.focus") {
+        if (
+          isModalShortcutCaptureActive(event.target) ||
+          isEditableShortcutTarget(event.target, { allowComposer: true })
+        ) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        focusComposer();
+        return;
+      }
 
       if (command === "terminal.toggle") {
         event.preventDefault();
