@@ -23,10 +23,14 @@ See the full schema for more details: [`packages/contracts/src/keybindings.ts`](
   { "key": "mod+d", "command": "terminal.split", "when": "terminalFocus" },
   { "key": "mod+n", "command": "terminal.new", "when": "terminalFocus" },
   { "key": "mod+w", "command": "terminal.close", "when": "terminalFocus" },
+  { "key": "mod+d", "command": "diff.toggle", "when": "!terminalFocus" },
   { "key": "mod+k", "command": "commandPalette.toggle", "when": "!terminalFocus" },
+  { "key": "mod+i", "command": "chat.focus", "when": "!terminalFocus" },
   { "key": "mod+n", "command": "chat.new", "when": "!terminalFocus" },
   { "key": "mod+shift+o", "command": "chat.new", "when": "!terminalFocus" },
+  { "key": "mod+alt+n", "command": "chat.newInProject", "when": "!terminalFocus" },
   { "key": "mod+shift+n", "command": "chat.newLocal", "when": "!terminalFocus" },
+  { "key": "mod+shift+e", "command": "thread.renameCurrent", "when": "!terminalFocus" },
   { "key": "mod+o", "command": "editor.openFavorite" }
 ]
 ```
@@ -51,10 +55,14 @@ Invalid rules are ignored. Invalid config files are ignored. Warnings are logged
 - `terminal.split`: split terminal (in focused terminal context by default)
 - `terminal.new`: create new terminal (in focused terminal context by default)
 - `terminal.close`: close/kill the focused terminal (in focused terminal context by default)
+- `diff.toggle`: open or close the diff panel
 - `commandPalette.toggle`: open or close the global command palette
+- `chat.focus`: focus the current thread composer and move the caret to the end
 - `chat.new`: create a new chat thread preserving the active thread's branch/worktree state
+- `chat.newInProject`: open the `New thread in...` project picker flow
 - `chat.newLocal`: create a new chat thread for the active project in a new environment (local/worktree determined by app settings (default `local`))
 - `editor.openFavorite`: open current project/worktree in the last-used editor
+- `thread.renameCurrent`: open inline rename for the current thread in the sidebar
 - `script.{id}.run`: run a project script by id (for example `script.test.run`)
 
 ### Key Syntax

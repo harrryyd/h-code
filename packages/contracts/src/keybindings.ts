@@ -54,9 +54,12 @@ const STATIC_KEYBINDING_COMMANDS = [
   "terminal.close",
   "diff.toggle",
   "commandPalette.toggle",
+  "chat.focus",
   "chat.new",
+  "chat.newInProject",
   "chat.newLocal",
   "editor.openFavorite",
+  "thread.renameCurrent",
   ...MODEL_PICKER_KEYBINDING_COMMANDS,
   ...THREAD_KEYBINDING_COMMANDS,
 ] as const;
