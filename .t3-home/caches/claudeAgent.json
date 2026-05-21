@@ -8,7 +8,7 @@
   "auth": {
     "status": "unknown"
   },
-  "checkedAt": "2026-05-21T08:37:00.341Z",
+  "checkedAt": "2026-05-21T08:52:00.394Z",
   "message": "Claude Agent CLI (`claude`) is not installed or not on PATH.",
   "models": [
     {
@@ -257,7 +257,7 @@
     "latestVersion": null,
     "updateCommand": "npm install -g @anthropic-ai/claude-code@latest",
     "canUpdate": true,
-    "checkedAt": "2026-05-21T08:37:00.341Z",
+    "checkedAt": "2026-05-21T08:52:00.394Z",
     "message": null
   }
 }

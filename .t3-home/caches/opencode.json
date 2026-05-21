@@ -9,7 +9,7 @@
     "status": "authenticated",
     "type": "opencode"
   },
-  "checkedAt": "2026-05-21T08:37:04.519Z",
+  "checkedAt": "2026-05-21T08:52:10.773Z",
   "message": "2 upstream providers connected through OpenCode.",
   "models": [
     {
@@ -3873,7 +3873,7 @@
     "latestVersion": "1.15.6",
     "updateCommand": "opencode upgrade",
     "canUpdate": true,
-    "checkedAt": "2026-05-21T08:37:06.567Z",
+    "checkedAt": "2026-05-21T08:52:12.807Z",
     "message": "Install the update now or review provider settings."
   }
 }

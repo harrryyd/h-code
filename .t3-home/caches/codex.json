@@ -11,7 +11,7 @@
     "label": "ChatGPT Plus Subscription",
     "email": "hdawson97@gmail.com"
   },
-  "checkedAt": "2026-05-21T08:37:00.525Z",
+  "checkedAt": "2026-05-21T08:52:01.153Z",
   "models": [
     {
       "slug": "gpt-5.5",
@@ -457,7 +457,7 @@
     "latestVersion": "0.132.0",
     "updateCommand": "brew upgrade codex",
     "canUpdate": true,
-    "checkedAt": "2026-05-21T08:37:00.610Z",
+    "checkedAt": "2026-05-21T08:52:01.548Z",
     "message": "Install the update now or review provider settings."
   }
 }
