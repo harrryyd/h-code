@@ -1,0 +1,3879 @@
+{
+  "displayName": "OpenCode",
+  "showInteractionModeToggle": false,
+  "enabled": true,
+  "installed": true,
+  "version": "1.15.3",
+  "status": "ready",
+  "auth": {
+    "status": "authenticated",
+    "type": "opencode"
+  },
+  "checkedAt": "2026-05-21T08:37:04.519Z",
+  "message": "2 upstream providers connected through OpenCode.",
+  "models": [
+    {
+      "slug": "opencode/big-pickle",
+      "name": "Big Pickle",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-haiku-4-5",
+      "name": "Claude Haiku 4.5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "high"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-opus-4-1",
+      "name": "Claude Opus 4.1",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "high"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-opus-4-5",
+      "name": "Claude Opus 4.5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-opus-4-6",
+      "name": "Claude Opus 4.6",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-opus-4-7",
+      "name": "Claude Opus 4.7",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-sonnet-4",
+      "name": "Claude Sonnet 4",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "high"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-sonnet-4-5",
+      "name": "Claude Sonnet 4.5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "high"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/claude-sonnet-4-6",
+      "name": "Claude Sonnet 4.6",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/deepseek-v4-flash-free",
+      "name": "DeepSeek V4 Flash Free",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gemini-3-flash",
+      "name": "Gemini 3 Flash",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gemini-3.1-pro",
+      "name": "Gemini 3.1 Pro Preview",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gemini-3.5-flash",
+      "name": "Gemini 3.5 Flash",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/glm-5",
+      "name": "GLM-5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/glm-5.1",
+      "name": "GLM-5.1",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-high",
+      "name": "GPT 5.1 Codex High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-low",
+      "name": "GPT 5.1 Codex Low (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-max-xhigh",
+      "name": "GPT 5.1 Codex Max Extra High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-max-high",
+      "name": "GPT 5.1 Codex Max High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-max-low",
+      "name": "GPT 5.1 Codex Max Low (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-max-medium",
+      "name": "GPT 5.1 Codex Max Medium (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-medium",
+      "name": "GPT 5.1 Codex Medium (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-mini-high",
+      "name": "GPT 5.1 Codex Mini High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-codex-mini-medium",
+      "name": "GPT 5.1 Codex Mini Medium (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-high",
+      "name": "GPT 5.1 High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-low",
+      "name": "GPT 5.1 Low (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-medium",
+      "name": "GPT 5.1 Medium (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.1-none",
+      "name": "GPT 5.1 None (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-codex-xhigh",
+      "name": "GPT 5.2 Codex Extra High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-codex-high",
+      "name": "GPT 5.2 Codex High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-codex-low",
+      "name": "GPT 5.2 Codex Low (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-codex-medium",
+      "name": "GPT 5.2 Codex Medium (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-xhigh",
+      "name": "GPT 5.2 Extra High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-high",
+      "name": "GPT 5.2 High (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-low",
+      "name": "GPT 5.2 Low (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-medium",
+      "name": "GPT 5.2 Medium (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2-none",
+      "name": "GPT 5.2 None (OAuth)",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5",
+      "name": "GPT-5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5-codex",
+      "name": "GPT-5 Codex",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5-nano",
+      "name": "GPT-5 Nano",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.1",
+      "name": "GPT-5.1",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.1-codex",
+      "name": "GPT-5.1 Codex",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.1-codex-max",
+      "name": "GPT-5.1 Codex Max",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.1-codex-mini",
+      "name": "GPT-5.1 Codex Mini",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.2",
+      "name": "GPT-5.2",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.2",
+      "name": "GPT-5.2",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.2-codex",
+      "name": "GPT-5.2 Codex",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.3-codex",
+      "name": "GPT-5.3 Codex",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.3-codex",
+      "name": "GPT-5.3 Codex",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.3-codex-spark",
+      "name": "GPT-5.3 Codex Spark",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.3-codex-spark",
+      "name": "GPT-5.3 Codex Spark",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.4",
+      "name": "GPT-5.4",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.4",
+      "name": "GPT-5.4",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.4-fast",
+      "name": "GPT-5.4 Fast",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.4-mini",
+      "name": "GPT-5.4 mini",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.4-mini",
+      "name": "GPT-5.4 Mini",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.4-mini-fast",
+      "name": "GPT-5.4 mini Fast",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.4-nano",
+      "name": "GPT-5.4 Nano",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.4-pro",
+      "name": "GPT-5.4 Pro",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.5",
+      "name": "GPT-5.5",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.5",
+      "name": "GPT-5.5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.5-fast",
+      "name": "GPT-5.5 Fast",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "none",
+                "label": "None"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "openai/gpt-5.5-pro",
+      "name": "GPT-5.5 Pro",
+      "subProvider": "OpenAI",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/gpt-5.5-pro",
+      "name": "GPT-5.5 Pro",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Xhigh"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/grok-build-0.1",
+      "name": "Grok Build 0.1",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/kimi-k2.5",
+      "name": "Kimi K2.5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/kimi-k2.6",
+      "name": "Kimi K2.6",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/minimax-m2.5",
+      "name": "MiniMax M2.5",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/minimax-m2.7",
+      "name": "MiniMax M2.7",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/nemotron-3-super-free",
+      "name": "Nemotron 3 Super Free",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "variant",
+            "label": "Variant",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/qwen3.5-plus",
+      "name": "Qwen3.5 Plus",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/qwen3.6-plus",
+      "name": "Qwen3.6 Plus",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "opencode/qwen3.6-plus-free",
+      "name": "Qwen3.6 Plus Free",
+      "subProvider": "OpenCode Zen",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "agent",
+            "label": "Agent",
+            "type": "select",
+            "options": [
+              {
+                "id": "build",
+                "label": "Build",
+                "isDefault": true
+              },
+              {
+                "id": "learn",
+                "label": "Learn"
+              },
+              {
+                "id": "learn-lite",
+                "label": "Learn Lite"
+              },
+              {
+                "id": "plan",
+                "label": "Plan"
+              },
+              {
+                "id": "teacher",
+                "label": "Teacher"
+              }
+            ],
+            "currentValue": "build"
+          }
+        ]
+      }
+    }
+  ],
+  "slashCommands": [],
+  "skills": [],
+  "instanceId": "opencode",
+  "driver": "opencode",
+  "continuation": {
+    "groupKey": "opencode:instance:opencode"
+  },
+  "versionAdvisory": {
+    "status": "behind_latest",
+    "currentVersion": "1.15.3",
+    "latestVersion": "1.15.6",
+    "updateCommand": "opencode upgrade",
+    "canUpdate": true,
+    "checkedAt": "2026-05-21T08:37:06.567Z",
+    "message": "Install the update now or review provider settings."
+  }
+}

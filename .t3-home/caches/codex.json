@@ -1,0 +1,463 @@
+{
+  "displayName": "Codex",
+  "showInteractionModeToggle": true,
+  "enabled": true,
+  "installed": true,
+  "version": "0.130.0",
+  "status": "ready",
+  "auth": {
+    "status": "authenticated",
+    "type": "chatgpt",
+    "label": "ChatGPT Plus Subscription",
+    "email": "hdawson97@gmail.com"
+  },
+  "checkedAt": "2026-05-21T08:37:00.525Z",
+  "models": [
+    {
+      "slug": "gpt-5.5",
+      "name": "GPT-5.5",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "reasoningEffort",
+            "label": "Reasoning",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Extra High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "fastMode",
+            "label": "Fast Mode",
+            "type": "boolean"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "gpt-5.4",
+      "name": "GPT-5.4",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "reasoningEffort",
+            "label": "Reasoning",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Extra High"
+              }
+            ],
+            "currentValue": "medium"
+          },
+          {
+            "id": "fastMode",
+            "label": "Fast Mode",
+            "type": "boolean"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "gpt-5.4-mini",
+      "name": "GPT-5.4-Mini",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "reasoningEffort",
+            "label": "Reasoning",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Extra High"
+              }
+            ],
+            "currentValue": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "gpt-5.3-codex",
+      "name": "GPT-5.3-Codex",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "reasoningEffort",
+            "label": "Reasoning",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Extra High"
+              }
+            ],
+            "currentValue": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "gpt-5.2",
+      "name": "GPT-5.2",
+      "isCustom": false,
+      "capabilities": {
+        "optionDescriptors": [
+          {
+            "id": "reasoningEffort",
+            "label": "Reasoning",
+            "type": "select",
+            "options": [
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium",
+                "isDefault": true
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "Extra High"
+              }
+            ],
+            "currentValue": "medium"
+          }
+        ]
+      }
+    }
+  ],
+  "slashCommands": [],
+  "skills": [
+    {
+      "name": "caveman",
+      "path": "/Users/harrydawson/.agents/skills/caveman/SKILL.md",
+      "enabled": true,
+      "description": "Ultra-compressed communication mode. Cuts token usage ~75% by dropping filler, articles, and pleasantries while keeping full technical accuracy. Use when user says \"caveman mode\", \"talk like caveman\", \"use caveman\", \"less tokens\", \"be brief\", or invokes /caveman.",
+      "scope": "user"
+    },
+    {
+      "name": "diagnose",
+      "path": "/Users/harrydawson/.agents/skills/diagnose/SKILL.md",
+      "enabled": true,
+      "description": "Disciplined diagnosis loop for hard bugs and performance regressions. Reproduce → minimise → hypothesise → instrument → fix → regression-test. Use when user says \"diagnose this\" / \"debug this\", reports a bug, says something is broken/throwing/failing, or describes a performance regression.",
+      "scope": "user"
+    },
+    {
+      "name": "find-skills",
+      "path": "/Users/harrydawson/.agents/skills/find-skills/SKILL.md",
+      "enabled": true,
+      "description": "Helps users discover and install agent skills when they ask questions like \"how do I do X\", \"find a skill for X\", \"is there a skill that can...\", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.",
+      "scope": "user"
+    },
+    {
+      "name": "github:gh-address-comments",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/github/0d4f5414/skills/gh-address-comments/SKILL.md",
+      "enabled": true,
+      "description": "Address actionable GitHub pull request review feedback. Use when the user wants to inspect unresolved review threads, requested changes, or inline review comments on a PR, then implement selected fixes. Use the GitHub app for PR metadata and flat comment reads, and use the bundled GraphQL script via `gh` whenever thread-level state, resolution status, or inline review context matters.",
+      "scope": "user",
+      "displayName": "Review Follow-up",
+      "shortDescription": "Address actionable PR feedback"
+    },
+    {
+      "name": "github:gh-fix-ci",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/github/0d4f5414/skills/gh-fix-ci/SKILL.md",
+      "enabled": true,
+      "description": "Use when a user asks to debug or fix failing GitHub PR checks that run in GitHub Actions. Use the GitHub app from this plugin for PR metadata and patch context, and use `gh` for Actions check and log inspection before implementing any approved fix.",
+      "scope": "user",
+      "displayName": "CI Debug",
+      "shortDescription": "Debug failing GitHub Actions checks"
+    },
+    {
+      "name": "github:github",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/github/0d4f5414/skills/github/SKILL.md",
+      "enabled": true,
+      "description": "Triage and orient GitHub repository, pull request, and issue work through the connected GitHub app. Use when the user asks for general GitHub help, wants PR or issue summaries, or needs repository context before choosing a more specific GitHub workflow.",
+      "scope": "user",
+      "displayName": "GitHub",
+      "shortDescription": "Inspect PRs, issues, CI, and publish flows"
+    },
+    {
+      "name": "github:yeet",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/github/0d4f5414/skills/yeet/SKILL.md",
+      "enabled": true,
+      "description": "Publish local changes to GitHub by confirming scope, committing intentionally, pushing the branch, and opening a draft PR through the GitHub app from this plugin, with `gh` used only as a fallback where connector coverage is insufficient.",
+      "scope": "user",
+      "displayName": "Publish Changes",
+      "shortDescription": "Commit, push, and open a PR"
+    },
+    {
+      "name": "gmail:gmail",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/gmail/0d4f5414/skills/gmail/SKILL.md",
+      "enabled": true,
+      "description": "Manage Gmail inbox triage, mailbox search, thread summaries, action extraction, reply drafting, and email forwarding through connected Gmail data. Use when the user wants to inspect a mailbox or thread, search email with Gmail query syntax, summarize messages, extract decisions and follow-ups, prepare replies or forwarded messages, or organize messages with explicit confirmation before send, archive, delete, or label actions.",
+      "scope": "user",
+      "displayName": "Gmail",
+      "shortDescription": "Summarize threads and draft replies"
+    },
+    {
+      "name": "gmail:gmail-inbox-triage",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/gmail/0d4f5414/skills/gmail-inbox-triage/SKILL.md",
+      "enabled": true,
+      "description": "Triage a Gmail inbox into actionable buckets such as urgent, needs reply soon, waiting, and FYI using connected Gmail data. Use when the user asks to triage the inbox, rank what needs attention, find what still needs a reply, or separate important mail from noise.",
+      "scope": "user",
+      "displayName": "Inbox Triage",
+      "shortDescription": "Triage an inbox into action buckets"
+    },
+    {
+      "name": "google-drive:google-docs",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/google-drive/0d4f5414/skills/google-docs/SKILL.md",
+      "enabled": true,
+      "description": "Documents-first net-new Google Docs creation plus connector-first Google Docs editing in local Codex plugin sessions, with target-document checks, connector-readback verification, and reference routing for formatting, citations, tables, and write-safety.",
+      "scope": "user",
+      "displayName": "Google Docs",
+      "shortDescription": "Read, edit, and create Google Docs files."
+    },
+    {
+      "name": "google-drive:google-drive",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/google-drive/0d4f5414/skills/google-drive/SKILL.md",
+      "enabled": true,
+      "description": "Use connected Google Drive as the single entrypoint for Drive, Docs, Sheets, and Slides work. Use when the user wants to find, fetch, organize, share, export, copy, or delete Drive files, or summarize and edit Google Docs, Google Sheets, and Google Slides through one unified Google Drive plugin.",
+      "scope": "user",
+      "displayName": "Google Drive",
+      "shortDescription": "One entrypoint for Drive, Docs, Sheets, and Slides"
+    },
+    {
+      "name": "google-drive:google-drive-comments",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/google-drive/0d4f5414/skills/google-drive-comments/SKILL.md",
+      "enabled": true,
+      "description": "Write, reply to, and resolve Google Drive comments on Docs, Sheets, Slides, and Drive files with evidence-backed location context. Use when the user asks to leave comments, review a file with comments, respond to comment threads, or resolve Drive comments.",
+      "scope": "user",
+      "displayName": "Google Drive Comments",
+      "shortDescription": "Write, reply to, and resolve Drive comments"
+    },
+    {
+      "name": "google-drive:google-sheets",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/google-drive/0d4f5414/skills/google-sheets/SKILL.md",
+      "enabled": true,
+      "description": "Analyze and edit connected Google Sheets with range precision. Use when the user wants to create Google Sheets, find a spreadsheet, inspect tabs or ranges, search rows, plan formulas, create or repair charts, clean or restructure tables, write concise summaries, or make explicit cell-range updates.",
+      "scope": "user",
+      "displayName": "Google Sheets",
+      "shortDescription": "Find sheets, inspect ranges, and plan batch updates"
+    },
+    {
+      "name": "google-drive:google-slides",
+      "path": "/Users/harrydawson/.codex/plugins/cache/openai-curated/google-drive/0d4f5414/skills/google-slides/SKILL.md",
+      "enabled": true,
+      "description": "Google Slides work for finding, reading, summarizing, creating, importing, visual cleanup, template migration, structural repair, and content edits in native Slides decks.",
+      "scope": "user",
+      "displayName": "Google Slides",
+      "shortDescription": "Inspect decks and handle Slides content edits"
+    },
+    {
+      "name": "grill-me",
+      "path": "/Users/harrydawson/.agents/skills/grill-me/SKILL.md",
+      "enabled": true,
+      "description": "Interview the user relentlessly about a plan or design until reaching shared understanding, resolving each branch of the decision tree. Use when user wants to stress-test a plan, get grilled on their design, or mentions \"grill me\".",
+      "scope": "user"
+    },
+    {
+      "name": "grill-with-docs",
+      "path": "/Users/harrydawson/.agents/skills/grill-with-docs/SKILL.md",
+      "enabled": true,
+      "description": "Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates documentation (CONTEXT.md, ADRs) inline as decisions crystallise. Use when user wants to stress-test a plan against their project's language and documented decisions.",
+      "scope": "user"
+    },
+    {
+      "name": "handoff",
+      "path": "/Users/harrydawson/.agents/skills/handoff/SKILL.md",
+      "enabled": true,
+      "description": "Compact the current conversation into a handoff document for another agent to pick up.",
+      "scope": "user"
+    },
+    {
+      "name": "improve-codebase-architecture",
+      "path": "/Users/harrydawson/.agents/skills/improve-codebase-architecture/SKILL.md",
+      "enabled": true,
+      "description": "Find deepening opportunities in a codebase, informed by the domain language in CONTEXT.md and the decisions in docs/adr/. Use when the user wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, or make a codebase more testable and AI-navigable.",
+      "scope": "user"
+    },
+    {
+      "name": "prototype",
+      "path": "/Users/harrydawson/.agents/skills/prototype/SKILL.md",
+      "enabled": true,
+      "description": "Build a throwaway prototype to flesh out a design before committing to it. Routes between two branches — a runnable terminal app for state/business-logic questions, or several radically different UI variations toggleable from one route. Use when the user wants to prototype, sanity-check a data model or state machine, mock up a UI, explore design options, or says \"prototype this\", \"let me play with it\", \"try a few designs\".",
+      "scope": "user"
+    },
+    {
+      "name": "setup-matt-pocock-skills",
+      "path": "/Users/harrydawson/.agents/skills/setup-matt-pocock-skills/SKILL.md",
+      "enabled": true,
+      "description": "Sets up an `## Agent skills` block in AGENTS.md/CLAUDE.md and `docs/agents/` so the engineering skills know this repo's issue tracker (GitHub or local markdown), triage label vocabulary, and domain doc layout. Run before first use of `to-issues`, `to-prd`, `triage`, `diagnose`, `tdd`, `improve-codebase-architecture`, or `zoom-out` — or if those skills appear to be missing context about the issue tracker, triage labels, or domain docs.",
+      "scope": "user"
+    },
+    {
+      "name": "tdd",
+      "path": "/Users/harrydawson/.agents/skills/tdd/SKILL.md",
+      "enabled": true,
+      "description": "Test-driven development with red-green-refactor loop. Use when user wants to build features or fix bugs using TDD, mentions \"red-green-refactor\", wants integration tests, or asks for test-first development.",
+      "scope": "user"
+    },
+    {
+      "name": "to-issues",
+      "path": "/Users/harrydawson/.agents/skills/to-issues/SKILL.md",
+      "enabled": true,
+      "description": "Break a plan, spec, or PRD into independently-grabbable issues on the project issue tracker using tracer-bullet vertical slices. Use when user wants to convert a plan into issues, create implementation tickets, or break down work into issues.",
+      "scope": "user"
+    },
+    {
+      "name": "to-prd",
+      "path": "/Users/harrydawson/.agents/skills/to-prd/SKILL.md",
+      "enabled": true,
+      "description": "Turn the current conversation context into a PRD and publish it to the project issue tracker. Use when user wants to create a PRD from the current context.",
+      "scope": "user"
+    },
+    {
+      "name": "triage",
+      "path": "/Users/harrydawson/.agents/skills/triage/SKILL.md",
+      "enabled": true,
+      "description": "Triage issues through a state machine driven by triage roles. Use when user wants to create an issue, triage issues, review incoming bugs or feature requests, prepare issues for an AFK agent, or manage issue workflow.",
+      "scope": "user"
+    },
+    {
+      "name": "write-a-skill",
+      "path": "/Users/harrydawson/.agents/skills/write-a-skill/SKILL.md",
+      "enabled": true,
+      "description": "Create new agent skills with proper structure, progressive disclosure, and bundled resources. Use when user wants to create, write, or build a new skill.",
+      "scope": "user"
+    },
+    {
+      "name": "zoom-out",
+      "path": "/Users/harrydawson/.agents/skills/zoom-out/SKILL.md",
+      "enabled": true,
+      "description": "Tell the agent to zoom out and give broader context or a higher-level perspective. Use when you're unfamiliar with a section of code or need to understand how it fits into the bigger picture.",
+      "scope": "user"
+    },
+    {
+      "name": "imagegen",
+      "path": "/Users/harrydawson/.codex/skills/.system/imagegen/SKILL.md",
+      "enabled": true,
+      "description": "Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups, or transparent-background cutouts. Use when Codex should create a brand-new image, transform an existing image, or derive visual variants from references, and the output should be a bitmap asset rather than repo-native code or vector. Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas.",
+      "scope": "system",
+      "displayName": "Image Gen",
+      "shortDescription": "Generate or edit images for websites, games, and more"
+    },
+    {
+      "name": "openai-docs",
+      "path": "/Users/harrydawson/.codex/skills/.system/openai-docs/SKILL.md",
+      "enabled": true,
+      "description": "Use when the user asks how to build with OpenAI products or APIs and needs up-to-date official documentation with citations, help choosing the latest model for a use case, or model upgrade and prompt-upgrade guidance; prioritize OpenAI docs MCP tools, use bundled references only as helper context, and restrict any fallback browsing to official OpenAI domains.",
+      "scope": "system",
+      "displayName": "OpenAI Docs",
+      "shortDescription": "Reference docs, choose models, and migrate OpenAI API integrations"
+    },
+    {
+      "name": "plugin-creator",
+      "path": "/Users/harrydawson/.codex/skills/.system/plugin-creator/SKILL.md",
+      "enabled": true,
+      "description": "Create and scaffold plugin directories for Codex with a required `.codex-plugin/plugin.json`, optional plugin folders/files, and baseline placeholders you can edit before publishing or testing. Use when Codex needs to create a new local plugin, add optional plugin structure, or generate or update repo-root `.agents/plugins/marketplace.json` entries for plugin ordering and availability metadata.",
+      "scope": "system",
+      "displayName": "Plugin Creator",
+      "shortDescription": "Scaffold plugins and marketplace entries"
+    },
+    {
+      "name": "skill-creator",
+      "path": "/Users/harrydawson/.codex/skills/.system/skill-creator/SKILL.md",
+      "enabled": true,
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Codex's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "scope": "system",
+      "displayName": "Skill Creator",
+      "shortDescription": "Create or update a skill"
+    },
+    {
+      "name": "skill-installer",
+      "path": "/Users/harrydawson/.codex/skills/.system/skill-installer/SKILL.md",
+      "enabled": true,
+      "description": "Install Codex skills into $CODEX_HOME/skills from a curated list or a GitHub repo path. Use when a user asks to list installable skills, install a curated skill, or install a skill from another repo (including private repos).",
+      "scope": "system",
+      "displayName": "Skill Installer",
+      "shortDescription": "Install curated skills from openai/skills or other repos"
+    }
+  ],
+  "instanceId": "codex",
+  "driver": "codex",
+  "continuation": {
+    "groupKey": "codex:home:/Users/harrydawson/.codex"
+  },
+  "versionAdvisory": {
+    "status": "behind_latest",
+    "currentVersion": "0.130.0",
+    "latestVersion": "0.132.0",
+    "updateCommand": "brew upgrade codex",
+    "canUpdate": true,
+    "checkedAt": "2026-05-21T08:37:00.610Z",
+    "message": "Install the update now or review provider settings."
+  }
+}
