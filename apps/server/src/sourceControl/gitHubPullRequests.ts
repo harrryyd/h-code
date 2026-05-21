@@ -106,7 +106,10 @@ function normalizeGitHubPullRequestRecord(
         ...(color ? { color } : {}),
       };
     })
-    .filter((label, index, labels) => labels.findIndex((item) => item.name === label.name) === index);
+    .filter(
+      (label, index, labels) =>
+        labels.findIndex((item) => item.name.toLowerCase() === label.name.toLowerCase()) === index,
+    );
 
   return {
     number: raw.number,

@@ -59,6 +59,31 @@ describe("ChangeRequestBadge", () => {
     expect(markup).not.toContain("+");
   });
 
+  it("deduplicates repeated labels before computing overflow", () => {
+    const markup = renderToStaticMarkup(
+      <ChangeRequestBadge
+        provider={githubProvider}
+        pr={{
+          number: 17,
+          title: "Repeated labels",
+          url: "https://github.com/pingdotgg/t3code/pull/17",
+          baseRef: "main",
+          headRef: "feature/repeated-labels",
+          state: "open",
+          labels: [
+            { name: "bug", color: "#d73a4a" },
+            { name: "Bug", color: "#d73a4a" },
+            { name: "frontend", color: "#1d76db" },
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain("bug");
+    expect(markup).not.toContain("+1");
+    expect(markup).not.toContain(">Bug<");
+  });
+
   it.each([
     { state: "closed" as const, number: 8, hiddenLabel: "release" },
     { state: "merged" as const, number: 9, hiddenLabel: "shipit" },

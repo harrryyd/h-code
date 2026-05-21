@@ -113,6 +113,24 @@ function ChangeRequestLabelPill({ label }: { label: ThreadPrLabel }) {
   );
 }
 
+function normalizeBadgeLabels(labels: ReadonlyArray<ThreadPrLabel> | undefined): ThreadPrLabel[] {
+  if (!labels || labels.length === 0) {
+    return [];
+  }
+
+  const normalized: ThreadPrLabel[] = [];
+  const seen = new Set<string>();
+  for (const label of labels) {
+    const key = label.name.trim().toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push(label);
+  }
+  return normalized;
+}
+
 export function ChangeRequestBadge({
   pr,
   provider,
@@ -125,8 +143,9 @@ export function ChangeRequestBadge({
     return null;
   }
 
-  const labels = pr.state === "open" ? (pr.labels ?? []).slice(0, 2) : [];
-  const overflowCount = pr.state === "open" ? Math.max((pr.labels?.length ?? 0) - 2, 0) : 0;
+  const normalizedLabels = pr.state === "open" ? normalizeBadgeLabels(pr.labels) : [];
+  const labels = normalizedLabels.slice(0, 2);
+  const overflowCount = Math.max(normalizedLabels.length - 2, 0);
 
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
