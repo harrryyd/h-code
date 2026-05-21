@@ -230,6 +230,49 @@ describe("GitHubCli.layer", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("deduplicates labels case-insensitively when decoding pull requests", () =>
+    Effect.gen(function* () {
+      mockRun.mockReturnValueOnce(
+        Effect.succeed(
+          processOutput(
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            JSON.stringify({
+              number: 42,
+              title: "Duplicate labels",
+              url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+              baseRefName: "main",
+              headRefName: "feature/pr-threads",
+              state: "OPEN",
+              labels: [
+                {
+                  name: "bug",
+                  color: "d73a4a",
+                },
+                {
+                  name: "Bug",
+                  color: "d73a4a",
+                },
+              ],
+            }),
+          ),
+        ),
+      );
+
+      const gh = yield* GitHubCli.GitHubCli;
+      const result = yield* gh.getPullRequest({
+        cwd: "/repo",
+        reference: "#42",
+      });
+
+      assert.deepStrictEqual(result.labels, [
+        {
+          name: "bug",
+          color: "#d73a4a",
+        },
+      ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("reads repository clone URLs", () =>
     Effect.gen(function* () {
       mockRun.mockReturnValueOnce(
