@@ -7,6 +7,10 @@ import {
   startNewLocalThreadFromContext,
   startNewThreadFromContext,
 } from "../lib/chatThreadActions";
+import {
+  isEditableShortcutTarget,
+  isModalShortcutCaptureActive,
+} from "../lib/globalShortcutGuards";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { resolveShortcutCommand } from "../keybindings";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
@@ -16,6 +20,7 @@ import { useServerKeybindings } from "~/rpc/serverState";
 function ChatRouteGlobalShortcuts() {
   const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
   const selectedThreadKeysSize = useThreadSelectionStore((state) => state.selectedThreadKeys.size);
+  const openNewThreadInProject = useCommandPaletteStore((state) => state.openNewThreadInProject);
   const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread, routeThreadRef } =
     useHandleNewThread();
   const keybindings = useServerKeybindings();
@@ -66,6 +71,19 @@ function ChatRouteGlobalShortcuts() {
           defaultProjectRef,
           handleNewThread,
         });
+        return;
+      }
+
+      if (command === "chat.newInProject") {
+        if (
+          isModalShortcutCaptureActive(event.target) ||
+          isEditableShortcutTarget(event.target, { allowComposer: true })
+        ) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        openNewThreadInProject();
       }
     };
 
@@ -80,6 +98,7 @@ function ChatRouteGlobalShortcuts() {
     handleNewThread,
     keybindings,
     defaultProjectRef,
+    openNewThreadInProject,
     selectedThreadKeysSize,
     terminalOpen,
   ]);

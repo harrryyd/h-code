@@ -985,6 +985,17 @@ function OpenCommandPaletteDialog() {
     openAddProjectFlow();
   }, [clearOpenIntent, openAddProjectFlow, openIntent]);
 
+  useLayoutEffect(() => {
+    if (openIntent?.kind !== "new-thread-in-project") {
+      return;
+    }
+    clearOpenIntent();
+    pushPaletteView({
+      addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
+      groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
+    });
+  }, [clearOpenIntent, openIntent, projectThreadItems]);
+
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
 
   if (projects.length > 0) {
@@ -1022,6 +1033,7 @@ function OpenCommandPaletteDialog() {
       title: "New thread in...",
       icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
       addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
+      shortcutCommand: "chat.newInProject",
       groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
     });
   }
