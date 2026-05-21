@@ -51,6 +51,16 @@ describe("GitHubCli.layer", () => {
               headRepositoryOwner: {
                 login: "octocat",
               },
+              labels: [
+                {
+                  name: "ready-for-agent",
+                  color: "0e8a16",
+                },
+                {
+                  name: "enhancement",
+                  color: "a2eeef",
+                },
+              ],
             }),
           ),
         ),
@@ -72,6 +82,16 @@ describe("GitHubCli.layer", () => {
         isCrossRepository: true,
         headRepositoryNameWithOwner: "octocat/codething-mvp",
         headRepositoryOwnerLogin: "octocat",
+        labels: [
+          {
+            name: "ready-for-agent",
+            color: "#0e8a16",
+          },
+          {
+            name: "enhancement",
+            color: "#a2eeef",
+          },
+        ],
       });
       expect(mockRun).toHaveBeenCalledWith({
         operation: "GitHubCli.execute",
@@ -81,7 +101,7 @@ describe("GitHubCli.layer", () => {
           "view",
           "#42",
           "--json",
-          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
+          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
         ],
         cwd: "/repo",
         timeoutMs: 30_000,
@@ -110,6 +130,12 @@ describe("GitHubCli.layer", () => {
               headRepositoryOwner: {
                 login: " octocat ",
               },
+              labels: [
+                {
+                  name: " ready-for-agent ",
+                  color: " 0e8a16 ",
+                },
+              ],
             }),
           ),
         ),
@@ -131,6 +157,12 @@ describe("GitHubCli.layer", () => {
         isCrossRepository: true,
         headRepositoryNameWithOwner: "octocat/codething-mvp",
         headRepositoryOwnerLogin: "octocat",
+        labels: [
+          {
+            name: "ready-for-agent",
+            color: "#0e8a16",
+          },
+        ],
       });
     }).pipe(Effect.provide(layer)),
   );
@@ -161,6 +193,12 @@ describe("GitHubCli.layer", () => {
                 headRepositoryOwner: {
                   login: "   ",
                 },
+                labels: [
+                  {
+                    name: " enhancement ",
+                    color: "a2eeef",
+                  },
+                ],
               },
             ]),
           ),
@@ -181,6 +219,12 @@ describe("GitHubCli.layer", () => {
           baseRefName: "main",
           headRefName: "feature/pr-list",
           state: "open",
+          labels: [
+            {
+              name: "enhancement",
+              color: "#a2eeef",
+            },
+          ],
         },
       ]);
     }).pipe(Effect.provide(layer)),
