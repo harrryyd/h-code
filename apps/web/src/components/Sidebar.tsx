@@ -12,7 +12,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import {
-  ChangeRequestStatusIcon,
+  ChangeRequestBadge,
   prStatusIndicator,
   resolveThreadPr,
   terminalStatusFromRunningIds,
@@ -603,17 +603,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         onContextMenu={handleRowContextMenu}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-          {prStatus && (
+          {pr && prStatus && (
             <Tooltip>
               <TooltipTrigger
                 render={
                   <button
                     type="button"
                     aria-label={prStatus.tooltip}
-                    className={`inline-flex items-center justify-center ${prStatus.colorClass} cursor-pointer rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring`}
+                    className="inline-flex min-w-0 max-w-full items-center justify-center cursor-pointer rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                     onClick={handlePrClick}
                   >
-                    <ChangeRequestStatusIcon className="size-3" />
+                    <ChangeRequestBadge pr={pr} provider={gitStatus.data?.sourceControlProvider} />
                   </button>
                 }
               />
