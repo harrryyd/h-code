@@ -179,6 +179,7 @@ function makeHarness(config?: {
   readonly baseDir?: string;
   readonly claudeConfig?: Partial<ClaudeSettings>;
   readonly instanceId?: ProviderInstanceId;
+  readonly settingsOverrides?: Parameters<typeof ServerSettingsService.layerTest>[0];
 }) {
   const query = new FakeClaudeQuery();
   let createInput:
@@ -222,7 +223,7 @@ function makeHarness(config?: {
       ),
       Layer.provideMerge(ThreadMcpToggleRepositoryLive),
       Layer.provideMerge(SqlitePersistenceMemory),
-      Layer.provideMerge(ServerSettingsService.layerTest()),
+      Layer.provideMerge(ServerSettingsService.layerTest(config?.settingsOverrides)),
       Layer.provideMerge(NodeServices.layer),
     ),
     query,
@@ -412,6 +413,35 @@ describe("ClaudeAdapterLive", () => {
         updatedAt: "2026-01-01T00:01:00.000Z",
       });
 
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+      });
+
+      assert.deepEqual(harness.query.toggleMcpServerCalls, [
+        { name: "filesystem", enabled: false },
+        { name: "github", enabled: true },
+      ]);
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("startSession applies MCP default preferences when no thread override exists", () => {
+    const harness = makeHarness({
+      settingsOverrides: {
+        mcpDefaultPreferences: {
+          [ProviderInstanceId.make("claudeAgent")]: {
+            filesystem: false,
+            github: true,
+          },
+        },
+      },
+    });
+    return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
       yield* adapter.startSession({
         threadId: THREAD_ID,

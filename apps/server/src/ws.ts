@@ -71,7 +71,7 @@ import {
   ProviderAdapterSessionNotFoundError,
   ProviderUnsupportedError,
 } from "./provider/Errors.ts";
-import type { ClaudeAdapterShape } from "./provider/Services/ClaudeAdapter.ts";
+import { isClaudeAdapter } from "./provider/Services/ClaudeAdapter.ts";
 import { ProviderAdapterRegistry } from "./provider/Services/ProviderAdapterRegistry.ts";
 import { ProviderRegistry } from "./provider/Services/ProviderRegistry.ts";
 import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
@@ -447,8 +447,8 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
       const loadClaudeAdapter = () =>
         providerAdapterRegistry.getByInstance(ProviderInstanceId.make("claudeAgent")).pipe(
           Effect.flatMap((adapter) =>
-            adapter.capabilities.supportsMcpToggle
-              ? Effect.succeed(adapter as unknown as ClaudeAdapterShape)
+            isClaudeAdapter(adapter)
+              ? Effect.succeed(adapter)
               : Effect.fail(
                   new McpToggleError({
                     kind: "provider-not-claude",
