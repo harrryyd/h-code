@@ -112,6 +112,10 @@ export interface WsRpcClient {
       typeof WS_METHODS.gitPreparePullRequestThread
     >;
   };
+  readonly mcp: {
+    readonly listServers: RpcUnaryMethod<typeof WS_METHODS.mcpListServers>;
+    readonly toggleServer: RpcUnaryMethod<typeof WS_METHODS.mcpToggleServer>;
+  };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
     /**
@@ -245,6 +249,12 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
         transport.request((client) => client[WS_METHODS.gitResolvePullRequest](input)),
       preparePullRequestThread: (input) =>
         transport.request((client) => client[WS_METHODS.gitPreparePullRequestThread](input)),
+    },
+    mcp: {
+      listServers: (input) =>
+        transport.request((client) => client[WS_METHODS.mcpListServers](input)),
+      toggleServer: (input) =>
+        transport.request((client) => client[WS_METHODS.mcpToggleServer](input)),
     },
     server: {
       getConfig: () => transport.request((client) => client[WS_METHODS.serverGetConfig]({})),

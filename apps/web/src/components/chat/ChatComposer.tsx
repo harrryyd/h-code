@@ -61,6 +61,7 @@ import {
 } from "../composerFooterLayout";
 import { type ComposerPromptEditorHandle, ComposerPromptEditor } from "../ComposerPromptEditor";
 import { ProviderModelPicker } from "./ProviderModelPicker";
+import { McpToggleButton } from "./McpToggleButton";
 import { type ComposerCommandItem, ComposerCommandMenu } from "./ComposerCommandMenu";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
@@ -2315,6 +2316,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               )}
             >
               <div className="-m-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {selectedProviderEntry?.capabilities?.supportsMcpToggle && activeThreadId ? (
+                  <McpToggleButton
+                    threadId={activeThreadId}
+                    environmentId={environmentId}
+                    compact={isComposerFooterCompact}
+                  />
+                ) : null}
                 <ProviderModelPicker
                   compact={isComposerFooterCompact}
                   activeInstanceId={selectedInstanceId}
