@@ -268,6 +268,17 @@ const THREAD_ID = ThreadId.make("thread-claude-1");
 const RESUME_THREAD_ID = ThreadId.make("thread-claude-resume");
 
 describe("ClaudeAdapterLive", () => {
+  it.effect("declares MCP toggle capability", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      assert.deepEqual(adapter.capabilities, {
+        sessionModelSwitch: "in-session",
+        supportsMcpToggle: true,
+      });
+    }).pipe(Effect.provide(harness.layer));
+  });
+
   it.effect("returns validation error for non-claude provider on startSession", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

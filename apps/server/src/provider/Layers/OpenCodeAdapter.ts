@@ -1427,6 +1427,7 @@ export function makeOpenCodeAdapter(
       provider: PROVIDER,
       capabilities: {
         sessionModelSwitch: "in-session",
+        supportsMcpToggle: false,
       },
       startSession,
       sendTurn,

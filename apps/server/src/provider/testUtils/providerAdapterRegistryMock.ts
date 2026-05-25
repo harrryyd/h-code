@@ -77,6 +77,7 @@ export const makeAdapterRegistryMock = (adapters: KindAdapterMap): ProviderAdapt
           driverKind: ProviderDriverKind.make(adapter.provider),
           continuationKey: `${adapter.provider}:instance:${instanceId}`,
         },
+        capabilities: adapter.capabilities,
       });
     },
     listInstances: () => Effect.succeed(Array.from(byInstanceId.keys())),

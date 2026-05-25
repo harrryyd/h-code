@@ -105,7 +105,8 @@ function createProviderServiceHarness() {
     respondToUserInput: () => unsupported(),
     stopSession: () => unsupported(),
     listSessions: () => Effect.succeed([...runtimeSessions]),
-    getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+    getCapabilities: () =>
+      Effect.succeed({ sessionModelSwitch: "in-session", supportsMcpToggle: false }),
     getInstanceInfo: (instanceId) => {
       const driverKind = ProviderDriverKind.make(String(instanceId));
       return Effect.succeed({
@@ -116,6 +117,10 @@ function createProviderServiceHarness() {
         continuationIdentity: {
           driverKind,
           continuationKey: `${driverKind}:instance:${instanceId}`,
+        },
+        capabilities: {
+          sessionModelSwitch: "in-session",
+          supportsMcpToggle: false,
         },
       });
     },

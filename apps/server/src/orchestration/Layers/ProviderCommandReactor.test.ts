@@ -304,6 +304,7 @@ describe("ProviderCommandReactor", () => {
       getCapabilities: (_provider) =>
         Effect.succeed({
           sessionModelSwitch: input?.sessionModelSwitch ?? "in-session",
+          supportsMcpToggle: false,
         }),
       getInstanceInfo: (instanceId) => {
         const raw = String(instanceId);
@@ -321,6 +322,10 @@ describe("ProviderCommandReactor", () => {
               driverKind === ProviderDriverKind.make("codex")
                 ? "codex:home:/shared-codex"
                 : `${driverKind}:instance:${instanceId}`,
+          },
+          capabilities: {
+            sessionModelSwitch: input?.sessionModelSwitch ?? "in-session",
+            supportsMcpToggle: false,
           },
         });
       },

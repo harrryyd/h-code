@@ -30,6 +30,10 @@ export interface ProviderAdapterCapabilities {
    * Declares whether changing the model on an existing session is supported.
    */
   readonly sessionModelSwitch: ProviderSessionModelSwitchMode;
+  /**
+   * Declares whether the adapter supports per-thread MCP server toggles.
+   */
+  readonly supportsMcpToggle: boolean;
 }
 
 export interface ProviderThreadTurnSnapshot {
