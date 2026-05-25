@@ -39,6 +39,7 @@ import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 
 import { ServerConfig } from "../../config.ts";
 import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 import { ClaudeDriver, type ClaudeDriverEnv } from "../Drivers/ClaudeDriver.ts";
 import { CodexDriver, type CodexDriverEnv } from "../Drivers/CodexDriver.ts";
 import { CursorDriver, type CursorDriverEnv } from "../Drivers/CursorDriver.ts";
@@ -245,6 +246,7 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
   }).pipe(
     Layer.provideMerge(infraLayer),
     Layer.provideMerge(TestHttpClientLive),
+    Layer.provideMerge(ServerSettingsService.layerTest()),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
     Layer.provideMerge(NoOpThreadMcpToggleRepository),
   );
@@ -291,9 +293,7 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
         },
       };
       const drivers: ReadonlyArray<
-        AnyProviderDriver<
-          CodexDriverEnv | ClaudeDriverEnv | CursorDriverEnv | OpenCodeDriverEnv
-        >
+        AnyProviderDriver<CodexDriverEnv | ClaudeDriverEnv | CursorDriverEnv | OpenCodeDriverEnv>
       > = [CodexDriver, ClaudeDriver, CursorDriver, OpenCodeDriver];
 
       const { registry } = yield* makeProviderInstanceRegistry({
