@@ -34,8 +34,11 @@ import * as TestClock from "effect/testing/TestClock";
 
 import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
+import { ThreadMcpToggleRepositoryLive } from "../../persistence/Layers/ThreadMcpToggles.ts";
+import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
+import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
-import { ProviderAdapterValidationError } from "../Errors.ts";
+import { ProviderAdapterSessionNotFoundError, ProviderAdapterValidationError } from "../Errors.ts";
 import type { ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import { makeClaudeAdapter, type ClaudeAdapterLiveOptions } from "./ClaudeAdapter.ts";
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
@@ -58,6 +61,12 @@ class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
   public readonly setModelCalls: Array<string | undefined> = [];
   public readonly setPermissionModeCalls: Array<string> = [];
   public readonly setMaxThinkingTokensCalls: Array<number | null> = [];
+  public readonly toggleMcpServerCalls: Array<{ name: string; enabled: boolean }> = [];
+  public readonly mcpServerStatusCalls: Array<void> = [];
+  public mcpServerStatuses: ReadonlyArray<{
+    readonly name: string;
+    readonly status: "connected" | "failed" | "needs-auth" | "pending" | "disabled";
+  }> = [];
   public closeCalls = 0;
 
   emit(message: SDKMessage): void {
@@ -108,6 +117,20 @@ class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
 
   readonly setMaxThinkingTokens = async (maxThinkingTokens: number | null): Promise<void> => {
     this.setMaxThinkingTokensCalls.push(maxThinkingTokens);
+  };
+
+  readonly toggleMcpServer = async (name: string, enabled: boolean): Promise<void> => {
+    this.toggleMcpServerCalls.push({ name, enabled });
+  };
+
+  readonly mcpServerStatus = async (): Promise<
+    ReadonlyArray<{
+      readonly name: string;
+      readonly status: "connected" | "failed" | "needs-auth" | "pending" | "disabled";
+    }>
+  > => {
+    this.mcpServerStatusCalls.push(undefined);
+    return this.mcpServerStatuses;
   };
 
   readonly close = (): void => {
@@ -197,6 +220,8 @@ function makeHarness(config?: {
           config?.baseDir ?? "/tmp",
         ),
       ),
+      Layer.provideMerge(ThreadMcpToggleRepositoryLive),
+      Layer.provideMerge(SqlitePersistenceMemory),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(NodeServices.layer),
     ),
@@ -303,6 +328,126 @@ describe("ClaudeAdapterLive", () => {
           issue: "Expected provider 'claudeAgent' but received 'codex'.",
         }),
       );
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("toggleMcpServerOnThread fails when the session is missing", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      const result = yield* adapter
+        .toggleMcpServerOnThread(THREAD_ID, "filesystem", true)
+        .pipe(Effect.result);
+
+      assert.equal(result._tag, "Failure");
+      if (result._tag !== "Failure") {
+        return;
+      }
+      assert.deepEqual(
+        result.failure,
+        new ProviderAdapterSessionNotFoundError({
+          provider: ProviderDriverKind.make("claudeAgent"),
+          threadId: THREAD_ID,
+        }),
+      );
+    }).pipe(Effect.provide(harness.layer));
+  });
+
+  it.effect("toggleMcpServerOnThread persists the toggle when the session exists", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      const repository = yield* ThreadMcpToggleRepository;
+
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.toggleMcpServerOnThread(THREAD_ID, "filesystem", false);
+
+      assert.deepEqual(harness.query.toggleMcpServerCalls, [
+        { name: "filesystem", enabled: false },
+      ]);
+      const rows = yield* repository.listByThreadId({ threadId: THREAD_ID });
+      assert.equal(rows.length, 1);
+      assert.deepEqual(
+        rows[0] && {
+          ...rows[0],
+          updatedAt: typeof rows[0].updatedAt === "string" ? "<timestamp>" : rows[0].updatedAt,
+        },
+        {
+          threadId: THREAD_ID,
+          providerKind: ProviderDriverKind.make("claudeAgent"),
+          mcpServerName: "filesystem",
+          enabled: false,
+          updatedAt: "<timestamp>",
+        },
+      );
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("startSession applies persisted MCP toggles", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const repository = yield* ThreadMcpToggleRepository;
+      yield* repository.upsert({
+        threadId: THREAD_ID,
+        providerKind: ProviderDriverKind.make("claudeAgent"),
+        mcpServerName: "filesystem",
+        enabled: false,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      });
+      yield* repository.upsert({
+        threadId: THREAD_ID,
+        providerKind: ProviderDriverKind.make("claudeAgent"),
+        mcpServerName: "github",
+        enabled: true,
+        updatedAt: "2026-01-01T00:01:00.000Z",
+      });
+
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+      });
+
+      assert.deepEqual(harness.query.toggleMcpServerCalls, [
+        { name: "filesystem", enabled: false },
+        { name: "github", enabled: true },
+      ]);
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("listMcpServersOnThread proxies through to the SDK query", () => {
+    const harness = makeHarness();
+    harness.query.mcpServerStatuses = [
+      { name: "filesystem", status: "connected" },
+      { name: "github", status: "disabled" },
+    ];
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+      });
+
+      assert.deepEqual(yield* adapter.listMcpServersOnThread(THREAD_ID), [
+        { name: "filesystem", status: "connected" },
+        { name: "github", status: "disabled" },
+      ]);
+      assert.deepEqual(harness.query.mcpServerStatusCalls, [undefined]);
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),
@@ -1367,6 +1512,8 @@ describe("ClaudeAdapterLive", () => {
       }),
     ).pipe(
       Layer.provideMerge(ServerConfig.layerTest("/tmp/claude-adapter-test", "/tmp")),
+      Layer.provideMerge(ThreadMcpToggleRepositoryLive),
+      Layer.provideMerge(SqlitePersistenceMemory),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(NodeServices.layer),
     );
@@ -1458,6 +1605,8 @@ describe("ClaudeAdapterLive", () => {
       }),
     ).pipe(
       Layer.provideMerge(ServerConfig.layerTest("/tmp/claude-adapter-test", "/tmp")),
+      Layer.provideMerge(ThreadMcpToggleRepositoryLive),
+      Layer.provideMerge(SqlitePersistenceMemory),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(NodeServices.layer),
     );
