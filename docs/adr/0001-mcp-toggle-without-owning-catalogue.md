@@ -1,0 +1,1 @@
+T3 Code's MCP toggle operates only on servers from the provider's own config (`~/.claude/.mcp.json` etc.). T3 doesn't add/remove/define servers - that's the provider CLI's job. Toggles flip existing servers via `Query.toggleMcpServer` and persist per-Thread; defaults for new Threads live as MCP Default Preferences in `userdata/settings.json`.

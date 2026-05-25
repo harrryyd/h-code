@@ -239,6 +239,16 @@ const validationLayer = it.layer(
 );
 
 validationLayer("CodexAdapterLive validation", (it) => {
+  it.effect("declares MCP toggle capability", () =>
+    Effect.gen(function* () {
+      const adapter = yield* CodexAdapter;
+      assert.deepStrictEqual(adapter.capabilities, {
+        sessionModelSwitch: "in-session",
+        supportsMcpToggle: false,
+      });
+    }),
+  );
+
   it.effect("returns validation error for non-codex provider on startSession", () =>
     Effect.gen(function* () {
       const adapter = yield* CodexAdapter;

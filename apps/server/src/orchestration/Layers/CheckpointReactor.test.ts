@@ -111,7 +111,8 @@ function createProviderServiceHarness(
     respondToUserInput: () => unsupported(),
     stopSession: () => unsupported(),
     listSessions,
-    getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+    getCapabilities: () =>
+      Effect.succeed({ sessionModelSwitch: "in-session", supportsMcpToggle: false }),
     getInstanceInfo: (instanceId) =>
       Effect.succeed({
         instanceId,
@@ -121,6 +122,10 @@ function createProviderServiceHarness(
         continuationIdentity: {
           driverKind: ProviderDriverKind.make(providerName),
           continuationKey: `${providerName}:instance:${instanceId}`,
+        },
+        capabilities: {
+          sessionModelSwitch: "in-session",
+          supportsMcpToggle: false,
         },
       }),
     rollbackConversation,
