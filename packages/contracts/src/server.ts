@@ -116,6 +116,12 @@ export const ServerProviderContinuation = Schema.Struct({
 });
 export type ServerProviderContinuation = typeof ServerProviderContinuation.Type;
 
+export const ProviderCapabilitiesSnapshot = Schema.Struct({
+  sessionModelSwitch: Schema.Literals(["in-session", "unsupported"]),
+  supportsMcpToggle: Schema.Boolean,
+});
+export type ProviderCapabilitiesSnapshot = typeof ProviderCapabilitiesSnapshot.Type;
+
 export const ServerProviderVersionAdvisoryStatus = Schema.Literals([
   "unknown",
   "current",
@@ -172,6 +178,7 @@ export const ServerProvider = Schema.Struct({
   auth: ServerProviderAuth,
   checkedAt: IsoDateTime,
   message: Schema.optional(TrimmedNonEmptyString),
+  capabilities: Schema.optional(ProviderCapabilitiesSnapshot),
   // Optional for back-compat: every legacy producer omits this field and
   // an absent value is interpreted as `"available"` by consumers (see
   // `isProviderAvailable`). New `ProviderInstanceRegistry` outputs set it

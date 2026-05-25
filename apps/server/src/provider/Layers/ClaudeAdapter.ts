@@ -68,6 +68,7 @@ import * as Stream from "effect/Stream";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
 import {
   getClaudeModelCapabilities,
@@ -1002,6 +1003,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig;
+  const settingsService = yield* ServerSettingsService;
   const threadMcpToggleRepository = yield* ThreadMcpToggleRepository;
   const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, options?.environment).pipe(
     Effect.provideService(Path.Path, path),
@@ -2525,6 +2527,14 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const applyPersistedMcpToggles = Effect.fn("applyPersistedMcpToggles")(function* (
     context: ClaudeSessionContext,
   ) {
+    const settings = yield* settingsService.getSettings.pipe(
+      Effect.catchCause((cause) =>
+        Effect.logWarning("claude.mcp-toggle.defaults-load-failed", {
+          threadId: context.session.threadId,
+          cause,
+        }).pipe(Effect.as({ mcpDefaultPreferences: {} })),
+      ),
+    );
     const persistedRows = yield* threadMcpToggleRepository
       .listByThreadId({
         threadId: context.session.threadId,
@@ -2537,25 +2547,37 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
           }).pipe(Effect.as([])),
         ),
       );
+    const defaultsByInstance = settings.mcpDefaultPreferences as Readonly<
+      Record<string, Readonly<Record<string, boolean>> | undefined>
+    >;
+    const effective = new Map<string, boolean>(
+      Object.entries(defaultsByInstance[boundInstanceId] ?? {}),
+    );
+    for (const row of persistedRows) {
+      if (row.providerKind !== PROVIDER) {
+        continue;
+      }
+      effective.set(row.mcpServerName, row.enabled);
+    }
 
     yield* Effect.forEach(
-      persistedRows,
-      (row) =>
+      [...effective.entries()],
+      ([mcpServerName, enabled]) =>
         Effect.tryPromise({
-          try: () => context.query.toggleMcpServer(row.mcpServerName, row.enabled),
+          try: () => context.query.toggleMcpServer(mcpServerName, enabled),
           catch: (cause) =>
             new ProviderAdapterProcessError({
               provider: PROVIDER,
               threadId: context.session.threadId,
-              detail: toMessage(cause, `Failed to apply MCP toggle '${row.mcpServerName}'.`),
+              detail: toMessage(cause, `Failed to apply MCP toggle '${mcpServerName}'.`),
               cause,
             }),
         }).pipe(
           Effect.catchCause((cause) =>
             Effect.logWarning("claude.mcp-toggle.apply-failed", {
               threadId: context.session.threadId,
-              mcpServerName: row.mcpServerName,
-              enabled: row.enabled,
+              mcpServerName,
+              enabled,
               cause,
             }),
           ),
@@ -3307,23 +3329,25 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
           cause,
         }),
     });
-    yield* threadMcpToggleRepository.upsert({
-      threadId,
-      providerKind: PROVIDER,
-      mcpServerName,
-      enabled,
-      updatedAt: yield* nowIso,
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProviderAdapterProcessError({
-            provider: PROVIDER,
-            threadId,
-            detail: toMessage(cause, `Failed to persist MCP toggle '${mcpServerName}'.`),
-            cause,
-          }),
-      ),
-    );
+    yield* threadMcpToggleRepository
+      .upsert({
+        threadId,
+        providerKind: PROVIDER,
+        mcpServerName,
+        enabled,
+        updatedAt: yield* nowIso,
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProviderAdapterProcessError({
+              provider: PROVIDER,
+              threadId,
+              detail: toMessage(cause, `Failed to persist MCP toggle '${mcpServerName}'.`),
+              cause,
+            }),
+        ),
+      );
   });
 
   const listMcpServersOnThread: ClaudeAdapterShape["listMcpServersOnThread"] = Effect.fn(

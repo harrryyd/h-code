@@ -430,6 +430,19 @@ function dedupeSlashCommands(
   return [...commandsByName.values()];
 }
 
+function normalizeMcpServerStatus(status: string | undefined): McpServerSnapshot["status"] {
+  switch (status) {
+    case "connected":
+    case "failed":
+    case "needs-auth":
+    case "pending":
+    case "disabled":
+      return status;
+    default:
+      return "disabled";
+  }
+}
+
 function waitForAbortSignal(signal: AbortSignal): Promise<void> {
   if (signal.aborted) {
     return Promise.resolve();
@@ -477,7 +490,34 @@ const probeClaudeCapabilities = (
           stderr: () => {},
         },
       });
-      const init = await q.initializationResult();
+      const initPromise = q.initializationResult();
+      let mcpServers: ReadonlyArray<McpServerSnapshot> = [];
+      const reader = (async () => {
+        try {
+          for await (const message of q) {
+            if (message.type === "system" && message.subtype === "init") {
+              const servers =
+                (
+                  message as {
+                    readonly mcp_servers?: ReadonlyArray<{
+                      readonly name: string;
+                      readonly status: string;
+                    }>;
+                  }
+                ).mcp_servers ?? [];
+              mcpServers = servers.map((server) => ({
+                name: server.name,
+                status: normalizeMcpServerStatus(server.status),
+              }));
+              return;
+            }
+          }
+        } catch {
+          mcpServers = [];
+        }
+      })();
+      const init = await initPromise;
+      await Promise.race([reader, Promise.resolve()]);
       const account = init.account as
         | {
             readonly email?: string;
@@ -490,7 +530,7 @@ const probeClaudeCapabilities = (
         subscriptionType: account?.subscriptionType,
         tokenSource: account?.tokenSource,
         slashCommands: parseClaudeInitializationCommands(init.commands),
-        mcpServers: [],
+        mcpServers,
       } satisfies ClaudeCapabilitiesProbe;
     });
   }).pipe(
