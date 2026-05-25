@@ -75,6 +75,11 @@ import {
 } from "./orchestration/Services/ProjectionSnapshotQuery.ts";
 import { SqlitePersistenceMemory } from "./persistence/Layers/Sqlite.ts";
 import { PersistenceSqlError } from "./persistence/Errors.ts";
+import { ProviderUnsupportedError } from "./provider/Errors.ts";
+import {
+  ProviderAdapterRegistry,
+  type ProviderAdapterRegistryShape,
+} from "./provider/Services/ProviderAdapterRegistry.ts";
 import {
   ProviderRegistry,
   type ProviderRegistryShape,
@@ -501,6 +506,24 @@ const buildAppUnderTest = (options?: {
           ...options.layers.vcsStatusBroadcaster,
         })
       : VcsStatusBroadcaster.layer.pipe(Layer.provide(gitWorkflowLayer));
+    const providerAdapterRegistryLayer = Layer.mock(ProviderAdapterRegistry)({
+      getByInstance: (instanceId) =>
+        Effect.fail(
+          new ProviderUnsupportedError({
+            provider: instanceId,
+          }),
+        ),
+      getInstanceInfo: (instanceId) =>
+        Effect.fail(
+          new ProviderUnsupportedError({
+            provider: instanceId,
+          }),
+        ),
+      listInstances: () => Effect.succeed([]),
+      listProviders: () => Effect.succeed([]),
+      streamChanges: Stream.empty,
+      subscribeChanges: Effect.die("ProviderAdapterRegistry.subscribeChanges not implemented."),
+    } satisfies ProviderAdapterRegistryShape);
 
     const servedRoutesLayer = HttpRouter.serve(makeRoutesLayer, {
       disableListenLog: true,
@@ -530,6 +553,7 @@ const buildAppUnderTest = (options?: {
           ...options?.layers?.providerRegistry,
         }),
       ),
+      Layer.provide(providerAdapterRegistryLayer),
       Layer.provide(
         Layer.mock(ServerSettingsService)({
           start: Effect.void,

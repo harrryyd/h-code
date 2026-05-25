@@ -27,6 +27,12 @@ import type {
 } from "./project.ts";
 import type { ProviderInstanceId } from "./providerInstance.ts";
 import type {
+  WsMcpListServersInput,
+  WsMcpListServersResult,
+  WsMcpToggleServerInput,
+  WsMcpToggleServerResult,
+} from "./rpc.ts";
+import type {
   ServerConfig,
   ServerProcessDiagnosticsResult,
   ServerProcessResourceHistoryInput,
@@ -543,6 +549,10 @@ export interface EnvironmentApi {
     preparePullRequestThread: (
       input: GitPreparePullRequestThreadInput,
     ) => Promise<GitPreparePullRequestThreadResult>;
+  };
+  mcp: {
+    listServers: (input: WsMcpListServersInput) => Promise<WsMcpListServersResult>;
+    toggleServer: (input: WsMcpToggleServerInput) => Promise<WsMcpToggleServerResult>;
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
