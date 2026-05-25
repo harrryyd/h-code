@@ -101,6 +101,10 @@ type TestClaudeCapabilities = {
   readonly subscriptionType: string | undefined;
   readonly tokenSource: string | undefined;
   readonly slashCommands: ReadonlyArray<ServerProviderSlashCommand>;
+  readonly mcpServers: ReadonlyArray<{
+    readonly name: string;
+    readonly status: "connected" | "failed" | "needs-auth" | "pending" | "disabled";
+  }>;
 };
 
 function claudeCapabilities(overrides: Partial<TestClaudeCapabilities> = {}) {
@@ -110,6 +114,7 @@ function claudeCapabilities(overrides: Partial<TestClaudeCapabilities> = {}) {
       subscriptionType: undefined,
       tokenSource: undefined,
       slashCommands: [],
+      mcpServers: [],
       ...overrides,
     });
 }
