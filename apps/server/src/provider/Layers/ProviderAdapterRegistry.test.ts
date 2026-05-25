@@ -57,6 +57,8 @@ const fakeClaudeAdapter: ClaudeAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
+  toggleMcpServerOnThread: vi.fn(),
+  listMcpServersOnThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };

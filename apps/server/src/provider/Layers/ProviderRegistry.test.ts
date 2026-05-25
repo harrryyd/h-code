@@ -43,6 +43,7 @@ import {
   selectProvidersByKind,
 } from "./ProviderRegistry.ts";
 import { ServerConfig } from "../../config.ts";
+import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
 import { ServerSettingsService, type ServerSettingsShape } from "../../serverSettings.ts";
 import { readProviderStatusCache, resolveProviderStatusCachePath } from "../providerStatusCache.ts";
 import type { ProviderInstance } from "../ProviderDriver.ts";
@@ -52,6 +53,11 @@ import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMainte
 const decodeServerSettings = Schema.decodeSync(ServerSettings);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const encodedDefaultServerSettings = encodeServerSettings(DEFAULT_SERVER_SETTINGS);
+const noOpThreadMcpToggleRepositoryLayer = Layer.succeed(ThreadMcpToggleRepository, {
+  upsert: () => Effect.void,
+  listByThreadId: () => Effect.succeed([]),
+  deleteAllForThread: () => Effect.void,
+});
 
 const defaultClaudeSettings: ClaudeSettings = Schema.decodeSync(ClaudeSettings)({});
 const defaultCodexSettings: CodexSettings = Schema.decodeSync(CodexSettings)({});
@@ -303,9 +309,14 @@ function makeMutableServerSettingsService(
   });
 }
 
-it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), TestHttpClientLive))(
-  "ProviderRegistry",
-  (it) => {
+it.layer(
+  Layer.mergeAll(
+    NodeServices.layer,
+    ServerSettingsService.layerTest(),
+    TestHttpClientLive,
+    noOpThreadMcpToggleRepositoryLayer,
+  ),
+)("ProviderRegistry", (it) => {
     describe("checkCodexProviderStatus", () => {
       it.effect("uses the app-server account and model list for provider status", () =>
         Effect.gen(function* () {
