@@ -149,6 +149,16 @@ const cursorAdapterTestLayer = it.layer(
 );
 
 cursorAdapterTestLayer("CursorAdapterLive", (it) => {
+  it.effect("declares MCP toggle capability", () =>
+    Effect.gen(function* () {
+      const adapter = yield* CursorAdapter;
+      assert.deepStrictEqual(adapter.capabilities, {
+        sessionModelSwitch: "in-session",
+        supportsMcpToggle: false,
+      });
+    }),
+  );
+
   it.effect("starts a session and maps mock ACP prompt flow to runtime events", () =>
     Effect.gen(function* () {
       const adapter = yield* CursorAdapter;
