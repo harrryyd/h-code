@@ -253,6 +253,14 @@ function createMockEnvironmentApi(input: {
     vcs: {} as EnvironmentApi["vcs"],
     git: {} as EnvironmentApi["git"],
     review: {} as EnvironmentApi["review"],
+    mcp: {
+      listServers: (() => {
+        throw new Error("Not implemented in browser test.");
+      }) as EnvironmentApi["mcp"]["listServers"],
+      toggleServer: (() => {
+        throw new Error("Not implemented in browser test.");
+      }) as EnvironmentApi["mcp"]["toggleServer"],
+    },
     orchestration: {
       dispatchCommand: input.dispatchCommand,
       getTurnDiff: (() => {

@@ -23,6 +23,7 @@ import {
   AuthSessionId,
   CommandId,
   EventId,
+  McpToggleError,
   type OrchestrationCommand,
   type GitActionProgressEvent,
   type GitManagerServiceError,
@@ -40,6 +41,7 @@ import {
   OrchestrationReplayEventsError,
   FilesystemBrowseError,
   EnvironmentAuthorizationError,
+  ProviderInstanceId,
   ThreadId,
   type TerminalAttachStreamEvent,
   type TerminalError,
@@ -64,6 +66,13 @@ import {
   observeRpcStream as instrumentRpcStream,
   observeRpcStreamEffect as instrumentRpcStreamEffect,
 } from "./observability/RpcInstrumentation.ts";
+import {
+  ProviderAdapterProcessError,
+  ProviderAdapterSessionNotFoundError,
+  ProviderUnsupportedError,
+} from "./provider/Errors.ts";
+import type { ClaudeAdapterShape } from "./provider/Services/ClaudeAdapter.ts";
+import { ProviderAdapterRegistry } from "./provider/Services/ProviderAdapterRegistry.ts";
 import { ProviderRegistry } from "./provider/Services/ProviderRegistry.ts";
 import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
 import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
@@ -102,6 +111,10 @@ import { failEnvironmentAuthInvalid, failEnvironmentInternal } from "./auth/http
 import * as RelayClient from "@t3tools/shared/relayClient";
 const isOrchestrationDispatchCommandError = Schema.is(OrchestrationDispatchCommandError);
 const isWorkspacePathOutsideRootError = Schema.is(WorkspacePathOutsideRootError);
+const isMcpToggleError = Schema.is(McpToggleError);
+const isProviderUnsupportedError = Schema.is(ProviderUnsupportedError);
+const isProviderAdapterSessionNotFoundError = Schema.is(ProviderAdapterSessionNotFoundError);
+const isProviderAdapterProcessError = Schema.is(ProviderAdapterProcessError);
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
@@ -240,6 +253,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
       const vcsProvisioning = yield* VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster;
       const terminalManager = yield* TerminalManager;
+      const providerAdapterRegistry = yield* ProviderAdapterRegistry;
       const providerRegistry = yield* ProviderRegistry;
       const providerMaintenanceRunner = yield* ProviderMaintenanceRunner.ProviderMaintenanceRunner;
       const config = yield* ServerConfig;
@@ -397,6 +411,55 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
               cause,
             });
       };
+
+      const toMcpToggleError = (cause: unknown, fallbackDetail: string): McpToggleError => {
+        if (isMcpToggleError(cause)) {
+          return cause;
+        }
+        if (isProviderUnsupportedError(cause)) {
+          return new McpToggleError({
+            kind: "provider-not-claude",
+            detail: cause.message,
+            cause,
+          });
+        }
+        if (isProviderAdapterSessionNotFoundError(cause)) {
+          return new McpToggleError({
+            kind: "session-not-found",
+            detail: cause.message,
+            cause,
+          });
+        }
+        if (isProviderAdapterProcessError(cause)) {
+          return new McpToggleError({
+            kind: "sdk-failure",
+            detail: cause.detail,
+            cause,
+          });
+        }
+        return new McpToggleError({
+          kind: "sdk-failure",
+          detail: cause instanceof Error ? cause.message : fallbackDetail,
+          cause,
+        });
+      };
+
+      const loadClaudeAdapter = () =>
+        providerAdapterRegistry.getByInstance(ProviderInstanceId.make("claudeAgent")).pipe(
+          Effect.flatMap((adapter) =>
+            adapter.capabilities.supportsMcpToggle
+              ? Effect.succeed(adapter as unknown as ClaudeAdapterShape)
+              : Effect.fail(
+                  new McpToggleError({
+                    kind: "provider-not-claude",
+                    detail: "MCP toggles are only available for the Claude provider.",
+                  }),
+                ),
+          ),
+          Effect.mapError((cause) =>
+            toMcpToggleError(cause, "Failed to load the Claude provider adapter."),
+          ),
+        );
 
       const enrichProjectEvent = (
         event: OrchestrationEvent,
@@ -1183,6 +1246,32 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
               ),
             ),
             { "rpc.aggregate": "workspace" },
+          ),
+        [WS_METHODS.mcpListServers]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.mcpListServers,
+            loadClaudeAdapter().pipe(
+              Effect.flatMap((adapter) => adapter.listMcpServersOnThread(input.threadId)),
+              Effect.map((servers) => ({ servers })),
+              Effect.mapError((cause) =>
+                toMcpToggleError(cause, "Failed to list MCP servers for this thread."),
+              ),
+            ),
+            { "rpc.aggregate": "mcp" },
+          ),
+        [WS_METHODS.mcpToggleServer]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.mcpToggleServer,
+            loadClaudeAdapter().pipe(
+              Effect.flatMap((adapter) =>
+                adapter.toggleMcpServerOnThread(input.threadId, input.mcpServerName, input.enabled),
+              ),
+              Effect.as({}),
+              Effect.mapError((cause) =>
+                toMcpToggleError(cause, `Failed to toggle MCP server '${input.mcpServerName}'.`),
+              ),
+            ),
+            { "rpc.aggregate": "mcp" },
           ),
         [WS_METHODS.subscribeVcsStatus]: (input) =>
           observeRpcStream(

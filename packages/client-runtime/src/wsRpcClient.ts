@@ -125,6 +125,10 @@ export interface WsRpcClient {
   readonly review: {
     readonly getDiffPreview: RpcUnaryMethod<typeof WS_METHODS.reviewGetDiffPreview>;
   };
+  readonly mcp: {
+    readonly listServers: RpcUnaryMethod<typeof WS_METHODS.mcpListServers>;
+    readonly toggleServer: RpcUnaryMethod<typeof WS_METHODS.mcpToggleServer>;
+  };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
     readonly refreshProviders: (
@@ -285,6 +289,12 @@ export function createWsRpcClient(
     review: {
       getDiffPreview: (input) =>
         transport.request((client) => client[WS_METHODS.reviewGetDiffPreview](input)),
+    },
+    mcp: {
+      listServers: (input) =>
+        transport.request((client) => client[WS_METHODS.mcpListServers](input)),
+      toggleServer: (input) =>
+        transport.request((client) => client[WS_METHODS.mcpToggleServer](input)),
     },
     server: {
       getConfig: () => transport.request((client) => client[WS_METHODS.serverGetConfig]({})),
