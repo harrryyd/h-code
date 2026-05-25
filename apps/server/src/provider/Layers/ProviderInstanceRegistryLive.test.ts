@@ -39,6 +39,7 @@ import * as Layer from "effect/Layer";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 
 import { ServerConfig } from "../../config.ts";
+import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
 import { ClaudeDriver } from "../Drivers/ClaudeDriver.ts";
 import { CodexDriver } from "../Drivers/CodexDriver.ts";
 import { CursorDriver } from "../Drivers/CursorDriver.ts";
@@ -54,6 +55,12 @@ const TestHttpClientLive = Layer.succeed(
     Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ version: "0.0.0" }))),
   ),
 );
+
+const NoOpThreadMcpToggleRepository = Layer.succeed(ThreadMcpToggleRepository, {
+  upsert: () => Effect.void,
+  listByThreadId: () => Effect.succeed([]),
+  deleteAllForThread: () => Effect.void,
+});
 
 const makeCodexConfig = (overrides: Partial<CodexSettings>): CodexSettings => ({
   enabled: false,
@@ -109,6 +116,7 @@ describe("ProviderInstanceRegistryLive — multi-instance codex slice", () => {
     Layer.provideMerge(NodeServices.layer),
     Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
+    Layer.provideMerge(NoOpThreadMcpToggleRepository),
   );
 
   it.live("boots two independent codex instances from a ProviderInstanceConfigMap", () =>
@@ -246,6 +254,7 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
     Layer.provideMerge(infraLayer),
     Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
+    Layer.provideMerge(NoOpThreadMcpToggleRepository),
   );
 
   it.live("boots one instance of every shipped driver from a single config map", () =>
@@ -297,7 +306,6 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
           config: makeOpenCodeConfig({}),
         },
       };
-
       const { registry } = yield* makeProviderInstanceRegistry({
         drivers: [CodexDriver, ClaudeDriver, CursorDriver, GrokDriver, OpenCodeDriver],
         configMap,
