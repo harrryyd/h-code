@@ -22,6 +22,11 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});
   });
 
+  it("defaults MCP default preferences to an empty record", () => {
+    expect(DEFAULT_SERVER_SETTINGS.mcpDefaultPreferences).toEqual({});
+    expect(decodeServerSettings({}).mcpDefaultPreferences).toEqual({});
+  });
+
   it("decodes a fully empty config (legacy on-disk shape) without complaint", () => {
     const decoded = decodeServerSettings({});
     expect(decoded.projectThreadDefaults).toEqual({});

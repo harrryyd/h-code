@@ -359,6 +359,12 @@ type ClaudeCapabilitiesProbe = {
   readonly subscriptionType: string | undefined;
   readonly tokenSource: string | undefined;
   readonly slashCommands: ReadonlyArray<ServerProviderSlashCommand>;
+  readonly mcpServers: ReadonlyArray<McpServerSnapshot>;
+};
+
+export type McpServerSnapshot = {
+  readonly name: string;
+  readonly status: "connected" | "failed" | "needs-auth" | "pending" | "disabled";
 };
 
 function parseClaudeInitializationCommands(
@@ -484,6 +490,7 @@ const probeClaudeCapabilities = (
         subscriptionType: account?.subscriptionType,
         tokenSource: account?.tokenSource,
         slashCommands: parseClaudeInitializationCommands(init.commands),
+        mcpServers: [],
       } satisfies ClaudeCapabilitiesProbe;
     });
   }).pipe(
