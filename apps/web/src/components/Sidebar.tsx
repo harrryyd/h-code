@@ -12,7 +12,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import {
-  ChangeRequestStatusIcon,
+  ChangeRequestBadge,
   prStatusIndicator,
   resolveThreadPr,
   terminalStatusFromRunningIds,
@@ -65,6 +65,10 @@ import {
 import { usePrimaryEnvironmentId } from "../environments/primary";
 import { isElectron } from "../env";
 import { APP_STAGE_LABEL, APP_VERSION } from "../branding";
+import {
+  isEditableShortcutTarget,
+  isModalShortcutCaptureActive,
+} from "../lib/globalShortcutGuards";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { isMacPlatform, newCommandId } from "../lib/utils";
 import {
@@ -599,17 +603,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         onContextMenu={handleRowContextMenu}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-          {prStatus && (
+          {pr && prStatus && (
             <Tooltip>
               <TooltipTrigger
                 render={
                   <button
                     type="button"
                     aria-label={prStatus.tooltip}
-                    className={`inline-flex items-center justify-center ${prStatus.colorClass} cursor-pointer rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring`}
+                    className="inline-flex min-w-0 max-w-full items-center justify-center cursor-pointer rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                     onClick={handlePrClick}
                   >
-                    <ChangeRequestStatusIcon className="size-3" />
+                    <ChangeRequestBadge pr={pr} provider={gitStatus.data?.sourceControlProvider} />
                   </button>
                 }
               />
@@ -981,6 +985,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   const projectGroupingSettings = useSettings(selectProjectGroupingSettings);
   const projectThreadDefaultsSettings = useSettings(selectProjectThreadDefaultsSettings);
   const manualSidebarGroupsSettings = useSettings(selectManualSidebarGroupsSettings);
+  const keybindings = useServerKeybindings();
   const { updateSettings } = useUpdateSettings();
   const sidebarThreadPreviewCount = useSettings<SidebarThreadPreviewCount>(
     (settings) => settings.sidebarThreadPreviewCount,
@@ -1834,6 +1839,12 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     renamingInputRef.current = null;
   }, []);
 
+  const startThreadRename = useCallback((threadKey: string, title: string) => {
+    setRenamingThreadKey(threadKey);
+    setRenamingTitle(title);
+    renamingCommittedRef.current = false;
+  }, []);
+
   const commitRename = useCallback(
     async (threadRef: ScopedThreadRef, newTitle: string, originalTitle: string) => {
       const threadKey = scopedThreadKey(threadRef);
@@ -2056,9 +2067,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       );
 
       if (clicked === "rename") {
-        setRenamingThreadKey(threadKey);
-        setRenamingTitle(thread.title);
-        renamingCommittedRef.current = false;
+        startThreadRename(threadKey, thread.title);
         return;
       }
 
@@ -2106,8 +2115,48 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       markThreadUnread,
       memberProjectByScopedKey,
       project.cwd,
+      startThreadRename,
     ],
   );
+
+  useEffect(() => {
+    const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || !activeRouteThreadKey) {
+        return;
+      }
+
+      if (
+        isModalShortcutCaptureActive(event.target) ||
+        isEditableShortcutTarget(event.target, { allowComposer: true })
+      ) {
+        return;
+      }
+
+      const activeThread = sidebarThreadByKeyRef.current.get(activeRouteThreadKey);
+      if (!activeThread) {
+        return;
+      }
+
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: {
+          terminalFocus: isTerminalFocused(),
+          terminalOpen: false,
+        },
+      });
+      if (command !== "thread.renameCurrent") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      startThreadRename(activeRouteThreadKey, activeThread.title);
+    };
+
+    window.addEventListener("keydown", onWindowKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onWindowKeyDown);
+    };
+  }, [activeRouteThreadKey, keybindings, startThreadRename]);
 
   return (
     <>

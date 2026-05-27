@@ -69,6 +69,102 @@ export function ChangeRequestStatusIcon({ className }: { className?: string }) {
   return <GitPullRequestIcon className={className} />;
 }
 
+type ThreadPrLabel = NonNullable<NonNullable<ThreadPr>["labels"]>[number];
+
+function normalizeBadgeLabelColor(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^#[0-9a-f]{6}$/iu.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  if (/^[0-9a-f]{6}$/iu.test(trimmed)) {
+    return `#${trimmed.toLowerCase()}`;
+  }
+  return null;
+}
+
+function resolveBadgeLabelTextColor(color: string): "#111827" | "#ffffff" {
+  const hex = color.slice(1);
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  return luminance >= 140 ? "#111827" : "#ffffff";
+}
+
+function ChangeRequestLabelPill({ label }: { label: ThreadPrLabel }) {
+  const color = normalizeBadgeLabelColor(label.color);
+  const style = color
+    ? {
+        backgroundColor: color,
+        borderColor: color,
+        color: resolveBadgeLabelTextColor(color),
+      }
+    : undefined;
+
+  return (
+    <span
+      title={label.name}
+      className="inline-flex max-w-20 shrink-0 items-center truncate rounded-full border px-1 py-0.5 text-[9px] leading-none"
+      style={style}
+    >
+      {label.name}
+    </span>
+  );
+}
+
+function normalizeBadgeLabels(labels: ReadonlyArray<ThreadPrLabel> | undefined): ThreadPrLabel[] {
+  if (!labels || labels.length === 0) {
+    return [];
+  }
+
+  const normalized: ThreadPrLabel[] = [];
+  const seen = new Set<string>();
+  for (const label of labels) {
+    const key = label.name.trim().toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push(label);
+  }
+  return normalized;
+}
+
+export function ChangeRequestBadge({
+  pr,
+  provider,
+}: {
+  pr: NonNullable<ThreadPr>;
+  provider: VcsStatusResult["sourceControlProvider"] | null | undefined;
+}) {
+  const prStatus = prStatusIndicator(pr, provider);
+  if (!prStatus) {
+    return null;
+  }
+
+  const normalizedLabels = pr.state === "open" ? normalizeBadgeLabels(pr.labels) : [];
+  const labels = normalizedLabels.slice(0, 2);
+  const overflowCount = Math.max(normalizedLabels.length - 2, 0);
+
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <span className={`inline-flex shrink-0 items-center gap-1 ${prStatus.colorClass}`}>
+        <ChangeRequestStatusIcon className="size-3 shrink-0" />
+        <span className="text-[10px] font-medium leading-none">#{pr.number}</span>
+      </span>
+      {labels.map((label) => (
+        <ChangeRequestLabelPill key={`${label.name}-${label.color ?? "none"}`} label={label} />
+      ))}
+      {overflowCount > 0 ? (
+        <span className="inline-flex shrink-0 items-center rounded-full border border-border/70 px-1 py-0.5 text-[9px] leading-none text-muted-foreground">
+          +{overflowCount}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function resolveThreadPr(
   threadBranch: string | null,
   gitStatus: VcsStatusResult | null,

@@ -12,7 +12,6 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 const LOADING_INDICATOR_DELAY_MS = 150;
-
 const STATUS_COPY: Record<McpServerSnapshot["status"], { label: string; dotClassName: string }> = {
   connected: {
     label: "Connected",
