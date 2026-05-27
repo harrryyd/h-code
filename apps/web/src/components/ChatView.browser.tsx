@@ -16,6 +16,7 @@ import {
   type ServerLifecycleWelcomePayload,
   type ThreadId,
   type TurnId,
+  type VcsStatusResult,
   WS_METHODS,
   OrchestrationSessionStatus,
   DEFAULT_SERVER_SETTINGS,
@@ -74,38 +75,45 @@ import { BrowserWsRpcHarness, type NormalizedWsRpcRequestBody } from "../../test
 
 import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
 
-vi.mock("../lib/vcsStatusState", () => {
-  const status = {
-    data: {
-      isRepo: true,
-      sourceControlProvider: {
-        kind: "github",
-        name: "GitHub",
-        baseUrl: "https://github.com",
-      },
-      hasPrimaryRemote: true,
-      isDefaultRef: true,
-      refName: "main",
-      hasWorkingTreeChanges: false,
-      workingTree: { files: [], insertions: 0, deletions: 0 },
-      hasUpstream: true,
-      aheadCount: 0,
-      behindCount: 0,
-      pr: null,
-    },
-    error: null,
-    cause: null,
-    isPending: false,
-  };
+const { mockedGitStatusesRef } = vi.hoisted(() => ({
+  mockedGitStatusesRef: {
+    current: new Map<string, VcsStatusResult>(),
+  },
+}));
 
-  return {
-    getVcsStatusSnapshot: () => status,
-    useVcsStatus: () => status,
-    useVcsStatuses: () => new Map(),
-    refreshVcsStatus: () => Promise.resolve(null),
-    resetVcsStatusStateForTests: () => undefined,
-  };
-});
+function gitStatusTargetKey(input: {
+  environmentId: EnvironmentId | null;
+  cwd: string | null;
+}): string | null {
+  if (input.environmentId === null || input.cwd === null) {
+    return null;
+  }
+  return `${input.environmentId}:${input.cwd}`;
+}
+
+vi.mock("../lib/vcsStatusState", () => ({
+  getVcsStatusSnapshot: (input: { environmentId: EnvironmentId | null; cwd: string | null }) => {
+    const targetKey = gitStatusTargetKey(input);
+    return {
+      data: targetKey ? (mockedGitStatusesRef.current.get(targetKey) ?? null) : null,
+      error: null,
+      cause: null,
+      isPending: false,
+    };
+  },
+  useVcsStatus: (input: { environmentId: EnvironmentId | null; cwd: string | null }) => {
+    const targetKey = gitStatusTargetKey(input);
+    return {
+      data: targetKey ? (mockedGitStatusesRef.current.get(targetKey) ?? null) : null,
+      error: null,
+      cause: null,
+      isPending: false,
+    };
+  },
+  useVcsStatuses: () => new Map(),
+  refreshVcsStatus: () => Promise.resolve(null),
+  resetVcsStatusStateForTests: () => undefined,
+}));
 
 const THREAD_ID = "thread-browser-test" as ThreadId;
 const THREAD_TITLE = "Browser test thread";
@@ -1809,6 +1817,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     __resetEnvironmentApiOverridesForTests();
     resetSavedEnvironmentRegistryStoreForTests();
     resetSavedEnvironmentRuntimeStoreForTests();
+    mockedGitStatusesRef.current.clear();
     Reflect.deleteProperty(window, "desktopBridge");
     useComposerDraftStore.setState({
       draftsByThreadKey: {},
@@ -1838,6 +1847,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
 
   afterEach(() => {
     customWsRpcResolver = null;
+    mockedGitStatusesRef.current.clear();
     document.body.innerHTML = "";
   });
 
@@ -2529,6 +2539,35 @@ describe("ChatView timeline estimator parity (full app)", () => {
         [PROJECT_DRAFT_KEY]: THREAD_KEY,
       },
     });
+    mockedGitStatusesRef.current.set(`${LOCAL_ENVIRONMENT_ID}:/repo/worktrees/pr-1359`, {
+      isRepo: true,
+      sourceControlProvider: {
+        kind: "github",
+        name: "GitHub",
+        baseUrl: "https://github.com",
+      },
+      hasPrimaryRemote: true,
+      isDefaultRef: false,
+      refName: "archive-settings-overhaul",
+      hasWorkingTreeChanges: false,
+      workingTree: {
+        files: [],
+        insertions: 0,
+        deletions: 0,
+      },
+      hasUpstream: true,
+      aheadCount: 0,
+      behindCount: 0,
+      aheadOfDefaultCount: 0,
+      pr: {
+        number: 1359,
+        title: "Add thread archiving and settings navigation",
+        url: "https://github.com/pingdotgg/t3code/pull/1359",
+        baseRef: "main",
+        headRef: "archive-settings-overhaul",
+        state: "open",
+      },
+    });
 
     const mounted = await mountChatView({
       viewport: WIDE_FOOTER_VIEWPORT,
@@ -2629,6 +2668,73 @@ describe("ChatView timeline estimator parity (full app)", () => {
             request._tag === WS_METHODS.terminalWrite && request.data === "bun install\r",
         ),
       ).toBe(false);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("shows the pull request badge for a worktree-backed thread row", async () => {
+    const snapshotBase = createSnapshotForTargetUser({
+      targetMessageId: "msg-user-pr-badge-target" as MessageId,
+      targetText: "show pr badge",
+    });
+    const worktreePath = "/repo/worktrees/pr-1359";
+    const snapshot = {
+      ...snapshotBase,
+      threads: snapshotBase.threads.map((thread) =>
+        thread.id === THREAD_ID
+          ? {
+              ...thread,
+              branch: "archive-settings-overhaul",
+              worktreePath,
+            }
+          : thread,
+      ),
+    };
+
+    mockedGitStatusesRef.current.set(`${LOCAL_ENVIRONMENT_ID}:${worktreePath}`, {
+      isRepo: true,
+      sourceControlProvider: {
+        kind: "github",
+        name: "GitHub",
+        baseUrl: "https://github.com",
+      },
+      hasPrimaryRemote: true,
+      isDefaultRef: false,
+      refName: "archive-settings-overhaul",
+      hasWorkingTreeChanges: false,
+      workingTree: {
+        files: [],
+        insertions: 0,
+        deletions: 0,
+      },
+      hasUpstream: true,
+      aheadCount: 0,
+      behindCount: 0,
+      aheadOfDefaultCount: 0,
+      pr: {
+        number: 1359,
+        title: "Add thread archiving and settings navigation",
+        url: "https://github.com/pingdotgg/t3code/pull/1359",
+        baseRef: "main",
+        headRef: "archive-settings-overhaul",
+        state: "open",
+      },
+    });
+
+    const mounted = await mountChatView({
+      viewport: WIDE_FOOTER_VIEWPORT,
+      snapshot,
+    });
+
+    try {
+      await waitForElement(
+        () =>
+          document.querySelector<HTMLButtonElement>(
+            'button[aria-label="#1359 PR open: Add thread archiving and settings navigation"]',
+          ),
+        "Unable to find pull request status badge for worktree-backed thread row.",
+      );
     } finally {
       await mounted.cleanup();
     }
