@@ -3182,14 +3182,22 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
             {projectSections.map((section) => {
               const manualGroupId =
                 section.kind === "manual" ? section.id.replace(/^group:/, "") : null;
+              const isManualGroup = section.kind === "manual";
               return (
-                <div key={section.id}>
+                <div
+                  key={section.id}
+                  className={
+                    isManualGroup
+                      ? "rounded-xl border border-border/55 bg-muted/18 px-1.5 py-1 shadow-[inset_0_1px_0_hsl(var(--background)/0.5)]"
+                      : undefined
+                  }
+                >
                   {section.kind === "manual" || hasManualSidebarGroups ? (
                     <div className="mb-1 flex items-center gap-1 pl-1 pr-1">
                       {section.kind === "manual" ? (
                         <button
                           type="button"
-                          className="inline-flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-left text-[11px] font-medium text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+                          className="inline-flex h-6 min-w-0 flex-1 items-center gap-1 rounded-lg px-1.5 text-left text-[11px] font-medium text-muted-foreground/72 hover:bg-accent/70 hover:text-foreground"
                           onClick={() => {
                             if (manualGroupId) {
                               setManualSidebarGroupCollapsed(manualGroupId, !section.collapsed);
@@ -3253,9 +3261,19 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                   ) : null}
 
                   {section.kind === "manual" && section.collapsed ? null : (
-                    <SidebarMenu ref={attachProjectListAutoAnimateRef}>
-                      {renderProjectRows(section.projects)}
-                    </SidebarMenu>
+                    <div
+                      className={
+                        isManualGroup
+                          ? "ml-2 border-l border-border/55 pl-2"
+                          : hasManualSidebarGroups
+                            ? "pl-1"
+                            : ""
+                      }
+                    >
+                      <SidebarMenu ref={attachProjectListAutoAnimateRef}>
+                        {renderProjectRows(section.projects)}
+                      </SidebarMenu>
+                    </div>
                   )}
 
                   {section.kind === "manual" &&

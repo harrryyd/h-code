@@ -49,9 +49,7 @@
               }
             ],
             "currentValue": "xhigh",
-            "promptInjectedValues": [
-              "ultrathink"
-            ]
+            "promptInjectedValues": ["ultrathink"]
           },
           {
             "id": "contextWindow",
@@ -107,9 +105,7 @@
               }
             ],
             "currentValue": "high",
-            "promptInjectedValues": [
-              "ultrathink"
-            ]
+            "promptInjectedValues": ["ultrathink"]
           },
           {
             "id": "fastMode",
@@ -205,9 +201,7 @@
               }
             ],
             "currentValue": "high",
-            "promptInjectedValues": [
-              "ultrathink"
-            ]
+            "promptInjectedValues": ["ultrathink"]
           },
           {
             "id": "contextWindow",
