@@ -11,6 +11,7 @@ import { Switch } from "../ui/switch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
+const LOADING_INDICATOR_DELAY_MS = 150;
 const STATUS_COPY: Record<McpServerSnapshot["status"], { label: string; dotClassName: string }> = {
   connected: {
     label: "Connected",
@@ -50,15 +51,45 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
   const [open, setOpen] = useState(false);
   const [servers, setServers] = useState<ReadonlyArray<McpServerSnapshot>>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
+  const [hasResolvedServers, setHasResolvedServers] = useState(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [pendingServerNames, setPendingServerNames] = useState<ReadonlySet<string>>(new Set());
   const loadGenerationRef = useRef(0);
+  const loadingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const api = readEnvironmentApi(environmentId);
+
+  const clearLoadingIndicatorDelay = useCallback(() => {
+    if (loadingIndicatorTimeoutRef.current !== null) {
+      clearTimeout(loadingIndicatorTimeoutRef.current);
+      loadingIndicatorTimeoutRef.current = null;
+    }
+  }, []);
+
+  const queueLoadingIndicator = useCallback(
+    (generation: number) => {
+      clearLoadingIndicatorDelay();
+      setShowLoadingIndicator(false);
+
+      // Delay transient loading chrome so fast MCP lookups do not flash on open.
+      loadingIndicatorTimeoutRef.current = setTimeout(() => {
+        if (loadGenerationRef.current === generation) {
+          setShowLoadingIndicator(true);
+        }
+        loadingIndicatorTimeoutRef.current = null;
+      }, LOADING_INDICATOR_DELAY_MS);
+    },
+    [clearLoadingIndicatorDelay],
+  );
 
   const loadServers = useCallback(async () => {
     if (!api) {
+      clearLoadingIndicatorDelay();
+      setIsLoading(false);
+      setShowLoadingIndicator(false);
       setServers([]);
       setLoadingError("Environment connection unavailable.");
+      setHasResolvedServers(false);
       return;
     }
 
@@ -66,26 +97,48 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
     loadGenerationRef.current = generation;
     setIsLoading(true);
     setLoadingError(null);
+    queueLoadingIndicator(generation);
 
     try {
       const result = await api.mcp.listServers({ threadId });
       if (loadGenerationRef.current !== generation) return;
       setServers(result.servers);
+      setHasResolvedServers(true);
     } catch (error) {
       if (loadGenerationRef.current !== generation) return;
       setServers([]);
       setLoadingError(toErrorMessage(error, "Failed to load MCP servers."));
+      setHasResolvedServers(true);
     } finally {
       if (loadGenerationRef.current === generation) {
+        clearLoadingIndicatorDelay();
         setIsLoading(false);
+        setShowLoadingIndicator(false);
       }
     }
-  }, [api, threadId]);
+  }, [api, clearLoadingIndicatorDelay, queueLoadingIndicator, threadId]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      clearLoadingIndicatorDelay();
+      setShowLoadingIndicator(false);
+      return;
+    }
+
     void loadServers();
-  }, [loadServers, open]);
+  }, [clearLoadingIndicatorDelay, loadServers, open]);
+
+  useEffect(() => () => clearLoadingIndicatorDelay(), [clearLoadingIndicatorDelay]);
+
+  const isWaitingForInitialResult =
+    isLoading && !hasResolvedServers && servers.length === 0 && loadingError === null;
+  const showLoadingRow = isWaitingForInitialResult && showLoadingIndicator;
+  const showLoadingPlaceholder = isWaitingForInitialResult && !showLoadingIndicator;
+  const showEmptyState =
+    !isWaitingForInitialResult &&
+    loadingError === null &&
+    hasResolvedServers &&
+    servers.length === 0;
 
   const toggleServer = useCallback(
     async (serverName: string, enabled: boolean) => {
@@ -163,21 +216,36 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
             aria-label="Refresh MCP server status"
             type="button"
           >
-            {isLoading ? <Spinner className="size-3.5" /> : <RefreshCwIcon className="size-3.5" />}
+            {showLoadingIndicator ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <RefreshCwIcon className="size-3.5" />
+            )}
           </Button>
         </div>
 
         <div className="max-h-80 overflow-y-auto p-2">
-          {isLoading && servers.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-lg px-2 py-3 text-sm text-muted-foreground">
+          {showLoadingRow ? (
+            <div
+              data-mcp-loading-state="visible"
+              className="flex items-center gap-2 rounded-lg px-2 py-3 text-sm text-muted-foreground"
+            >
               <Spinner className="size-4" />
+              Loading MCP servers...
+            </div>
+          ) : showLoadingPlaceholder ? (
+            <div
+              aria-hidden="true"
+              data-mcp-loading-state="hidden"
+              className="h-10 rounded-lg px-2 py-3 opacity-0"
+            >
               Loading MCP servers...
             </div>
           ) : loadingError ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {loadingError}
             </div>
-          ) : servers.length === 0 ? (
+          ) : showEmptyState ? (
             <div className="rounded-lg px-3 py-2 text-sm text-muted-foreground">
               No configured MCP servers were reported by Claude.
             </div>
