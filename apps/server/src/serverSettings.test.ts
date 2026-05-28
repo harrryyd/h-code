@@ -519,9 +519,9 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       const serverConfig = yield* ServerConfig;
       const fileSystem = yield* FileSystem.FileSystem;
 
-      const manualSidebarGroups = [
-        { id: "frontend", name: "Frontend", collapsed: false },
-        { id: "ops", name: "Ops", collapsed: true },
+      const manualSidebarGroups: typeof DEFAULT_SERVER_SETTINGS.manualSidebarGroups = [
+        { id: "frontend", name: "Frontend", color: "sky", collapsed: false },
+        { id: "ops", name: "Ops", color: "sage", collapsed: true },
       ];
       const projectManualSidebarGroupAssignments = {
         "primary:/Users/julius/Code/t3code": "frontend",
@@ -555,8 +555,8 @@ it.layer(NodeServices.layer)("server settings", (it) => {
 
       yield* serverSettings.updateSettings({
         manualSidebarGroups: [
-          { id: "frontend", name: "Frontend", collapsed: false },
-          { id: "ops", name: "Ops", collapsed: false },
+          { id: "frontend", name: "Frontend", color: "sky", collapsed: false },
+          { id: "ops", name: "Ops", color: "sage", collapsed: false },
         ],
         projectManualSidebarGroupAssignments: {
           "primary:/Users/julius/Code/t3code": "frontend",
@@ -565,11 +565,11 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       });
 
       const next = yield* serverSettings.updateSettings({
-        manualSidebarGroups: [{ id: "frontend", name: "Frontend", collapsed: true }],
+        manualSidebarGroups: [{ id: "frontend", name: "Frontend", color: "sky", collapsed: true }],
       });
 
       assert.deepEqual(next.manualSidebarGroups, [
-        { id: "frontend", name: "Frontend", collapsed: true },
+        { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
       ]);
       assert.deepEqual(next.projectManualSidebarGroupAssignments, {
         "primary:/Users/julius/Code/t3code": "frontend",

@@ -1,6 +1,7 @@
 import {
   ArchiveIcon,
   ArrowUpDownIcon,
+  CheckIcon,
   ChevronRightIcon,
   CloudIcon,
   EllipsisIcon,
@@ -54,7 +55,9 @@ import {
 } from "@t3tools/client-runtime";
 import { Link, useLocation, useNavigate, useParams, useRouter } from "@tanstack/react-router";
 import {
+  DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE,
   type ManualSidebarGroup,
+  type ManualSidebarGroupColorPalette,
   MAX_SIDEBAR_THREAD_PREVIEW_COUNT,
   MIN_SIDEBAR_THREAD_PREVIEW_COUNT,
   type ProjectThreadDefaultMode,
@@ -236,6 +239,29 @@ const PROJECT_THREAD_DEFAULT_MODE_LABELS: Record<ProjectThreadDefaultMode, strin
   local: "Local checkout",
   worktree: "New worktree",
 };
+const MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS: readonly {
+  value: ManualSidebarGroupColorPalette;
+  label: string;
+}[] = [
+  { value: "slate", label: "Slate" },
+  { value: "sky", label: "Sky" },
+  { value: "mint", label: "Mint" },
+  { value: "sage", label: "Sage" },
+  { value: "amber", label: "Amber" },
+  { value: "peach", label: "Peach" },
+  { value: "rose", label: "Rose" },
+  { value: "lavender", label: "Lavender" },
+];
+const MANUAL_SIDEBAR_GROUP_COLOR_BASE: Record<ManualSidebarGroupColorPalette, string> = {
+  slate: "var(--color-slate-400)",
+  sky: "var(--color-sky-400)",
+  mint: "var(--color-teal-400)",
+  sage: "var(--color-emerald-400)",
+  amber: "var(--color-amber-400)",
+  peach: "var(--color-orange-300)",
+  rose: "var(--color-rose-400)",
+  lavender: "var(--color-violet-400)",
+};
 
 function slugifyManualSidebarGroupName(name: string): string {
   const slug = name
@@ -267,6 +293,75 @@ function clampSidebarThreadPreviewCount(value: number): SidebarThreadPreviewCoun
     MAX_SIDEBAR_THREAD_PREVIEW_COUNT,
     Math.max(MIN_SIDEBAR_THREAD_PREVIEW_COUNT, value),
   ) as SidebarThreadPreviewCount;
+}
+
+function getDefaultManualSidebarGroupColor(index: number): ManualSidebarGroupColorPalette {
+  return (
+    MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS[index % MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS.length]?.value ??
+    DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE
+  );
+}
+
+function getManualSidebarGroupColorVars(
+  color: ManualSidebarGroupColorPalette,
+): React.CSSProperties {
+  const baseColor = MANUAL_SIDEBAR_GROUP_COLOR_BASE[color];
+  return {
+    "--manual-sidebar-group-bg": `color-mix(in srgb, ${baseColor} 14%, var(--background))`,
+    "--manual-sidebar-group-border": `color-mix(in srgb, ${baseColor} 24%, var(--border))`,
+    "--manual-sidebar-group-foreground": `color-mix(in srgb, ${baseColor} 24%, var(--foreground))`,
+    "--manual-sidebar-group-muted-foreground": `color-mix(in srgb, ${baseColor} 16%, var(--muted-foreground))`,
+    "--manual-sidebar-group-hover": `color-mix(in srgb, ${baseColor} 18%, var(--accent))`,
+    "--manual-sidebar-group-rail": `color-mix(in srgb, ${baseColor} 30%, var(--border))`,
+    "--manual-sidebar-group-dot": `color-mix(in srgb, ${baseColor} 72%, var(--background))`,
+  } as React.CSSProperties;
+}
+
+function ManualSidebarGroupColorDot(props: {
+  color: ManualSidebarGroupColorPalette;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`rounded-full border border-[var(--manual-sidebar-group-border)] bg-[var(--manual-sidebar-group-dot)] ${
+        props.className ?? ""
+      }`}
+      style={getManualSidebarGroupColorVars(props.color)}
+    />
+  );
+}
+
+function ManualSidebarGroupColorPicker(props: {
+  value: ManualSidebarGroupColorPalette;
+  onChange: (value: ManualSidebarGroupColorPalette) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS.map((option) => {
+        const selected = option.value === props.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            aria-label={`${option.label} group color`}
+            className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition-colors ${
+              selected
+                ? "border-foreground/15 bg-accent/55 text-foreground shadow-sm/5"
+                : "border-border/70 bg-background/70 text-muted-foreground hover:bg-accent/35 hover:text-foreground"
+            }`}
+            onClick={() => props.onChange(option.value)}
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <ManualSidebarGroupColorDot color={option.value} className="size-3.5 shrink-0" />
+              <span className="truncate">{option.label}</span>
+            </span>
+            {selected ? <CheckIcon className="size-3.5 shrink-0 text-foreground/85" /> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function formatProjectMemberActionLabel(
@@ -1114,6 +1209,8 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     useState<ProjectThreadDefaultMode>("inherit");
   const [projectManualGroupSelection, setProjectManualGroupSelection] = useState<string>("none");
   const [newProjectManualGroupName, setNewProjectManualGroupName] = useState("");
+  const [newProjectManualGroupColor, setNewProjectManualGroupColor] =
+    useState<ManualSidebarGroupColorPalette>(DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE);
   const [projectGroupingTarget, setProjectGroupingTarget] =
     useState<SidebarProjectGroupMember | null>(null);
   const [projectGroupingSelection, setProjectGroupingSelection] = useState<
@@ -1337,6 +1434,9 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
         resolveProjectManualSidebarGroupId(member, manualSidebarGroupsSettings) ?? "none",
       );
       setNewProjectManualGroupName("");
+      setNewProjectManualGroupColor(
+        getDefaultManualSidebarGroupColor(manualSidebarGroupsSettings.manualSidebarGroups.length),
+      );
     },
     [manualSidebarGroupsSettings, projectThreadDefaultsSettings.projectThreadDefaults],
   );
@@ -1357,7 +1457,10 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     setProjectThreadDefaultSelection("inherit");
     setProjectManualGroupSelection("none");
     setNewProjectManualGroupName("");
-  }, []);
+    setNewProjectManualGroupColor(
+      getDefaultManualSidebarGroupColor(manualSidebarGroupsSettings.manualSidebarGroups.length),
+    );
+  }, [manualSidebarGroupsSettings.manualSidebarGroups.length]);
 
   const removeProject = useCallback(
     async (member: SidebarProjectGroupMember, options: { force?: boolean } = {}): Promise<void> => {
@@ -1987,6 +2090,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       nextManualSidebarGroups.push({
         id: groupId,
         name: trimmedGroupName,
+        color: newProjectManualGroupColor,
         collapsed: false,
       });
       resolvedGroupSelection = groupId;
@@ -2011,6 +2115,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     closeProjectPreferencesDialog,
     manualSidebarGroupsSettings.manualSidebarGroups,
     manualSidebarGroupsSettings.projectManualSidebarGroupAssignments,
+    newProjectManualGroupColor,
     newProjectManualGroupName,
     projectManualGroupSelection,
     projectPreferencesTarget,
@@ -2416,7 +2521,10 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                   </SelectItem>
                   {manualSidebarGroupsSettings.manualSidebarGroups.map((group) => (
                     <SelectItem key={group.id} hideIndicator value={group.id}>
-                      {group.name}
+                      <span className="flex items-center gap-2">
+                        <ManualSidebarGroupColorDot color={group.color} className="size-2.5" />
+                        <span>{group.name}</span>
+                      </span>
                     </SelectItem>
                   ))}
                   <SelectItem hideIndicator value="__create__">
@@ -2427,21 +2535,31 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
             </div>
 
             {projectManualGroupSelection === "__create__" ? (
-              <div className="grid gap-1.5">
-                <span className="text-xs font-medium text-foreground">New group name</span>
-                <Input
-                  aria-label="New manual sidebar group name"
-                  value={newProjectManualGroupName}
-                  onChange={(event) => setNewProjectManualGroupName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      saveProjectPreferences();
-                    }
-                  }}
-                  placeholder="e.g. Frontend"
-                />
-              </div>
+              <>
+                <div className="grid gap-1.5">
+                  <span className="text-xs font-medium text-foreground">New group name</span>
+                  <Input
+                    aria-label="New manual sidebar group name"
+                    value={newProjectManualGroupName}
+                    onChange={(event) => setNewProjectManualGroupName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        saveProjectPreferences();
+                      }
+                    }}
+                    placeholder="e.g. Frontend"
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <span className="text-xs font-medium text-foreground">Group colour</span>
+                  <ManualSidebarGroupColorPicker
+                    value={newProjectManualGroupColor}
+                    onChange={setNewProjectManualGroupColor}
+                  />
+                </div>
+              </>
             ) : null}
 
             {projectPreferencesTarget?.environmentLabel ? (
@@ -2905,6 +3023,8 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
     string | null
   >(null);
   const [manualSidebarGroupRenameTitle, setManualSidebarGroupRenameTitle] = useState("");
+  const [manualSidebarGroupRenameColor, setManualSidebarGroupRenameColor] =
+    useState<ManualSidebarGroupColorPalette>(DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE);
 
   const handleProjectSortOrderChange = useCallback(
     (sortOrder: SidebarProjectSortOrder) => {
@@ -2940,12 +3060,14 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
       }
       setManualSidebarGroupRenameTargetId(groupId);
       setManualSidebarGroupRenameTitle(group.name);
+      setManualSidebarGroupRenameColor(group.color);
     },
     [manualSidebarGroupsSettings.manualSidebarGroups],
   );
   const closeManualSidebarGroupRenameDialog = useCallback(() => {
     setManualSidebarGroupRenameTargetId(null);
     setManualSidebarGroupRenameTitle("");
+    setManualSidebarGroupRenameColor(DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE);
   }, []);
   const saveManualSidebarGroupRename = useCallback(() => {
     if (!manualSidebarGroupRenameTargetId) {
@@ -2961,12 +3083,15 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
     }
     updateSettings({
       manualSidebarGroups: manualSidebarGroupsSettings.manualSidebarGroups.map((group) =>
-        group.id === manualSidebarGroupRenameTargetId ? { ...group, name: trimmedTitle } : group,
+        group.id === manualSidebarGroupRenameTargetId
+          ? { ...group, name: trimmedTitle, color: manualSidebarGroupRenameColor }
+          : group,
       ),
     });
     closeManualSidebarGroupRenameDialog();
   }, [
     closeManualSidebarGroupRenameDialog,
+    manualSidebarGroupRenameColor,
     manualSidebarGroupRenameTargetId,
     manualSidebarGroupRenameTitle,
     manualSidebarGroupsSettings.manualSidebarGroups,
@@ -3183,14 +3308,27 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
             {projectSections.map((section) => {
               const manualGroupId =
                 section.kind === "manual" ? section.id.replace(/^group:/, "") : null;
+              const isManualGroup = section.kind === "manual";
+              const manualGroupColorStyle =
+                isManualGroup && section.color
+                  ? getManualSidebarGroupColorVars(section.color)
+                  : null;
               return (
-                <div key={section.id}>
+                <div
+                  key={section.id}
+                  style={manualGroupColorStyle ?? undefined}
+                  className={
+                    isManualGroup
+                      ? "rounded-xl border border-[var(--manual-sidebar-group-border)] bg-[var(--manual-sidebar-group-bg)] px-1.5 py-1 shadow-[inset_0_1px_0_hsl(var(--background)/0.5)]"
+                      : undefined
+                  }
+                >
                   {section.kind === "manual" || hasManualSidebarGroups ? (
                     <div className="mb-1 flex items-center gap-1 pl-1 pr-1">
                       {section.kind === "manual" ? (
                         <button
                           type="button"
-                          className="inline-flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-left text-[11px] font-medium text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+                          className="inline-flex h-6 min-w-0 flex-1 items-center gap-1 rounded-lg px-1.5 text-left text-[11px] font-medium text-[var(--manual-sidebar-group-muted-foreground)] hover:bg-[var(--manual-sidebar-group-hover)] hover:text-[var(--manual-sidebar-group-foreground)]"
                           onClick={() => {
                             if (manualGroupId) {
                               setManualSidebarGroupCollapsed(manualGroupId, !section.collapsed);
@@ -3202,7 +3340,15 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                               section.collapsed ? "" : "rotate-90"
                             }`}
                           />
-                          <span className="truncate">{section.title}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {section.color ? (
+                              <ManualSidebarGroupColorDot
+                                color={section.color}
+                                className="size-2.5 shrink-0"
+                              />
+                            ) : null}
+                            <span className="truncate">{section.title}</span>
+                          </span>
                         </button>
                       ) : (
                         <div className="px-1.5 text-[11px] font-medium text-muted-foreground/70">
@@ -3212,14 +3358,14 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
 
                       {section.kind === "manual" && manualGroupId ? (
                         <Menu>
-                          <MenuTrigger className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground">
+                          <MenuTrigger className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-[var(--manual-sidebar-group-muted-foreground)] transition-colors hover:bg-[var(--manual-sidebar-group-hover)] hover:text-[var(--manual-sidebar-group-foreground)]">
                             <EllipsisIcon className="size-3.5" />
                           </MenuTrigger>
                           <MenuPopup align="end" side="bottom" className="min-w-40">
                             <MenuItem
                               onClick={() => openManualSidebarGroupRenameDialog(manualGroupId)}
                             >
-                              Rename group
+                              Edit group…
                             </MenuItem>
                             <MenuItem
                               onClick={() =>
@@ -3254,15 +3400,25 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                   ) : null}
 
                   {section.kind === "manual" && section.collapsed ? null : (
-                    <SidebarMenu ref={attachProjectListAutoAnimateRef}>
-                      {renderProjectRows(section.projects)}
-                    </SidebarMenu>
+                    <div
+                      className={
+                        isManualGroup
+                          ? "ml-2 border-l border-[var(--manual-sidebar-group-rail)] pl-2"
+                          : hasManualSidebarGroups
+                            ? "pl-1"
+                            : ""
+                      }
+                    >
+                      <SidebarMenu ref={attachProjectListAutoAnimateRef}>
+                        {renderProjectRows(section.projects)}
+                      </SidebarMenu>
+                    </div>
                   )}
 
                   {section.kind === "manual" &&
                   !section.collapsed &&
                   section.projects.length === 0 ? (
-                    <div className="px-2 py-1 text-xs text-muted-foreground/60">
+                    <div className="px-2 py-1 text-xs text-[var(--manual-sidebar-group-muted-foreground)]">
                       No projects assigned
                     </div>
                   ) : null}
@@ -3289,8 +3445,8 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
       >
         <DialogPopup className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Rename group</DialogTitle>
-            <DialogDescription>Update the manual sidebar group name.</DialogDescription>
+            <DialogTitle>Edit group</DialogTitle>
+            <DialogDescription>Update the manual sidebar group name and colour.</DialogDescription>
           </DialogHeader>
           <DialogPanel className="space-y-4">
             <div className="grid gap-1.5">
@@ -3305,6 +3461,14 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                     saveManualSidebarGroupRename();
                   }
                 }}
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <span className="text-xs font-medium text-foreground">Group colour</span>
+              <ManualSidebarGroupColorPicker
+                value={manualSidebarGroupRenameColor}
+                onChange={setManualSidebarGroupRenameColor}
               />
             </div>
           </DialogPanel>
