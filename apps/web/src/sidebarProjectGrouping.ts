@@ -1,5 +1,6 @@
 import { scopeProjectRef } from "@t3tools/client-runtime";
 import type { EnvironmentId, ScopedProjectRef } from "@t3tools/contracts";
+import type { ManualSidebarGroupColorPalette } from "@t3tools/contracts/settings";
 import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
@@ -31,6 +32,7 @@ export interface SidebarProjectSection {
   id: string;
   kind: "manual" | "ungrouped";
   title: string;
+  color: ManualSidebarGroupColorPalette | null;
   collapsed: boolean;
   projectKeys: readonly string[];
 }
@@ -192,6 +194,7 @@ export function buildSidebarProjectCollection(input: {
       id: sectionId,
       kind: "manual",
       title: group.name,
+      color: group.color,
       collapsed: group.collapsed,
       projectKeys: sectionProjectKeys,
     });
@@ -224,6 +227,7 @@ export function buildSidebarProjectCollection(input: {
       id: UNGROUPED_SIDEBAR_PROJECT_SECTION_ID,
       kind: "ungrouped",
       title: "Ungrouped",
+      color: null,
       collapsed: false,
       projectKeys: ungroupedProjectKeys,
     });
