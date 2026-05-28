@@ -108,9 +108,25 @@ export type ProjectThreadDefaultMode = typeof ProjectThreadDefaultMode.Type;
 export const ManualSidebarGroupId = TrimmedNonEmptyString;
 export type ManualSidebarGroupId = typeof ManualSidebarGroupId.Type;
 
+export const ManualSidebarGroupColorPalette = Schema.Literals([
+  "slate",
+  "sky",
+  "mint",
+  "sage",
+  "amber",
+  "peach",
+  "rose",
+  "lavender",
+]);
+export type ManualSidebarGroupColorPalette = typeof ManualSidebarGroupColorPalette.Type;
+export const DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE: ManualSidebarGroupColorPalette = "slate";
+
 export const ManualSidebarGroup = Schema.Struct({
   id: ManualSidebarGroupId,
   name: TrimmedNonEmptyString,
+  color: ManualSidebarGroupColorPalette.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE)),
+  ),
   collapsed: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 });
 export type ManualSidebarGroup = typeof ManualSidebarGroup.Type;

@@ -51,8 +51,8 @@ describe("buildSidebarProjectCollection", () => {
       },
       manualGroupSettings: {
         manualSidebarGroups: [
-          { id: "frontend", name: "Frontend", collapsed: false },
-          { id: "ops", name: "Ops", collapsed: true },
+          { id: "frontend", name: "Frontend", color: "sky", collapsed: false },
+          { id: "ops", name: "Ops", color: "rose", collapsed: true },
         ],
         projectManualSidebarGroupAssignments: {
           "env-primary:/tmp/frontend-frontend": "frontend",
@@ -67,6 +67,7 @@ describe("buildSidebarProjectCollection", () => {
         id: "group:frontend",
         kind: "manual",
         title: "Frontend",
+        color: "sky",
         collapsed: false,
         projectKeys: ["group:frontend::env-primary:/tmp/frontend-frontend"],
       },
@@ -74,6 +75,7 @@ describe("buildSidebarProjectCollection", () => {
         id: "group:ops",
         kind: "manual",
         title: "Ops",
+        color: "rose",
         collapsed: true,
         projectKeys: [],
       },
@@ -81,6 +83,7 @@ describe("buildSidebarProjectCollection", () => {
         id: "ungrouped",
         kind: "ungrouped",
         title: "Ungrouped",
+        color: null,
         collapsed: false,
         projectKeys: ["ungrouped::env-primary:/tmp/backend-backend"],
       },
@@ -131,7 +134,9 @@ describe("buildSidebarProjectCollection", () => {
         sidebarProjectGroupingOverrides: {},
       },
       manualGroupSettings: {
-        manualSidebarGroups: [{ id: "frontend", name: "Frontend", collapsed: false }],
+        manualSidebarGroups: [
+          { id: "frontend", name: "Frontend", color: "mint", collapsed: false },
+        ],
         projectManualSidebarGroupAssignments: {
           "env-primary:/tmp/shared-primary": "frontend",
         },
@@ -190,6 +195,7 @@ describe("buildSidebarProjectCollection", () => {
         id: "ungrouped",
         kind: "ungrouped",
         title: "Ungrouped",
+        color: null,
         collapsed: false,
         projectKeys: ["ungrouped::env-primary:/tmp/orphaned"],
       },

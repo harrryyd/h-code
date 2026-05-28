@@ -100,7 +100,7 @@ describe("ServerSettingsPatch.providerInstances", () => {
     const patch = decodeServerSettingsPatch({
       manualSidebarGroups: [
         { id: "ops", name: "Ops" },
-        { id: "frontend", name: "Frontend", collapsed: true },
+        { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
       ],
       projectManualSidebarGroupAssignments: {
         "primary:/Users/julius/Code/t3code": "frontend",
@@ -108,8 +108,8 @@ describe("ServerSettingsPatch.providerInstances", () => {
     });
 
     expect(patch.manualSidebarGroups).toEqual([
-      { id: "ops", name: "Ops", collapsed: false },
-      { id: "frontend", name: "Frontend", collapsed: true },
+      { id: "ops", name: "Ops", color: "slate", collapsed: false },
+      { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
     ]);
     expect(patch.projectManualSidebarGroupAssignments).toEqual({
       "primary:/Users/julius/Code/t3code": "frontend",

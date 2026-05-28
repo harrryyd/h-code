@@ -216,11 +216,11 @@ describe("serverSettings helpers", () => {
   });
 
   it("drops manual sidebar group assignments that reference removed groups", () => {
-    const current = {
+    const current: typeof DEFAULT_SERVER_SETTINGS = {
       ...DEFAULT_SERVER_SETTINGS,
       manualSidebarGroups: [
-        { id: "frontend", name: "Frontend", collapsed: false },
-        { id: "ops", name: "Ops", collapsed: false },
+        { id: "frontend", name: "Frontend", color: "sky", collapsed: false },
+        { id: "ops", name: "Ops", color: "sage", collapsed: false },
       ],
       projectManualSidebarGroupAssignments: {
         "primary:/Users/julius/Code/t3code": "frontend",
@@ -229,11 +229,11 @@ describe("serverSettings helpers", () => {
     };
 
     const next = applyServerSettingsPatch(current, {
-      manualSidebarGroups: [{ id: "frontend", name: "Frontend", collapsed: true }],
+      manualSidebarGroups: [{ id: "frontend", name: "Frontend", color: "sky", collapsed: true }],
     });
 
     expect(next.manualSidebarGroups).toEqual([
-      { id: "frontend", name: "Frontend", collapsed: true },
+      { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
     ]);
     expect(next.projectManualSidebarGroupAssignments).toEqual({
       "primary:/Users/julius/Code/t3code": "frontend",
@@ -242,7 +242,7 @@ describe("serverSettings helpers", () => {
 
   it("drops manual sidebar group assignments that target unknown groups", () => {
     const next = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      manualSidebarGroups: [{ id: "frontend", name: "Frontend", collapsed: false }],
+      manualSidebarGroups: [{ id: "frontend", name: "Frontend", color: "sky", collapsed: false }],
       projectManualSidebarGroupAssignments: {
         "primary:/Users/julius/Code/t3code": "frontend",
         "remote-1:/Users/julius/Code/t3code": "missing",
