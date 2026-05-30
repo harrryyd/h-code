@@ -165,15 +165,24 @@ export function ChangeRequestBadge({
   );
 }
 
-export function resolveThreadPr(
-  threadBranch: string | null,
-  gitStatus: VcsStatusResult | null,
-): ThreadPr | null {
-  if (threadBranch === null || gitStatus === null || gitStatus.refName !== threadBranch) {
+export function resolveThreadPr(input: {
+  threadBranch: string | null;
+  worktreePath: string | null;
+  gitStatus: VcsStatusResult | null;
+}): ThreadPr | null {
+  if (input.gitStatus === null) {
     return null;
   }
 
-  return gitStatus.pr ?? null;
+  if (input.worktreePath !== null) {
+    return input.gitStatus.pr ?? null;
+  }
+
+  if (input.threadBranch === null || input.gitStatus.refName !== input.threadBranch) {
+    return null;
+  }
+
+  return input.gitStatus.pr ?? null;
 }
 
 export function terminalStatusFromRunningIds(
@@ -250,7 +259,11 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
     environmentId: thread.environmentId,
     cwd: thread.branch != null ? gitCwd : null,
   });
-  const pr = resolveThreadPr(thread.branch, gitStatus.data);
+  const pr = resolveThreadPr({
+    threadBranch: thread.branch,
+    worktreePath: thread.worktreePath,
+    gitStatus: gitStatus.data,
+  });
   const prStatus = prStatusIndicator(pr, gitStatus.data?.sourceControlProvider);
   const threadStatus = resolveThreadStatusPill({
     thread: {
