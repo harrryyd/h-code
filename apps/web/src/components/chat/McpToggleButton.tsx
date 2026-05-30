@@ -66,6 +66,13 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
     }
   }, []);
 
+  const invalidateLoads = useCallback(() => {
+    loadGenerationRef.current += 1;
+    clearLoadingIndicatorDelay();
+    setIsLoading(false);
+    setShowLoadingIndicator(false);
+  }, [clearLoadingIndicatorDelay]);
+
   const queueLoadingIndicator = useCallback(
     (generation: number) => {
       clearLoadingIndicatorDelay();
@@ -119,14 +126,21 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
   }, [api, clearLoadingIndicatorDelay, queueLoadingIndicator, threadId]);
 
   useEffect(() => {
+    setPendingServerNames(new Set());
+    setServers([]);
+    setHasResolvedServers(false);
+    setLoadingError(null);
+    invalidateLoads();
+  }, [environmentId, invalidateLoads, threadId]);
+
+  useEffect(() => {
     if (!open) {
-      clearLoadingIndicatorDelay();
-      setShowLoadingIndicator(false);
+      invalidateLoads();
       return;
     }
 
     void loadServers();
-  }, [clearLoadingIndicatorDelay, loadServers, open]);
+  }, [invalidateLoads, loadServers, open]);
 
   useEffect(() => () => clearLoadingIndicatorDelay(), [clearLoadingIndicatorDelay]);
 

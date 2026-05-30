@@ -289,6 +289,40 @@ async function mountPicker(props: {
     get onProviderModelChange() {
       return onInstanceModelChange;
     },
+    rerender: async (nextProps: {
+      activeInstanceId?: ProviderInstanceId;
+      model: string;
+      lockedProvider: ProviderDriverKind | null;
+      lockedContinuationGroupKey?: string | null;
+      providers?: ReadonlyArray<ServerProvider>;
+      settings?: UnifiedSettings;
+      triggerVariant?: "ghost" | "outline";
+    }) => {
+      const nextProviders = nextProps.providers ?? TEST_PROVIDERS;
+      const nextActiveInstanceId = nextProps.activeInstanceId ?? CODEX_INSTANCE_ID;
+      const nextInstanceEntries = sortProviderInstanceEntries(
+        deriveProviderInstanceEntries(nextProviders),
+      );
+      const nextModelOptionsByInstance = getCustomModelOptionsByInstance(
+        nextProps.settings ?? DEFAULT_UNIFIED_SETTINGS,
+        nextProviders,
+        nextActiveInstanceId,
+        nextProps.model,
+      );
+
+      await screen.rerender(
+        <ProviderModelPicker
+          activeInstanceId={nextActiveInstanceId}
+          model={nextProps.model}
+          lockedProvider={nextProps.lockedProvider}
+          lockedContinuationGroupKey={nextProps.lockedContinuationGroupKey ?? null}
+          instanceEntries={nextInstanceEntries}
+          modelOptionsByInstance={nextModelOptionsByInstance}
+          triggerVariant={nextProps.triggerVariant}
+          onInstanceModelChange={onInstanceModelChange}
+        />,
+      );
+    },
     cleanup: async () => {
       await screen.unmount();
       host.remove();
@@ -368,6 +402,107 @@ describe("ProviderModelPicker", () => {
         ]);
       });
     } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("opens on the active provider even when favorites exist", async () => {
+    localStorage.setItem(
+      "t3code:client-settings:v1",
+      JSON.stringify({
+        ...DEFAULT_CLIENT_SETTINGS,
+        favorites: [{ provider: "codex", model: "gpt-5-codex" }],
+      }),
+    );
+
+    const mounted = await mountPicker({
+      activeInstanceId: CLAUDE_INSTANCE_ID,
+      model: "claude-opus-4-6",
+      lockedProvider: null,
+    });
+
+    try {
+      await page.getByRole("button").click();
+
+      await vi.waitFor(() => {
+        expect(getVisibleModelNames()).toEqual([
+          "Claude Opus 4.6",
+          "Claude Sonnet 4.6",
+          "Claude Haiku 4.5",
+        ]);
+      });
+    } finally {
+      localStorage.removeItem("t3code:client-settings:v1");
+      await mounted.cleanup();
+    }
+  });
+
+  it("resyncs the visible model list when the active instance changes while open", async () => {
+    const mounted = await mountPicker({
+      activeInstanceId: CLAUDE_INSTANCE_ID,
+      model: "claude-opus-4-6",
+      lockedProvider: null,
+    });
+
+    try {
+      await page.getByRole("button").click();
+
+      await vi.waitFor(() => {
+        expect(getVisibleModelNames()).toEqual([
+          "Claude Opus 4.6",
+          "Claude Sonnet 4.6",
+          "Claude Haiku 4.5",
+        ]);
+      });
+
+      await mounted.rerender({
+        activeInstanceId: CODEX_INSTANCE_ID,
+        model: "gpt-5-codex",
+        lockedProvider: null,
+      });
+
+      await vi.waitFor(() => {
+        expect(getVisibleModelNames()).toEqual(["GPT-5 Codex", "GPT-5.3 Codex"]);
+      });
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("falls back to the active provider when the favorites section becomes empty", async () => {
+    localStorage.setItem(
+      "t3code:client-settings:v1",
+      JSON.stringify({
+        ...DEFAULT_CLIENT_SETTINGS,
+        favorites: [{ provider: "claudeAgent", model: "claude-opus-4-6" }],
+      }),
+    );
+
+    const mounted = await mountPicker({
+      activeInstanceId: CLAUDE_INSTANCE_ID,
+      model: "claude-opus-4-6",
+      lockedProvider: null,
+    });
+
+    try {
+      await page.getByRole("button").click();
+      await page.getByRole("button", { name: "Favorites", exact: true }).click();
+
+      await vi.waitFor(() => {
+        expect(getVisibleModelNames()).toEqual(["Claude Opus 4.6"]);
+      });
+
+      await page.getByRole("button", { name: "Remove from favorites" }).click();
+
+      await vi.waitFor(() => {
+        expect(getVisibleModelNames()).toEqual([
+          "Claude Opus 4.6",
+          "Claude Sonnet 4.6",
+          "Claude Haiku 4.5",
+        ]);
+      });
+    } finally {
+      localStorage.removeItem("t3code:client-settings:v1");
       await mounted.cleanup();
     }
   });

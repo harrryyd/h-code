@@ -109,6 +109,10 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     [providedKeybindings],
   );
   const { updateSettings } = useUpdateSettings();
+  const availableInstanceIds = useMemo(
+    () => new Set(instanceEntries.map((entry) => entry.instanceId)),
+    [instanceEntries],
+  );
 
   const focusSearchInput = useCallback(() => {
     searchInputRef.current?.focus({ preventScroll: true });
@@ -123,6 +127,21 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     },
     [focusSearchInput],
   );
+
+  useEffect(() => {
+    setSelectedInstanceId((current) => {
+      if (props.lockedProvider !== null) {
+        return props.activeInstanceId;
+      }
+      if (current === "favorites") {
+        return favorites.length > 0 ? current : props.activeInstanceId;
+      }
+      if (!availableInstanceIds.has(current)) {
+        return props.activeInstanceId;
+      }
+      return current === props.activeInstanceId ? current : props.activeInstanceId;
+    });
+  }, [availableInstanceIds, favorites.length, props.activeInstanceId, props.lockedProvider]);
 
   useLayoutEffect(() => {
     focusSearchInput();

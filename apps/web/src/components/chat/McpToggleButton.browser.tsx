@@ -27,6 +27,7 @@ vi.mock("~/environmentApi", () => ({
 import { McpToggleButton } from "./McpToggleButton";
 
 const THREAD_ID = ThreadId.make("thread-mcp-toggle-browser");
+const SECOND_THREAD_ID = ThreadId.make("thread-mcp-toggle-browser-2");
 const ENVIRONMENT_ID = EnvironmentId.make("environment-mcp-toggle-browser");
 
 function createServer(name: string, status: McpServerSnapshot["status"]): McpServerSnapshot {
@@ -40,16 +41,26 @@ function isLoadingRowVisible(): boolean {
   return document.querySelector('[data-mcp-loading-state="visible"]') !== null;
 }
 
-async function mountButton() {
+async function mountButton(props?: { threadId?: ThreadId; environmentId?: EnvironmentId }) {
   const host = document.createElement("div");
   document.body.append(host);
+  const threadId = props?.threadId ?? THREAD_ID;
+  const environmentId = props?.environmentId ?? ENVIRONMENT_ID;
 
   const screen = await render(
-    <McpToggleButton environmentId={ENVIRONMENT_ID} threadId={THREAD_ID} />,
+    <McpToggleButton environmentId={environmentId} threadId={threadId} />,
     { container: host },
   );
 
   return {
+    rerender: async (nextProps?: { threadId?: ThreadId; environmentId?: EnvironmentId }) => {
+      await screen.rerender(
+        <McpToggleButton
+          environmentId={nextProps?.environmentId ?? environmentId}
+          threadId={nextProps?.threadId ?? threadId}
+        />,
+      );
+    },
     cleanup: async () => {
       await screen.unmount();
       host.remove();
@@ -142,6 +153,110 @@ describe("McpToggleButton", () => {
       await vi.runAllTimersAsync();
 
       await expect.element(page.getByText("filesystem")).toBeVisible();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("clears stale servers when the thread changes while the menu stays open", async () => {
+    let resolveCurrentListServers: (value: {
+      servers: ReadonlyArray<McpServerSnapshot>;
+    }) => void = () => {
+      throw new Error("Expected MCP list resolver to be captured.");
+    };
+    const listServers = vi.fn(
+      ({ threadId }: { threadId: ThreadId }) =>
+        new Promise<{ servers: ReadonlyArray<McpServerSnapshot> }>((resolve) => {
+          resolveCurrentListServers = resolve;
+          if (threadId === THREAD_ID) {
+            resolve({ servers: [createServer("filesystem", "connected")] });
+          }
+        }),
+    );
+    environmentApiById.set(ENVIRONMENT_ID, {
+      mcp: {
+        listServers,
+        toggleServer: vi.fn(async () => undefined),
+      },
+    });
+
+    const mounted = await mountButton();
+
+    try {
+      await page.getByRole("button", { name: "MCP" }).click();
+
+      await expect.element(page.getByText("filesystem")).toBeVisible();
+
+      await mounted.rerender({ threadId: SECOND_THREAD_ID });
+
+      await vi.waitFor(() => {
+        expect(listServers).toHaveBeenCalledTimes(2);
+      });
+
+      expect(document.body.textContent ?? "").not.toContain("filesystem");
+
+      resolveCurrentListServers({ servers: [createServer("github", "connected")] });
+      await vi.runAllTimersAsync();
+
+      await expect.element(page.getByText("github")).toBeVisible();
+      expect(document.body.textContent ?? "").not.toContain("filesystem");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("ignores a late response from a closed menu before reopening", async () => {
+    let requestCount = 0;
+    let resolveFirstListServers: (value: {
+      servers: ReadonlyArray<McpServerSnapshot>;
+    }) => void = () => {
+      throw new Error("Expected first MCP list resolver to be captured.");
+    };
+    let resolveSecondListServers: (value: {
+      servers: ReadonlyArray<McpServerSnapshot>;
+    }) => void = () => {
+      throw new Error("Expected second MCP list resolver to be captured.");
+    };
+    const listServers = vi.fn(
+      () =>
+        new Promise<{ servers: ReadonlyArray<McpServerSnapshot> }>((resolve) => {
+          requestCount += 1;
+          if (requestCount === 1) {
+            resolveFirstListServers = resolve;
+            return;
+          }
+          resolveSecondListServers = resolve;
+        }),
+    );
+    environmentApiById.set(ENVIRONMENT_ID, {
+      mcp: {
+        listServers,
+        toggleServer: vi.fn(async () => undefined),
+      },
+    });
+
+    const mounted = await mountButton();
+
+    try {
+      const trigger = page.getByRole("button", { name: "MCP", exact: true });
+      await trigger.click();
+      await trigger.click();
+      resolveFirstListServers({ servers: [createServer("filesystem", "connected")] });
+      await vi.runAllTimersAsync();
+
+      await trigger.click();
+
+      await vi.waitFor(() => {
+        expect(listServers).toHaveBeenCalledTimes(2);
+      });
+
+      expect(document.body.textContent ?? "").not.toContain("filesystem");
+
+      resolveSecondListServers({ servers: [createServer("github", "connected")] });
+      await vi.runAllTimersAsync();
+
+      await expect.element(page.getByText("github")).toBeVisible();
+      expect(document.body.textContent ?? "").not.toContain("filesystem");
     } finally {
       await mounted.cleanup();
     }
