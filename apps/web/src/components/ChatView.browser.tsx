@@ -2599,7 +2599,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("shows the pull request badge for a worktree-backed thread row", async () => {
+  it("shows the pull request badge for a worktree-backed thread row even when stored branch metadata is stale", async () => {
     const snapshotBase = createSnapshotForTargetUser({
       targetMessageId: "msg-user-pr-badge-target" as MessageId,
       targetText: "show pr badge",
@@ -2611,7 +2611,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
         thread.id === THREAD_ID
           ? {
               ...thread,
-              branch: "archive-settings-overhaul",
+              branch: "feature/archive-settings-overhaul",
               worktreePath,
             }
           : thread,
