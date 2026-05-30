@@ -1,9 +1,11 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
+import type * as DateTime from "effect/DateTime";
 
 import {
   TrimmedNonEmptyString,
@@ -34,6 +36,7 @@ export interface GitHubPullRequestSummary {
   readonly baseRefName: string;
   readonly headRefName: string;
   readonly state?: "open" | "closed" | "merged";
+  readonly updatedAt?: Option.Option<DateTime.Utc>;
   readonly labels?: ReadonlyArray<ChangeRequestLabel>;
   readonly isCrossRepository?: boolean;
   readonly headRepositoryNameWithOwner?: string | null;
@@ -97,6 +100,76 @@ export interface GitHubCliShape {
 export class GitHubCli extends Context.Service<GitHubCli, GitHubCliShape>()(
   "t3/sourceControl/GitHubCli",
 ) {}
+
+function gitHubPullRequestJsonFields(input: {
+  readonly includeUpdatedAt?: boolean;
+  readonly includeLabels: boolean;
+}): string {
+  return [
+    "number",
+    "title",
+    "url",
+    "baseRefName",
+    "headRefName",
+    "state",
+    "mergedAt",
+    ...(input.includeUpdatedAt ? ["updatedAt"] : []),
+    "isCrossRepository",
+    "headRepository",
+    "headRepositoryOwner",
+    ...(input.includeLabels ? ["labels"] : []),
+  ].join(",");
+}
+
+function isUnsupportedLabelsJsonFieldError(error: GitHubCliError): boolean {
+  const lower = error.detail.toLowerCase();
+  return (
+    lower.includes("labels") &&
+    lower.includes("json") &&
+    (lower.includes("unknown field") ||
+      lower.includes("unknown json field") ||
+      lower.includes("invalid field"))
+  );
+}
+
+function toSummaryWithOptionalUpdatedAt(
+  record: GitHubPullRequestSummary & {
+    readonly updatedAt: Option.Option<DateTime.Utc>;
+  },
+): GitHubPullRequestSummary {
+  const { updatedAt, ...summary } = record;
+  return Option.isSome(updatedAt) ? { ...summary, updatedAt } : summary;
+}
+
+export function executeGitHubPullRequestJsonCommand(input: {
+  readonly execute: GitHubCliShape["execute"];
+  readonly cwd: string;
+  readonly argsPrefix: ReadonlyArray<string>;
+  readonly includeUpdatedAt?: boolean;
+  readonly timeoutMs?: number;
+}): Effect.Effect<VcsProcess.VcsProcessOutput, GitHubCliError> {
+  const run = (includeLabels: boolean) =>
+    input.execute({
+      cwd: input.cwd,
+      args: [
+        ...input.argsPrefix,
+        "--json",
+        gitHubPullRequestJsonFields({
+          includeLabels,
+          ...(input.includeUpdatedAt !== undefined
+            ? { includeUpdatedAt: input.includeUpdatedAt }
+            : {}),
+        }),
+      ],
+      ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+    });
+
+  return run(true).pipe(
+    Effect.catch((error) =>
+      isUnsupportedLabelsJsonFieldError(error) ? run(false) : Effect.fail(error),
+    ),
+  );
+}
 
 function errorText(error: VcsError | unknown): string {
   if (typeof error === "object" && error !== null) {
@@ -245,9 +318,10 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
   return GitHubCli.of({
     execute,
     listOpenPullRequests: (input) =>
-      execute({
+      executeGitHubPullRequestJsonCommand({
+        execute,
         cwd: input.cwd,
-        args: [
+        argsPrefix: [
           "pr",
           "list",
           "--head",
@@ -256,8 +330,6 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
           "open",
           "--limit",
           String(input.limit ?? 1),
-          "--json",
-          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
         ],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),
@@ -276,23 +348,16 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
                     );
                   }
 
-                  return Effect.succeed(
-                    decoded.success.map(({ updatedAt: _updatedAt, ...summary }) => summary),
-                  );
+                  return Effect.succeed(decoded.success.map(toSummaryWithOptionalUpdatedAt));
                 }),
               ),
         ),
       ),
     getPullRequest: (input) =>
-      execute({
+      executeGitHubPullRequestJsonCommand({
+        execute,
         cwd: input.cwd,
-        args: [
-          "pr",
-          "view",
-          input.reference,
-          "--json",
-          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
-        ],
+        argsPrefix: ["pr", "view", input.reference],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),
         Effect.flatMap((raw) =>
