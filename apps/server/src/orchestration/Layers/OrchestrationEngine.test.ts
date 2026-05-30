@@ -38,16 +38,20 @@ import {
 } from "../Services/ProjectionPipeline.ts";
 import { ProjectionSnapshotQuery } from "../Services/ProjectionSnapshotQuery.ts";
 import { ServerConfig } from "../../config.ts";
+import { makeSqlitePersistenceLive } from "../../persistence/Layers/Sqlite.ts";
 
 const asProjectId = (value: string): ProjectId => ProjectId.make(value);
 const asMessageId = (value: string): MessageId => MessageId.make(value);
 const asTurnId = (value: string): TurnId => TurnId.make(value);
 const asCheckpointRef = (value: string): CheckpointRef => CheckpointRef.make(value);
 
-async function createOrchestrationSystem() {
+async function createOrchestrationSystem(options?: { readonly dbPath?: string }) {
   const ServerConfigLayer = ServerConfig.layerTest(process.cwd(), {
     prefix: "t3-orchestration-engine-test-",
   });
+  const persistenceLayer = options?.dbPath
+    ? makeSqlitePersistenceLive(options.dbPath)
+    : SqlitePersistenceMemory;
   const orchestrationLayer = Layer.mergeAll(
     OrchestrationEngineLive.pipe(
       Layer.provide(OrchestrationProjectionSnapshotQueryLive),
@@ -58,7 +62,7 @@ async function createOrchestrationSystem() {
     Layer.provide(OrchestrationEventStoreLive),
     Layer.provide(OrchestrationCommandReceiptRepositoryLive),
     Layer.provide(RepositoryIdentityResolverLive),
-    Layer.provide(SqlitePersistenceMemory),
+    Layer.provide(persistenceLayer),
     Layer.provideMerge(ServerConfigLayer),
     Layer.provideMerge(NodeServices.layer),
   );
@@ -68,6 +72,9 @@ async function createOrchestrationSystem() {
   return {
     engine,
     readModel: () => runtime.runPromise(snapshotQuery.getSnapshot()),
+    shellSnapshot: () => runtime.runPromise(snapshotQuery.getShellSnapshot()),
+    threadDetail: (threadId: ThreadId) =>
+      runtime.runPromise(snapshotQuery.getThreadDetailById(threadId)),
     run: <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect),
     dispose: () => runtime.dispose(),
   };
@@ -289,6 +296,95 @@ describe("OrchestrationEngine", () => {
     const readModelB = await system.readModel();
     expect(readModelB).toEqual(readModelA);
     await system.dispose();
+  });
+
+  it("bootstraps exactly one manager workspace and manager console through persisted projections", async () => {
+    const dbPath = `/tmp/t3-manager-bootstrap-${crypto.randomUUID()}.sqlite`;
+    const firstSystem = await createOrchestrationSystem({ dbPath });
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.bootstrap",
+        commandId: CommandId.make("cmd-manager-bootstrap"),
+        projectId: asProjectId("manager-workspace"),
+        threadId: ThreadId.make("manager-console"),
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        createdAt: now(),
+      }),
+    );
+
+    const firstShellSnapshot = await firstSystem.shellSnapshot();
+    expect(firstShellSnapshot.projects).toEqual([
+      expect.objectContaining({
+        id: asProjectId("manager-workspace"),
+        managerMetadata: {
+          role: "workspace",
+        },
+      }),
+    ]);
+    expect(firstShellSnapshot.threads).toEqual([
+      expect.objectContaining({
+        id: ThreadId.make("manager-console"),
+        projectId: asProjectId("manager-workspace"),
+        managerMetadata: {
+          role: "console",
+        },
+      }),
+    ]);
+
+    await expect(
+      firstSystem.run(
+        firstSystem.engine.dispatch({
+          type: "manager.bootstrap",
+          commandId: CommandId.make("cmd-manager-bootstrap-duplicate"),
+          projectId: asProjectId("manager-workspace-2"),
+          threadId: ThreadId.make("manager-console-2"),
+          workspaceRoot: "/tmp/manager-workspace-2",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          runtimeMode: "full-access",
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          createdAt: now(),
+        }),
+      ),
+    ).rejects.toThrow("already exists");
+
+    await firstSystem.dispose();
+
+    const secondSystem = await createOrchestrationSystem({ dbPath });
+    const reloadedShellSnapshot = await secondSystem.shellSnapshot();
+    const reloadedThreadDetail = await secondSystem.threadDetail(ThreadId.make("manager-console"));
+
+    expect(reloadedShellSnapshot.projects).toEqual([
+      expect.objectContaining({
+        id: asProjectId("manager-workspace"),
+        managerMetadata: {
+          role: "workspace",
+        },
+      }),
+    ]);
+    expect(reloadedShellSnapshot.threads).toEqual([
+      expect.objectContaining({
+        id: ThreadId.make("manager-console"),
+        managerMetadata: {
+          role: "console",
+        },
+      }),
+    ]);
+    expect(Option.isSome(reloadedThreadDetail)).toBe(true);
+    expect(Option.getOrNull(reloadedThreadDetail)?.managerMetadata).toEqual({
+      role: "console",
+    });
+
+    await secondSystem.dispose();
   });
 
   it("archives and unarchives threads through orchestration commands", async () => {

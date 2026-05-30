@@ -58,6 +58,13 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
       } satisfies OrchestrationCommand;
     }
 
+    if (command.type === "manager.bootstrap") {
+      return {
+        ...command,
+        workspaceRoot: yield* normalizeProjectWorkspaceRootForCreate(command.workspaceRoot, true),
+      } satisfies OrchestrationCommand;
+    }
+
     if (command.type === "project.meta.update" && command.workspaceRoot !== undefined) {
       return {
         ...command,

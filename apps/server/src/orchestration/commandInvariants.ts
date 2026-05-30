@@ -38,6 +38,18 @@ export function listThreadsByProjectId(
   return readModel.threads.filter((thread) => thread.projectId === projectId);
 }
 
+export function findManagerWorkspace(
+  readModel: OrchestrationReadModel,
+): OrchestrationProject | undefined {
+  return readModel.projects.find((project) => project.managerMetadata?.role === "workspace");
+}
+
+export function findManagerConsole(
+  readModel: OrchestrationReadModel,
+): OrchestrationThread | undefined {
+  return readModel.threads.find((thread) => thread.managerMetadata?.role === "console");
+}
+
 export function requireProject(input: {
   readonly readModel: OrchestrationReadModel;
   readonly command: OrchestrationCommand;

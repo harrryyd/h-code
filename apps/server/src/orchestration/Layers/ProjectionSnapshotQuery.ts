@@ -2,6 +2,8 @@ import {
   ChatAttachment,
   CheckpointRef,
   IsoDateTime,
+  ManagerProjectMetadata,
+  ManagerThreadMetadata,
   MessageId,
   NonNegativeInt,
   OrchestrationCheckpointFile,
@@ -59,12 +61,17 @@ import {
 const decodeReadModel = Schema.decodeUnknownEffect(OrchestrationReadModel);
 const decodeShellSnapshot = Schema.decodeUnknownEffect(OrchestrationShellSnapshot);
 const decodeThread = Schema.decodeUnknownEffect(OrchestrationThread);
-const ProjectionProjectDbRowSchema = ProjectionProject.mapFields(
-  Struct.assign({
-    defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
-    scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
-  }),
-);
+const ProjectionProjectDbRowSchema = Schema.Struct({
+  projectId: ProjectionProject.fields.projectId,
+  title: ProjectionProject.fields.title,
+  workspaceRoot: ProjectionProject.fields.workspaceRoot,
+  managerMetadata: Schema.NullOr(Schema.fromJsonString(ManagerProjectMetadata)),
+  defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
+  scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
+  createdAt: ProjectionProject.fields.createdAt,
+  updatedAt: ProjectionProject.fields.updatedAt,
+  deletedAt: ProjectionProject.fields.deletedAt,
+});
 const ProjectionThreadMessageDbRowSchema = ProjectionThreadMessage.mapFields(
   Struct.assign({
     isStreaming: Schema.Number,
@@ -72,11 +79,26 @@ const ProjectionThreadMessageDbRowSchema = ProjectionThreadMessage.mapFields(
   }),
 );
 const ProjectionThreadProposedPlanDbRowSchema = ProjectionThreadProposedPlan;
-const ProjectionThreadDbRowSchema = ProjectionThread.mapFields(
-  Struct.assign({
-    modelSelection: Schema.fromJsonString(ModelSelection),
-  }),
-);
+const ProjectionThreadDbRowSchema = Schema.Struct({
+  threadId: ProjectionThread.fields.threadId,
+  projectId: ProjectionThread.fields.projectId,
+  title: ProjectionThread.fields.title,
+  managerMetadata: Schema.NullOr(Schema.fromJsonString(ManagerThreadMetadata)),
+  modelSelection: Schema.fromJsonString(ModelSelection),
+  runtimeMode: ProjectionThread.fields.runtimeMode,
+  interactionMode: ProjectionThread.fields.interactionMode,
+  branch: ProjectionThread.fields.branch,
+  worktreePath: ProjectionThread.fields.worktreePath,
+  latestTurnId: ProjectionThread.fields.latestTurnId,
+  createdAt: ProjectionThread.fields.createdAt,
+  updatedAt: ProjectionThread.fields.updatedAt,
+  archivedAt: ProjectionThread.fields.archivedAt,
+  latestUserMessageAt: ProjectionThread.fields.latestUserMessageAt,
+  pendingApprovalCount: ProjectionThread.fields.pendingApprovalCount,
+  pendingUserInputCount: ProjectionThread.fields.pendingUserInputCount,
+  hasActionableProposedPlan: ProjectionThread.fields.hasActionableProposedPlan,
+  deletedAt: ProjectionThread.fields.deletedAt,
+});
 const ProjectionThreadActivityDbRowSchema = ProjectionThreadActivity.mapFields(
   Struct.assign({
     payload: Schema.fromJsonString(Schema.Unknown),
@@ -229,6 +251,7 @@ function mapProjectShellRow(
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
+    ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
     repositoryIdentity,
     defaultModelSelection: row.defaultModelSelection,
     scripts: row.scripts,
@@ -303,6 +326,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
+          manager_metadata_json AS "managerMetadata",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -322,6 +346,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
+          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -350,6 +375,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
+          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -380,6 +406,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
+          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -664,6 +691,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
+          manager_metadata_json AS "managerMetadata",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -686,6 +714,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
+          manager_metadata_json AS "managerMetadata",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -742,6 +771,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
+          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -1162,6 +1192,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 id: row.projectId,
                 title: row.title,
                 workspaceRoot: row.workspaceRoot,
+                ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                 repositoryIdentity: repositoryIdentities.get(row.projectId) ?? null,
                 defaultModelSelection: row.defaultModelSelection,
                 scripts: row.scripts,
@@ -1174,6 +1205,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 id: row.threadId,
                 projectId: row.projectId,
                 title: row.title,
+                ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                 modelSelection: row.modelSelection,
                 runtimeMode: row.runtimeMode,
                 interactionMode: row.interactionMode,
@@ -1285,6 +1317,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   id: row.projectId,
                   title: row.title,
                   workspaceRoot: row.workspaceRoot,
+                  ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                   defaultModelSelection: row.defaultModelSelection,
                   scripts: row.scripts,
                   createdAt: row.createdAt,
@@ -1372,6 +1405,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   id: row.threadId,
                   projectId: row.projectId,
                   title: row.title,
+                  ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                   modelSelection: row.modelSelection,
                   runtimeMode: row.runtimeMode,
                   interactionMode: row.interactionMode,
@@ -1500,6 +1534,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                     id: row.threadId,
                     projectId: row.projectId,
                     title: row.title,
+                    ...(row.managerMetadata !== null
+                      ? { managerMetadata: row.managerMetadata }
+                      : {}),
                     modelSelection: row.modelSelection,
                     runtimeMode: row.runtimeMode,
                     interactionMode: row.interactionMode,
@@ -1631,6 +1668,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   id: row.threadId,
                   projectId: row.projectId,
                   title: row.title,
+                  ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                   modelSelection: row.modelSelection,
                   runtimeMode: row.runtimeMode,
                   interactionMode: row.interactionMode,
@@ -1871,6 +1909,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         id: threadRow.value.threadId,
         projectId: threadRow.value.projectId,
         title: threadRow.value.title,
+        ...(threadRow.value.managerMetadata !== null
+          ? { managerMetadata: threadRow.value.managerMetadata }
+          : {}),
         modelSelection: threadRow.value.modelSelection,
         runtimeMode: threadRow.value.runtimeMode,
         interactionMode: threadRow.value.interactionMode,
@@ -1965,6 +2006,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         id: threadRow.value.threadId,
         projectId: threadRow.value.projectId,
         title: threadRow.value.title,
+        ...(threadRow.value.managerMetadata !== null
+          ? { managerMetadata: threadRow.value.managerMetadata }
+          : {}),
         modelSelection: threadRow.value.modelSelection,
         runtimeMode: threadRow.value.runtimeMode,
         interactionMode: threadRow.value.interactionMode,
