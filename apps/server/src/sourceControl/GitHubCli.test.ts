@@ -230,6 +230,95 @@ describe("GitHubCli.layer", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect(
+    "retries pull request list queries without labels when gh does not support that json field",
+    () =>
+      Effect.gen(function* () {
+        mockRun.mockReturnValueOnce(
+          Effect.fail(
+            new VcsProcessExitError({
+              operation: "GitHubCli.execute",
+              command: "gh pr list",
+              cwd: "/repo",
+              exitCode: 1,
+              detail: 'Unknown JSON field: "labels"',
+            }),
+          ),
+        );
+        mockRun.mockReturnValueOnce(
+          Effect.succeed(
+            processOutput(
+              // @effect-diagnostics-next-line preferSchemaOverJson:off
+              JSON.stringify([
+                {
+                  number: 43,
+                  title: "Fallback PR",
+                  url: "https://github.com/pingdotgg/codething-mvp/pull/43",
+                  baseRefName: "main",
+                  headRefName: "feature/pr-list",
+                  state: "OPEN",
+                },
+              ]),
+            ),
+          ),
+        );
+
+        const gh = yield* GitHubCli.GitHubCli;
+        const result = yield* gh.listOpenPullRequests({
+          cwd: "/repo",
+          headSelector: "feature/pr-list",
+        });
+
+        assert.deepStrictEqual(result, [
+          {
+            number: 43,
+            title: "Fallback PR",
+            url: "https://github.com/pingdotgg/codething-mvp/pull/43",
+            baseRefName: "main",
+            headRefName: "feature/pr-list",
+            state: "open",
+          },
+        ]);
+        expect(mockRun).toHaveBeenCalledTimes(2);
+        expect(mockRun).toHaveBeenNthCalledWith(1, {
+          operation: "GitHubCli.execute",
+          command: "gh",
+          args: [
+            "pr",
+            "list",
+            "--head",
+            "feature/pr-list",
+            "--state",
+            "open",
+            "--limit",
+            "1",
+            "--json",
+            "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
+          ],
+          cwd: "/repo",
+          timeoutMs: 30_000,
+        });
+        expect(mockRun).toHaveBeenNthCalledWith(2, {
+          operation: "GitHubCli.execute",
+          command: "gh",
+          args: [
+            "pr",
+            "list",
+            "--head",
+            "feature/pr-list",
+            "--state",
+            "open",
+            "--limit",
+            "1",
+            "--json",
+            "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
+          ],
+          cwd: "/repo",
+          timeoutMs: 30_000,
+        });
+      }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("deduplicates labels case-insensitively when decoding pull requests", () =>
     Effect.gen(function* () {
       mockRun.mockReturnValueOnce(
