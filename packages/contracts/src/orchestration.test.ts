@@ -12,6 +12,7 @@ import {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
+  ManagerBootstrapCommand,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
   OrchestrationProposedPlan,
@@ -29,6 +30,7 @@ const decodeTurnDiffInput = Schema.decodeUnknownEffect(OrchestrationGetTurnDiffI
 const decodeFullThreadDiffInput = Schema.decodeUnknownEffect(OrchestrationGetFullThreadDiffInput);
 const decodeThreadTurnDiff = Schema.decodeUnknownEffect(ThreadTurnDiff);
 const decodeProjectCreateCommand = Schema.decodeUnknownEffect(ProjectCreateCommand);
+const decodeManagerBootstrapCommand = Schema.decodeUnknownEffect(ManagerBootstrapCommand);
 const decodeProjectCreatedPayload = Schema.decodeUnknownEffect(ProjectCreatedPayload);
 const decodeProjectMetaUpdatedPayload = Schema.decodeUnknownEffect(ProjectMetaUpdatedPayload);
 const decodeThreadTurnStartCommand = Schema.decodeUnknownEffect(ThreadTurnStartCommand);
@@ -155,6 +157,29 @@ it.effect("decodes project.create with createWorkspaceRootIfMissing enabled", ()
   }),
 );
 
+it.effect(
+  "decodes manager.bootstrap with manager metadata defaults handled by the command shape",
+  () =>
+    Effect.gen(function* () {
+      const parsed = yield* decodeManagerBootstrapCommand({
+        type: "manager.bootstrap",
+        commandId: "cmd-manager-bootstrap",
+        projectId: "manager-workspace-1",
+        threadId: "manager-console-1",
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          provider: "codex",
+          model: "gpt-5-codex",
+        },
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+
+      assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
+      assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+      assert.strictEqual(parsed.modelSelection.instanceId, "codex");
+    }),
+);
+
 it.effect("decodes historical project.created payloads with a default provider", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeProjectCreatedPayload({
@@ -170,6 +195,47 @@ it.effect("decodes historical project.created payloads with a default provider",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
     assert.strictEqual(parsed.defaultModelSelection?.instanceId, "codex");
+    assert.strictEqual(parsed.managerMetadata, undefined);
+  }),
+);
+
+it.effect("decodes manager project and thread metadata on created payloads", () =>
+  Effect.gen(function* () {
+    const project = yield* decodeProjectCreatedPayload({
+      projectId: "manager-workspace-1",
+      title: "Manager Workspace",
+      workspaceRoot: "/tmp/manager-workspace",
+      managerMetadata: {
+        role: "workspace",
+      },
+      defaultModelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      scripts: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const thread = yield* decodeThreadCreatedPayload({
+      threadId: "manager-console-1",
+      projectId: "manager-workspace-1",
+      title: "Manager Console",
+      managerMetadata: {
+        role: "console",
+      },
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.deepStrictEqual(project.managerMetadata, { role: "workspace" });
+    assert.deepStrictEqual(thread.managerMetadata, { role: "console" });
   }),
 );
 

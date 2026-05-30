@@ -61,6 +61,7 @@ function commandToAggregateRef(command: OrchestrationCommand): {
 } {
   switch (command.type) {
     case "project.create":
+    case "manager.bootstrap":
     case "project.meta.update":
     case "project.delete":
       return {

@@ -8,6 +8,8 @@ import * as Effect from "effect/Effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
+  findManagerConsole,
+  findManagerWorkspace,
   listThreadsByProjectId,
   requireProject,
   requireProjectAbsent,
@@ -103,12 +105,90 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           projectId: command.projectId,
           title: command.title,
           workspaceRoot: command.workspaceRoot,
+          ...(command.managerMetadata !== undefined
+            ? { managerMetadata: command.managerMetadata }
+            : {}),
           defaultModelSelection: command.defaultModelSelection ?? null,
           scripts: [],
           createdAt: command.createdAt,
           updatedAt: command.createdAt,
         },
       };
+    }
+
+    case "manager.bootstrap": {
+      const existingWorkspace = findManagerWorkspace(readModel);
+      if (existingWorkspace !== undefined) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Manager Workspace '${existingWorkspace.id}' already exists.`,
+        });
+      }
+      const existingConsole = findManagerConsole(readModel);
+      if (existingConsole !== undefined) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Manager Console '${existingConsole.id}' already exists.`,
+        });
+      }
+      yield* requireProjectAbsent({
+        readModel,
+        command,
+        projectId: command.projectId,
+      });
+      yield* requireThreadAbsent({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+
+      return [
+        {
+          ...withEventBase({
+            aggregateKind: "project",
+            aggregateId: command.projectId,
+            occurredAt: command.createdAt,
+            commandId: command.commandId,
+          }),
+          type: "project.created",
+          payload: {
+            projectId: command.projectId,
+            title: "Manager Workspace",
+            workspaceRoot: command.workspaceRoot,
+            managerMetadata: {
+              role: "workspace",
+            },
+            defaultModelSelection: command.modelSelection,
+            scripts: [],
+            createdAt: command.createdAt,
+            updatedAt: command.createdAt,
+          },
+        },
+        {
+          ...withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt: command.createdAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.created",
+          payload: {
+            threadId: command.threadId,
+            projectId: command.projectId,
+            title: "Manager Console",
+            managerMetadata: {
+              role: "console",
+            },
+            modelSelection: command.modelSelection,
+            runtimeMode: command.runtimeMode,
+            interactionMode: command.interactionMode,
+            branch: null,
+            worktreePath: command.workspaceRoot,
+            createdAt: command.createdAt,
+            updatedAt: command.createdAt,
+          },
+        },
+      ];
     }
 
     case "project.meta.update": {
@@ -213,6 +293,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           threadId: command.threadId,
           projectId: command.projectId,
           title: command.title,
+          ...(command.managerMetadata !== undefined
+            ? { managerMetadata: command.managerMetadata }
+            : {}),
           modelSelection: command.modelSelection,
           runtimeMode: command.runtimeMode,
           interactionMode: command.interactionMode,

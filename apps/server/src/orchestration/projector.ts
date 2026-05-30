@@ -183,6 +183,9 @@ export function projectEvent(
             id: payload.projectId,
             title: payload.title,
             workspaceRoot: payload.workspaceRoot,
+            ...(payload.managerMetadata !== undefined
+              ? { managerMetadata: payload.managerMetadata }
+              : {}),
             defaultModelSelection: payload.defaultModelSelection,
             scripts: payload.scripts,
             createdAt: payload.createdAt,
@@ -254,6 +257,9 @@ export function projectEvent(
             id: payload.threadId,
             projectId: payload.projectId,
             title: payload.title,
+            ...(payload.managerMetadata !== undefined
+              ? { managerMetadata: payload.managerMetadata }
+              : {}),
             modelSelection: payload.modelSelection,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,

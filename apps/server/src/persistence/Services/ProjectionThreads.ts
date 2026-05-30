@@ -8,6 +8,7 @@
  */
 import {
   IsoDateTime,
+  ManagerThreadMetadata,
   ModelSelection,
   NonNegativeInt,
   ProjectId,
@@ -27,6 +28,7 @@ export const ProjectionThread = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   title: Schema.String,
+  managerMetadata: Schema.optional(ManagerThreadMetadata),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
