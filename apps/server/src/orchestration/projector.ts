@@ -27,6 +27,7 @@ import {
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
   ThreadTurnDiffCompletedPayload,
+  ThreadManagerQueueItemsUpsertedPayload,
 } from "./Schemas.ts";
 
 type ThreadPatch = Partial<Omit<OrchestrationThread, "id" | "projectId">>;
@@ -671,6 +672,22 @@ export function projectEvent(
             }),
           };
         }),
+      );
+
+    case "thread.manager-queue-items-upserted":
+      return decodeForEvent(
+        ThreadManagerQueueItemsUpsertedPayload,
+        event.payload,
+        event.type,
+        "payload",
+      ).pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            managerQueueItems: payload.managerQueueItems,
+            updatedAt: payload.updatedAt,
+          }),
+        })),
       );
 
     default:

@@ -1170,6 +1170,66 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "worker.escalate": {
+      const workerThread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      if (workerThread.managerMetadata?.role !== "worker") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.threadId}' is not a Worker Thread.`,
+        });
+      }
+
+      const managerThreadId = workerThread.managerMetadata.managerThreadId;
+      yield* requireManagerConsole({
+        readModel,
+        command,
+        threadId: managerThreadId,
+      });
+
+      const managerConsole = findThreadById(readModel, managerThreadId);
+      const existingQueueItems = managerConsole?.managerQueueItems ?? [];
+      const alreadyEscalated = existingQueueItems.some(
+        (item) => item.itemId === command.escalationId,
+      );
+      if (alreadyEscalated) {
+        // Duplicate-safe: escalationId already exists, return empty events array
+        return [];
+      }
+
+      const newQueueItem = {
+        itemId: command.escalationId,
+        escalationThreadId: command.threadId,
+        category: command.category,
+        summary: command.summary,
+        detail: command.detail,
+        status: "pending" as const,
+        createdAt: command.createdAt,
+        addressedAt: null as null,
+        dismissedAt: null as null,
+      };
+
+      const managerQueueItems = [...existingQueueItems, newQueueItem];
+
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: managerThreadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.manager-queue-items-upserted",
+        payload: {
+          threadId: managerThreadId,
+          managerQueueItems,
+          updatedAt: command.createdAt,
+        },
+      };
+    }
+
     default: {
       command satisfies never;
       const fallback = command as never as { type: string };

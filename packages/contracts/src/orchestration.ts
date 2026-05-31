@@ -267,6 +267,30 @@ export const ManagerThreadMetadata = Schema.Union([
 ]);
 export type ManagerThreadMetadata = typeof ManagerThreadMetadata.Type;
 
+export const ManagerQueueItemCategory = Schema.Literals([
+  "blocker",
+  "question",
+  "routing",
+  "review",
+]);
+export type ManagerQueueItemCategory = typeof ManagerQueueItemCategory.Type;
+
+export const ManagerQueueItemStatus = Schema.Literals(["pending", "addressed", "dismissed"]);
+export type ManagerQueueItemStatus = typeof ManagerQueueItemStatus.Type;
+
+export const ManagerQueueItem = Schema.Struct({
+  itemId: TrimmedNonEmptyString,
+  escalationThreadId: ThreadId,
+  category: ManagerQueueItemCategory,
+  summary: TrimmedNonEmptyString,
+  detail: Schema.String,
+  status: ManagerQueueItemStatus.pipe(Schema.withDecodingDefault(Effect.succeed("pending"))),
+  createdAt: IsoDateTime,
+  addressedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
+  dismissedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
+});
+export type ManagerQueueItem = typeof ManagerQueueItem.Type;
+
 export const ManagerSeededWorkItemInput = Schema.Struct({
   itemId: SeededWorkItemId,
   title: TrimmedNonEmptyString,
@@ -459,6 +483,9 @@ export const OrchestrationThread = Schema.Struct({
   seededWorkItems: Schema.optional(
     Schema.Array(ManagerSeededWorkItem).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   ),
+  managerQueueItems: Schema.optional(
+    Schema.Array(ManagerQueueItem).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  ),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -510,6 +537,7 @@ export const OrchestrationThreadShell = Schema.Struct({
   hasPendingApprovals: Schema.Boolean,
   hasPendingUserInput: Schema.Boolean,
   hasActionableProposedPlan: Schema.Boolean,
+  managerQueueItemCount: Schema.optional(NonNegativeInt),
 });
 export type OrchestrationThreadShell = typeof OrchestrationThreadShell.Type;
 
@@ -659,6 +687,18 @@ export const WorkerDelegateCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 export type WorkerDelegateCommand = typeof WorkerDelegateCommand.Type;
+
+export const WorkerEscalateCommand = Schema.Struct({
+  type: Schema.Literal("worker.escalate"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  escalationId: TrimmedNonEmptyString,
+  category: ManagerQueueItemCategory,
+  summary: TrimmedNonEmptyString,
+  detail: Schema.String,
+  createdAt: IsoDateTime,
+});
+export type WorkerEscalateCommand = typeof WorkerEscalateCommand.Type;
 
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
@@ -861,6 +901,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
+  WorkerEscalateCommand,
   ThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -888,6 +929,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
+  WorkerEscalateCommand,
   ClientThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -1004,6 +1046,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.proposed-plan-upserted",
   "thread.turn-diff-completed",
   "thread.activity-appended",
+  "thread.manager-queue-items-upserted",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
@@ -1197,6 +1240,12 @@ export const ThreadActivityAppendedPayload = Schema.Struct({
   activity: OrchestrationThreadActivity,
 });
 
+export const ThreadManagerQueueItemsUpsertedPayload = Schema.Struct({
+  threadId: ThreadId,
+  managerQueueItems: Schema.Array(ManagerQueueItem),
+  updatedAt: IsoDateTime,
+});
+
 export const OrchestrationEventMetadata = Schema.Struct({
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
   providerItemId: Schema.optional(ProviderItemId),
@@ -1338,6 +1387,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.activity-appended"),
     payload: ThreadActivityAppendedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.manager-queue-items-upserted"),
+    payload: ThreadManagerQueueItemsUpsertedPayload,
   }),
 ]);
 export type OrchestrationEvent = typeof OrchestrationEvent.Type;
