@@ -274,6 +274,7 @@ export function projectEvent(
             deletedAt: null,
             messages: [],
             seededWorkItems: [],
+            managerQueueItems: [],
             proposedPlans: [],
             activities: [],
             checkpoints: [],

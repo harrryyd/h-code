@@ -287,7 +287,7 @@ describe("worker.escalate", () => {
     ]);
   });
 
-  it("returns empty events when escalationId already exists (duplicate-safe)", async () => {
+  it("rejects escalation when escalationId already exists (duplicate-safe)", async () => {
     let readModel = await seedEscalationReadModel();
     const now = "2026-01-01T00:00:05.000Z";
 
@@ -336,9 +336,13 @@ describe("worker.escalate", () => {
       createdAt,
     };
 
-    const result = await Effect.runPromise(decideOrchestrationCommand({ command, readModel }));
-
-    expect(result).toEqual([]);
+    await expect(
+      Effect.runPromise(decideOrchestrationCommand({ command, readModel })),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        detail: expect.stringContaining("already exists on Manager Console"),
+      }),
+    );
   });
 
   it("rejects escalation from a non-worker thread", async () => {

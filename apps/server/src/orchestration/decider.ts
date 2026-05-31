@@ -1184,20 +1184,21 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       }
 
       const managerThreadId = workerThread.managerMetadata.managerThreadId;
-      yield* requireManagerConsole({
+      const managerConsole = yield* requireManagerConsole({
         readModel,
         command,
         threadId: managerThreadId,
       });
 
-      const managerConsole = findThreadById(readModel, managerThreadId);
-      const existingQueueItems = managerConsole?.managerQueueItems ?? [];
+      const existingQueueItems = managerConsole.managerQueueItems ?? [];
       const alreadyEscalated = existingQueueItems.some(
         (item) => item.itemId === command.escalationId,
       );
       if (alreadyEscalated) {
-        // Duplicate-safe: escalationId already exists, return empty events array
-        return [];
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Escalation '${command.escalationId}' already exists on Manager Console '${managerThreadId}'.`,
+        });
       }
 
       const newQueueItem = {
