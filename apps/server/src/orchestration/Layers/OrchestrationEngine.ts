@@ -73,6 +73,11 @@ function commandToAggregateRef(command: OrchestrationCommand): {
         aggregateKind: "thread",
         aggregateId: command.refinerThreadId,
       };
+    case "worker.delegate":
+      return {
+        aggregateKind: "thread",
+        aggregateId: command.workerThreadId,
+      };
     default:
       return {
         aggregateKind: "thread",

@@ -407,6 +407,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         seededWorkItem,
         refinementHandoff: {
           refinerThreadId: command.refinerThreadId,
+          sourceBody: seededWorkItem.body,
           refinedProblemStatement: command.refinedProblemStatement,
           acceptanceCriteria: command.acceptanceCriteria,
           targetProjectId: command.targetProjectId,
@@ -463,6 +464,88 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           : []),
       ];
     }
+
+    case "worker.delegate": {
+      const refinerThread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.refinerThreadId,
+      });
+      if (refinerThread.managerMetadata?.role !== "refiner") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.refinerThreadId}' is not a Refiner Thread.`,
+        });
+      }
+
+      const managerThreadId = refinerThread.managerMetadata.managerThreadId;
+      const seededWorkItemId = refinerThread.managerMetadata.seededWorkItemId;
+      const seededWorkItem = findSeededWorkItemOnManagerConsole(
+        readModel,
+        managerThreadId,
+        seededWorkItemId,
+      );
+      if (seededWorkItem === undefined) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${seededWorkItemId}' does not exist on Manager Console '${managerThreadId}'.`,
+        });
+      }
+      if (!seededWorkItem.refinementHandoff) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${seededWorkItemId}' does not have a refinement handoff.`,
+        });
+      }
+      if (seededWorkItem.delegationStatus !== "requested") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${seededWorkItemId}' delegation status is '${seededWorkItem.delegationStatus}' and cannot create a Worker Thread.`,
+        });
+      }
+
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: seededWorkItem.refinementHandoff.targetProjectId,
+      });
+      yield* requireThreadAbsent({
+        readModel,
+        command,
+        threadId: command.workerThreadId,
+      });
+
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.workerThreadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.created",
+        payload: {
+          threadId: command.workerThreadId,
+          projectId: seededWorkItem.refinementHandoff.targetProjectId,
+          title: seededWorkItem.title,
+          managerMetadata: {
+            role: "worker",
+            managerThreadId,
+            seededWorkItemId,
+            sourceBody: seededWorkItem.refinementHandoff.sourceBody,
+            refinedBrief: seededWorkItem.refinementHandoff.refinedProblemStatement,
+            acceptanceCriteria: seededWorkItem.refinementHandoff.acceptanceCriteria,
+          },
+          modelSelection: command.modelSelection,
+          runtimeMode: command.runtimeMode,
+          interactionMode: command.interactionMode,
+          branch: command.branch,
+          worktreePath: command.worktreePath,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+        },
+      };
+    }
+
     case "project.meta.update": {
       yield* requireProject({
         readModel,

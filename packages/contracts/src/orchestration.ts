@@ -232,6 +232,7 @@ export type SeededWorkItemWritebackKind = typeof SeededWorkItemWritebackKind.Typ
 
 export const RefinementHandoff = Schema.Struct({
   refinerThreadId: ThreadId,
+  sourceBody: Schema.String,
   refinedProblemStatement: TrimmedNonEmptyString,
   acceptanceCriteria: Schema.Array(TrimmedNonEmptyString),
   targetProjectId: ProjectId,
@@ -249,9 +250,20 @@ export const RefinerThreadMetadata = Schema.Struct({
 });
 export type RefinerThreadMetadata = typeof RefinerThreadMetadata.Type;
 
+export const WorkerThreadMetadata = Schema.Struct({
+  role: Schema.Literal("worker"),
+  managerThreadId: ThreadId,
+  seededWorkItemId: SeededWorkItemId,
+  sourceBody: Schema.String,
+  refinedBrief: TrimmedNonEmptyString,
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString),
+});
+export type WorkerThreadMetadata = typeof WorkerThreadMetadata.Type;
+
 export const ManagerThreadMetadata = Schema.Union([
   ManagerConsoleThreadMetadata,
   RefinerThreadMetadata,
+  WorkerThreadMetadata,
 ]);
 export type ManagerThreadMetadata = typeof ManagerThreadMetadata.Type;
 
@@ -632,6 +644,22 @@ export const ManagerRecordRefinementHandoffCommand = Schema.Struct({
 export type ManagerRecordRefinementHandoffCommand =
   typeof ManagerRecordRefinementHandoffCommand.Type;
 
+export const WorkerDelegateCommand = Schema.Struct({
+  type: Schema.Literal("worker.delegate"),
+  commandId: CommandId,
+  workerThreadId: ThreadId,
+  refinerThreadId: ThreadId,
+  modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  interactionMode: ProviderInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  ),
+  branch: Schema.NullOr(TrimmedNonEmptyString),
+  worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  createdAt: IsoDateTime,
+});
+export type WorkerDelegateCommand = typeof WorkerDelegateCommand.Type;
+
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
   commandId: CommandId,
@@ -823,6 +851,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadSeededWorkItemWritebackRequestCommand,
   ManagerCreateRefinerThreadCommand,
   ManagerRecordRefinementHandoffCommand,
+  WorkerDelegateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -849,6 +878,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadSeededWorkItemWritebackRequestCommand,
   ManagerCreateRefinerThreadCommand,
   ManagerRecordRefinementHandoffCommand,
+  WorkerDelegateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,

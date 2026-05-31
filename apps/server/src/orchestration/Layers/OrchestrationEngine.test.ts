@@ -879,6 +879,7 @@ describe("OrchestrationEngine", () => {
         delegationRequestedAt: handoffAt,
         refinementHandoff: {
           refinerThreadId: "refiner-thread-1",
+          sourceBody: "The export flow is underspecified.",
           refinedProblemStatement: "Users can export billing data as CSV from the invoices screen.",
           acceptanceCriteria: [
             "Invoices screen shows an export action",
@@ -925,6 +926,156 @@ describe("OrchestrationEngine", () => {
         createdAt: handoffAt,
       }),
     );
+
+    await secondSystem.dispose();
+  });
+  it("creates a delegated Worker Thread with project-local metadata through the full delegation flow", async () => {
+    const dbPath = `/tmp/t3-worker-delegate-${crypto.randomUUID()}.sqlite`;
+    const firstSystem = await createOrchestrationSystem({ dbPath });
+    const createdAt = now();
+    const handoffAt = "2026-01-01T00:00:05.000Z";
+    const delegateAt = "2026-01-01T00:00:10.000Z";
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.bootstrap",
+        commandId: CommandId.make("cmd-manager-bootstrap-delegate"),
+        projectId: asProjectId("manager-workspace"),
+        threadId: ThreadId.make("manager-console"),
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "project.create",
+        commandId: CommandId.make("cmd-project-delegate"),
+        projectId: asProjectId("app-project"),
+        title: "App Project",
+        workspaceRoot: "/tmp/app-project",
+        defaultModelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.seed-work-items",
+        commandId: CommandId.make("cmd-manager-seed-work-delegate"),
+        threadId: ThreadId.make("manager-console"),
+        sourceKind: "jira-set",
+        sourceLabel: "Jira Backlog",
+        items: [
+          {
+            itemId: "work-1",
+            title: "Add CSV billing export",
+            body: "Original Jira issue description for billing export feature.",
+            delegationIntent: "delegate",
+            targetProjectId: asProjectId("app-project"),
+            acceptanceCriteria: [],
+          },
+        ],
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.refiner-thread.create",
+        commandId: CommandId.make("cmd-manager-create-refiner-delegate"),
+        threadId: ThreadId.make("refiner-thread-1"),
+        managerThreadId: ThreadId.make("manager-console"),
+        seededWorkItemId: "work-1",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        branch: null,
+        worktreePath: null,
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.refinement-handoff.record",
+        commandId: CommandId.make("cmd-manager-record-handoff-delegate"),
+        refinerThreadId: ThreadId.make("refiner-thread-1"),
+        refinedProblemStatement: "Users can export billing history as CSV from the invoices page.",
+        acceptanceCriteria: [
+          "CSV export button visible on invoices page",
+          "Downloaded CSV contains invoice rows with correct columns",
+        ],
+        targetProjectId: asProjectId("app-project"),
+        createdAt: handoffAt,
+      }),
+    );
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "worker.delegate",
+        commandId: CommandId.make("cmd-worker-delegate"),
+        workerThreadId: ThreadId.make("worker-thread-1"),
+        refinerThreadId: ThreadId.make("refiner-thread-1"),
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "auto-accept-edits",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        branch: null,
+        worktreePath: null,
+        createdAt: delegateAt,
+      }),
+    );
+
+    const workerDetail = Option.getOrNull(
+      await firstSystem.threadDetail(ThreadId.make("worker-thread-1")),
+    );
+    expect(workerDetail).toEqual(
+      expect.objectContaining({
+        id: ThreadId.make("worker-thread-1"),
+        projectId: asProjectId("app-project"),
+        title: "Add CSV billing export",
+        managerMetadata: {
+          role: "worker",
+          managerThreadId: ThreadId.make("manager-console"),
+          seededWorkItemId: "work-1",
+          sourceBody: "Original Jira issue description for billing export feature.",
+          refinedBrief: "Users can export billing history as CSV from the invoices page.",
+          acceptanceCriteria: [
+            "CSV export button visible on invoices page",
+            "Downloaded CSV contains invoice rows with correct columns",
+          ],
+        },
+      }),
+    );
+
+    await firstSystem.dispose();
+
+    const secondSystem = await createOrchestrationSystem({ dbPath });
+    const reloadedWorker = Option.getOrNull(
+      await secondSystem.threadDetail(ThreadId.make("worker-thread-1")),
+    );
+    expect(reloadedWorker?.managerMetadata).toEqual({
+      role: "worker",
+      managerThreadId: ThreadId.make("manager-console"),
+      seededWorkItemId: "work-1",
+      sourceBody: "Original Jira issue description for billing export feature.",
+      refinedBrief: "Users can export billing history as CSV from the invoices page.",
+      acceptanceCriteria: [
+        "CSV export button visible on invoices page",
+        "Downloaded CSV contains invoice rows with correct columns",
+      ],
+    });
 
     await secondSystem.dispose();
   });
