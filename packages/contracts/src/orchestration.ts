@@ -224,6 +224,12 @@ export type SeededWorkDelegationIntent = typeof SeededWorkDelegationIntent.Type;
 export const SeededWorkItemId = TrimmedNonEmptyString;
 export type SeededWorkItemId = typeof SeededWorkItemId.Type;
 
+export const SeededWorkItemWritebackKind = Schema.Literals([
+  "refinement-context",
+  "worker-progress",
+]);
+export type SeededWorkItemWritebackKind = typeof SeededWorkItemWritebackKind.Type;
+
 export const RefinementHandoff = Schema.Struct({
   refinerThreadId: ThreadId,
   refinedProblemStatement: TrimmedNonEmptyString,
@@ -585,6 +591,18 @@ const ManagerSeedWorkItemsCommand = Schema.Struct({
 });
 export type ManagerSeedWorkItemsCommand = typeof ManagerSeedWorkItemsCommand.Type;
 
+const ThreadSeededWorkItemWritebackRequestCommand = Schema.Struct({
+  type: Schema.Literal("thread.seeded-work-item-writeback.request"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  itemId: SeededWorkItemId,
+  writebackKind: SeededWorkItemWritebackKind,
+  body: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+export type ThreadSeededWorkItemWritebackRequestCommand =
+  typeof ThreadSeededWorkItemWritebackRequestCommand.Type;
+
 export const ManagerCreateRefinerThreadCommand = Schema.Struct({
   type: Schema.Literal("manager.refiner-thread.create"),
   commandId: CommandId,
@@ -802,6 +820,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ManagerBootstrapCommand,
   ManagerSeedWorkItemsCommand,
+  ThreadSeededWorkItemWritebackRequestCommand,
   ManagerCreateRefinerThreadCommand,
   ManagerRecordRefinementHandoffCommand,
   ProjectMetaUpdateCommand,
@@ -827,6 +846,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ManagerBootstrapCommand,
   ManagerSeedWorkItemsCommand,
+  ThreadSeededWorkItemWritebackRequestCommand,
   ManagerCreateRefinerThreadCommand,
   ManagerRecordRefinementHandoffCommand,
   ProjectMetaUpdateCommand,
@@ -935,6 +955,7 @@ export const OrchestrationEventType = Schema.Literals([
   "project.deleted",
   "thread.created",
   "thread.seeded-work-items-upserted",
+  "thread.seeded-work-item-writeback-requested",
   "thread.deleted",
   "thread.archived",
   "thread.unarchived",
@@ -1007,6 +1028,17 @@ export const ThreadSeededWorkItemsUpsertedPayload = Schema.Struct({
   threadId: ThreadId,
   seededWorkItems: Schema.Array(ManagerSeededWorkItem),
   updatedAt: IsoDateTime,
+});
+
+export const ThreadSeededWorkItemWritebackRequestedPayload = Schema.Struct({
+  threadId: ThreadId,
+  itemId: SeededWorkItemId,
+  sourceKind: SeededWorkSourceKind,
+  sourceLabel: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+  writebackKind: SeededWorkItemWritebackKind,
+  body: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
 });
 
 export const ThreadDeletedPayload = Schema.Struct({
@@ -1181,6 +1213,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.seeded-work-items-upserted"),
     payload: ThreadSeededWorkItemsUpsertedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.seeded-work-item-writeback-requested"),
+    payload: ThreadSeededWorkItemWritebackRequestedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,

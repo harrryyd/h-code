@@ -4,6 +4,7 @@ import {
   ProjectDeletedPayload as ContractsProjectDeletedPayloadSchema,
   ThreadCreatedPayload as ContractsThreadCreatedPayloadSchema,
   ThreadSeededWorkItemsUpsertedPayload as ContractsThreadSeededWorkItemsUpsertedPayloadSchema,
+  ThreadSeededWorkItemWritebackRequestedPayload as ContractsThreadSeededWorkItemWritebackRequestedPayloadSchema,
   ThreadArchivedPayload as ContractsThreadArchivedPayloadSchema,
   ThreadMetaUpdatedPayload as ContractsThreadMetaUpdatedPayloadSchema,
   ThreadRuntimeModeSetPayload as ContractsThreadRuntimeModeSetPayloadSchema,
@@ -31,6 +32,8 @@ export const ProjectDeletedPayload = ContractsProjectDeletedPayloadSchema;
 export const ThreadCreatedPayload = ContractsThreadCreatedPayloadSchema;
 export const ThreadSeededWorkItemsUpsertedPayload =
   ContractsThreadSeededWorkItemsUpsertedPayloadSchema;
+export const ThreadSeededWorkItemWritebackRequestedPayload =
+  ContractsThreadSeededWorkItemWritebackRequestedPayloadSchema;
 export const ThreadArchivedPayload = ContractsThreadArchivedPayloadSchema;
 export const ThreadMetaUpdatedPayload = ContractsThreadMetaUpdatedPayloadSchema;
 export const ThreadRuntimeModeSetPayload = ContractsThreadRuntimeModeSetPayloadSchema;

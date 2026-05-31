@@ -238,6 +238,43 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.seeded-work-item-writeback.request": {
+      const managerConsole = yield* requireManagerConsole({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const seededWorkItem = managerConsole.seededWorkItems?.find(
+        (item) => item.itemId === command.itemId,
+      );
+      if (!seededWorkItem) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${command.itemId}' does not exist on Manager Console '${command.threadId}'.`,
+        });
+      }
+
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.seeded-work-item-writeback-requested",
+        payload: {
+          threadId: command.threadId,
+          itemId: seededWorkItem.itemId,
+          sourceKind: seededWorkItem.sourceKind,
+          sourceLabel: seededWorkItem.sourceLabel,
+          title: seededWorkItem.title,
+          writebackKind: command.writebackKind,
+          body: command.body,
+          createdAt: command.createdAt,
+        },
+      };
+    }
+
     case "manager.refiner-thread.create": {
       yield* requireManagerConsole({
         readModel,
@@ -426,7 +463,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           : []),
       ];
     }
-
     case "project.meta.update": {
       yield* requireProject({
         readModel,

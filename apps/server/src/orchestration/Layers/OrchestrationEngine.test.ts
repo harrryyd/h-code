@@ -510,6 +510,73 @@ describe("OrchestrationEngine", () => {
     await secondSystem.dispose();
   });
 
+  it("keeps seeded work item descriptions unchanged when writeback requests are recorded", async () => {
+    const system = await createOrchestrationSystem();
+    const createdAt = now();
+    const managerThreadId = ThreadId.make("manager-console");
+
+    await system.run(
+      system.engine.dispatch({
+        type: "manager.bootstrap",
+        commandId: CommandId.make("cmd-manager-bootstrap"),
+        projectId: asProjectId("manager-workspace"),
+        threadId: managerThreadId,
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        createdAt,
+      }),
+    );
+
+    await system.run(
+      system.engine.dispatch({
+        type: "manager.seed-work-items",
+        commandId: CommandId.make("cmd-manager-seed-work"),
+        threadId: managerThreadId,
+        sourceKind: "jira-set",
+        sourceLabel: "Jira",
+        items: [
+          {
+            itemId: "JIRA-21",
+            title: "Refine manager writeback",
+            body: "Original Jira description",
+            delegationIntent: "delegate",
+            targetProjectId: null,
+            acceptanceCriteria: [],
+          },
+        ],
+        createdAt,
+      }),
+    );
+
+    await system.run(
+      system.engine.dispatch({
+        type: "thread.seeded-work-item-writeback.request",
+        commandId: CommandId.make("cmd-writeback-request"),
+        threadId: managerThreadId,
+        itemId: "JIRA-21",
+        writebackKind: "refinement-context",
+        body: "Refined problem statement and acceptance criteria.",
+        createdAt,
+      }),
+    );
+
+    const detail = Option.getOrNull(await system.threadDetail(managerThreadId));
+    expect(detail?.seededWorkItems).toEqual([
+      expect.objectContaining({
+        itemId: "JIRA-21",
+        body: "Original Jira description",
+      }),
+    ]);
+    expect(detail?.activities).toEqual([]);
+
+    await system.dispose();
+  });
+
   it("creates project-bound refiner threads for needs-refinement work items and persists their projection", async () => {
     const dbPath = `/tmp/t3-manager-refiner-thread-${crypto.randomUUID()}.sqlite`;
     const firstSystem = await createOrchestrationSystem({ dbPath });
@@ -861,7 +928,6 @@ describe("OrchestrationEngine", () => {
 
     await secondSystem.dispose();
   });
-
   it("archives and unarchives threads through orchestration commands", async () => {
     const system = await createOrchestrationSystem();
     const { engine } = system;
