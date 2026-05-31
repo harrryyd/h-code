@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import { ManagerThreadMetadata, ModelSelection } from "@t3tools/contracts";
+import { ManagerSeededWorkItem, ManagerThreadMetadata, ModelSelection } from "@t3tools/contracts";
 import { toPersistenceSqlError } from "../Errors.ts";
 import {
   DeleteProjectionThreadInput,
@@ -30,6 +30,7 @@ const ProjectionThreadDbRow = Schema.Struct({
   createdAt: ProjectionThread.fields.createdAt,
   updatedAt: ProjectionThread.fields.updatedAt,
   archivedAt: ProjectionThread.fields.archivedAt,
+  seededWorkItems: Schema.fromJsonString(Schema.Array(ManagerSeededWorkItem)),
   latestUserMessageAt: ProjectionThread.fields.latestUserMessageAt,
   pendingApprovalCount: ProjectionThread.fields.pendingApprovalCount,
   pendingUserInputCount: ProjectionThread.fields.pendingUserInputCount,
@@ -53,6 +54,7 @@ function mapProjectionThreadRow(row: ProjectionThreadDbRow) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     archivedAt: row.archivedAt,
+    seededWorkItems: row.seededWorkItems,
     latestUserMessageAt: row.latestUserMessageAt,
     pendingApprovalCount: row.pendingApprovalCount,
     pendingUserInputCount: row.pendingUserInputCount,
@@ -82,6 +84,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at,
           updated_at,
           archived_at,
+          seeded_work_items_json,
           latest_user_message_at,
           pending_approval_count,
           pending_user_input_count,
@@ -102,6 +105,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.createdAt},
           ${row.updatedAt},
           ${row.archivedAt},
+          ${JSON.stringify(row.seededWorkItems)},
           ${row.latestUserMessageAt},
           ${row.pendingApprovalCount},
           ${row.pendingUserInputCount},
@@ -122,6 +126,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at = excluded.created_at,
           updated_at = excluded.updated_at,
           archived_at = excluded.archived_at,
+          seeded_work_items_json = excluded.seeded_work_items_json,
           latest_user_message_at = excluded.latest_user_message_at,
           pending_approval_count = excluded.pending_approval_count,
           pending_user_input_count = excluded.pending_user_input_count,
@@ -149,6 +154,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
+          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -178,6 +184,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
+          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",

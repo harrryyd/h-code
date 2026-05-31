@@ -22,6 +22,7 @@ import {
   ThreadMetaUpdatedPayload,
   ThreadProposedPlanUpsertedPayload,
   ThreadRuntimeModeSetPayload,
+  ThreadSeededWorkItemsUpsertedPayload,
   ThreadUnarchivedPayload,
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
@@ -271,6 +272,8 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
+            seededWorkItems: [],
+            proposedPlans: [],
             activities: [],
             checkpoints: [],
             session: null,
@@ -294,6 +297,22 @@ export function projectEvent(
           threads: updateThread(nextBase.threads, payload.threadId, {
             deletedAt: payload.deletedAt,
             updatedAt: payload.deletedAt,
+          }),
+        })),
+      );
+
+    case "thread.seeded-work-items-upserted":
+      return decodeForEvent(
+        ThreadSeededWorkItemsUpsertedPayload,
+        event.payload,
+        event.type,
+        "payload",
+      ).pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            seededWorkItems: payload.seededWorkItems,
+            updatedAt: payload.updatedAt,
           }),
         })),
       );
