@@ -13,6 +13,7 @@ import {
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
   ManagerCreateRefinerThreadCommand,
+  ManagerRecordRefinementHandoffCommand,
   ManagerBootstrapCommand,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
@@ -34,6 +35,9 @@ const decodeProjectCreateCommand = Schema.decodeUnknownEffect(ProjectCreateComma
 const decodeManagerBootstrapCommand = Schema.decodeUnknownEffect(ManagerBootstrapCommand);
 const decodeManagerCreateRefinerThreadCommand = Schema.decodeUnknownEffect(
   ManagerCreateRefinerThreadCommand,
+);
+const decodeManagerRecordRefinementHandoffCommand = Schema.decodeUnknownEffect(
+  ManagerRecordRefinementHandoffCommand,
 );
 const decodeProjectCreatedPayload = Schema.decodeUnknownEffect(ProjectCreatedPayload);
 const decodeProjectMetaUpdatedPayload = Schema.decodeUnknownEffect(ProjectMetaUpdatedPayload);
@@ -295,6 +299,29 @@ it.effect("decodes manager refiner thread creation commands", () =>
     assert.strictEqual(command.type, "manager.refiner-thread.create");
     assert.strictEqual(command.managerThreadId, "manager-console-1");
     assert.strictEqual(command.seededWorkItemId, "work-refine-1");
+  }),
+);
+
+it.effect("decodes manager refinement handoff commands", () =>
+  Effect.gen(function* () {
+    const command = yield* decodeManagerRecordRefinementHandoffCommand({
+      type: "manager.refinement-handoff.record",
+      commandId: "cmd-refinement-handoff",
+      refinerThreadId: "refiner-thread-1",
+      refinedProblemStatement: " Tighten the billing export brief. ",
+      acceptanceCriteria: [" Export action is visible ", " CSV includes invoice rows "],
+      targetProjectId: " project-1 ",
+      createdAt: "2026-01-01T00:00:05.000Z",
+    });
+
+    assert.strictEqual(command.type, "manager.refinement-handoff.record");
+    assert.strictEqual(command.refinerThreadId, "refiner-thread-1");
+    assert.strictEqual(command.refinedProblemStatement, "Tighten the billing export brief.");
+    assert.deepStrictEqual(command.acceptanceCriteria, [
+      "Export action is visible",
+      "CSV includes invoice rows",
+    ]);
+    assert.strictEqual(command.targetProjectId, "project-1");
   }),
 );
 

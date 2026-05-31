@@ -224,6 +224,18 @@ export type SeededWorkDelegationIntent = typeof SeededWorkDelegationIntent.Type;
 export const SeededWorkItemId = TrimmedNonEmptyString;
 export type SeededWorkItemId = typeof SeededWorkItemId.Type;
 
+export const RefinementHandoff = Schema.Struct({
+  refinerThreadId: ThreadId,
+  refinedProblemStatement: TrimmedNonEmptyString,
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString),
+  targetProjectId: ProjectId,
+  recordedAt: IsoDateTime,
+});
+export type RefinementHandoff = typeof RefinementHandoff.Type;
+
+export const ManagerDelegationStatus = Schema.Literals(["idle", "requested"]);
+export type ManagerDelegationStatus = typeof ManagerDelegationStatus.Type;
+
 export const RefinerThreadMetadata = Schema.Struct({
   role: Schema.Literal("refiner"),
   managerThreadId: ThreadId,
@@ -260,8 +272,15 @@ export const ManagerSeededWorkItem = Schema.Struct({
   acceptanceCriteria: Schema.Array(TrimmedNonEmptyString).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
+  refinementHandoff: Schema.optional(RefinementHandoff),
   readiness: WorkReadiness,
   readinessReason: TrimmedNonEmptyString,
+  delegationStatus: ManagerDelegationStatus.pipe(
+    Schema.withDecodingDefault(Effect.succeed("idle")),
+  ),
+  delegationRequestedAt: Schema.NullOr(IsoDateTime).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -583,6 +602,18 @@ export const ManagerCreateRefinerThreadCommand = Schema.Struct({
 });
 export type ManagerCreateRefinerThreadCommand = typeof ManagerCreateRefinerThreadCommand.Type;
 
+export const ManagerRecordRefinementHandoffCommand = Schema.Struct({
+  type: Schema.Literal("manager.refinement-handoff.record"),
+  commandId: CommandId,
+  refinerThreadId: ThreadId,
+  refinedProblemStatement: TrimmedNonEmptyString,
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString),
+  targetProjectId: ProjectId,
+  createdAt: IsoDateTime,
+});
+export type ManagerRecordRefinementHandoffCommand =
+  typeof ManagerRecordRefinementHandoffCommand.Type;
+
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
   commandId: CommandId,
@@ -772,6 +803,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ManagerBootstrapCommand,
   ManagerSeedWorkItemsCommand,
   ManagerCreateRefinerThreadCommand,
+  ManagerRecordRefinementHandoffCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -796,6 +828,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ManagerBootstrapCommand,
   ManagerSeedWorkItemsCommand,
   ManagerCreateRefinerThreadCommand,
+  ManagerRecordRefinementHandoffCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
