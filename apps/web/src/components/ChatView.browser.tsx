@@ -483,6 +483,7 @@ function toShellThread(thread: OrchestrationReadModel["threads"][number]) {
     id: thread.id,
     projectId: thread.projectId,
     title: thread.title,
+    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     modelSelection: thread.modelSelection,
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
@@ -508,6 +509,7 @@ function toShellSnapshot(snapshot: OrchestrationReadModel) {
       id: project.id,
       title: project.title,
       workspaceRoot: project.workspaceRoot,
+      ...(project.managerMetadata ? { managerMetadata: project.managerMetadata } : {}),
       repositoryIdentity: project.repositoryIdentity ?? null,
       defaultModelSelection: project.defaultModelSelection,
       scripts: project.scripts,
@@ -860,6 +862,73 @@ function createSnapshotWithSecondaryProject(options?: {
       },
     ],
     threads: [...snapshot.threads, ...secondaryThreads, ...archivedSecondaryThreads],
+  };
+}
+
+function createSnapshotWithManagerConsole(): OrchestrationReadModel {
+  const snapshot = createSnapshotForTargetUser({
+    targetMessageId: "msg-user-manager-console-target" as MessageId,
+    targetText: "manager console",
+  });
+
+  return {
+    ...snapshot,
+    projects: [
+      {
+        id: "manager-workspace-1" as ProjectId,
+        title: "Manager Workspace",
+        workspaceRoot: "/repo/.t3/manager",
+        managerMetadata: {
+          role: "workspace",
+        },
+        defaultModelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
+        scripts: [],
+        createdAt: isoAt(5),
+        updatedAt: isoAt(5),
+        deletedAt: null,
+      },
+      ...snapshot.projects,
+    ],
+    threads: [
+      {
+        id: "manager-console-1" as ThreadId,
+        projectId: "manager-workspace-1" as ProjectId,
+        title: "Manager Console",
+        managerMetadata: {
+          role: "console",
+        },
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
+        interactionMode: "default",
+        runtimeMode: "full-access",
+        branch: null,
+        worktreePath: null,
+        latestTurn: null,
+        createdAt: isoAt(6),
+        updatedAt: isoAt(7),
+        archivedAt: null,
+        deletedAt: null,
+        messages: [
+          createUserMessage({
+            id: "msg-user-manager-console" as MessageId,
+            text: "Manager inbox work",
+            offsetSeconds: 6,
+          }),
+        ],
+        activities: [],
+        proposedPlans: [],
+        checkpoints: [],
+        session: {
+          threadId: "manager-console-1" as ThreadId,
+          status: "ready",
+          providerName: "codex",
+          runtimeMode: "full-access",
+          activeTurnId: null,
+          lastError: null,
+          updatedAt: isoAt(7),
+        },
+      },
+      ...snapshot.threads,
+    ],
   };
 }
 
@@ -3990,6 +4059,43 @@ describe("ChatView timeline estimator parity (full app)", () => {
         },
         { timeout: 8_000, interval: 16 },
       );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders the manager console in a dedicated manager inbox sidebar section", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotWithManagerConsole(),
+    });
+
+    try {
+      await expect.element(page.getByText("Manager Inbox", { exact: true })).toBeInTheDocument();
+      await expect.element(page.getByTestId("thread-title-manager-console-1")).toBeInTheDocument();
+      await expect.element(page.getByTestId(`thread-title-${THREAD_ID}`)).toBeInTheDocument();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("opens the manager console conversation when selected from the manager inbox", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotWithManagerConsole(),
+    });
+
+    try {
+      await page.getByTestId("thread-row-manager-console-1").click();
+
+      const nextPath = await waitForURL(
+        mounted.router,
+        (path) => path === serverThreadPath("manager-console-1" as ThreadId),
+        "Route should change to the manager console thread.",
+      );
+
+      expect(nextPath).toBe(serverThreadPath("manager-console-1" as ThreadId));
+      await expect.element(page.getByText("Manager inbox work", { exact: true })).toBeVisible();
     } finally {
       await mounted.cleanup();
     }
