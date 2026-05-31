@@ -1377,6 +1377,72 @@ describe("deriveTimelineEntries", () => {
     expect(entries[0]!.createdAt).toBe(threadCreatedAt);
     expect(entries[1]!.kind).toBe("message");
   });
+
+  it("does not prepend manager-instruction when managerMetadata role is not worker", () => {
+    const entries = deriveTimelineEntries(
+      [
+        {
+          id: MessageId.make("msg-1"),
+          role: "user",
+          text: "do something",
+          createdAt: "2026-02-23T00:00:05.000Z",
+          streaming: false,
+        },
+      ],
+      [],
+      [],
+      {
+        role: "console",
+      } as const,
+      "2026-02-23T00:00:00.000Z",
+    );
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.kind).toBe("message");
+  });
+
+  it("uses sorted entries for createdAt fallback when threadCreatedAt is undefined", () => {
+    const entries = deriveTimelineEntries(
+      [
+        {
+          id: MessageId.make("msg-1"),
+          role: "user",
+          text: "do something",
+          createdAt: "2026-02-23T00:00:05.000Z",
+          streaming: false,
+        },
+      ],
+      [],
+      [],
+      {
+        role: "worker",
+        managerThreadId: ThreadId.make("manager-console"),
+        seededWorkItemId: "work-1" as const,
+        sourceBody: "Original Jira description",
+        refinedBrief: "Build a CSV export feature.",
+        acceptanceCriteria: ["Must export invoices"],
+      },
+    );
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ kind: "manager-instruction" });
+    expect(entries[0]!.createdAt).toBe("2026-02-23T00:00:05.000Z");
+  });
+
+  it("uses empty string for createdAt when worker metadata has no threadCreatedAt and no sorted entries", () => {
+    const entries = deriveTimelineEntries([], [], [], {
+      role: "worker",
+      managerThreadId: ThreadId.make("manager-console"),
+      seededWorkItemId: "work-1" as const,
+      sourceBody: "Original Jira description",
+      refinedBrief: "Build a CSV export feature.",
+      acceptanceCriteria: ["Must export invoices"],
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ kind: "manager-instruction" });
+    expect(entries[0]!.createdAt).toBe("");
+  });
 });
 
 describe("deriveWorkLogEntries context window handling", () => {

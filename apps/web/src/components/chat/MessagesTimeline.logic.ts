@@ -44,7 +44,7 @@ export type MessagesTimelineRow =
       id: string;
       createdAt: string;
       refinedBrief: string;
-      acceptanceCriteria: string[];
+      acceptanceCriteria: readonly string[];
       sourceBody: string;
     };
 
@@ -278,6 +278,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
     case "manager-instruction": {
       const bm = b as typeof a;
       return (
+        a.createdAt === bm.createdAt &&
         a.refinedBrief === bm.refinedBrief &&
         a.acceptanceCriteria === bm.acceptanceCriteria &&
         a.sourceBody === bm.sourceBody

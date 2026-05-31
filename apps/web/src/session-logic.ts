@@ -125,7 +125,7 @@ export type TimelineEntry =
       kind: "manager-instruction";
       createdAt: string;
       refinedBrief: string;
-      acceptanceCriteria: string[];
+      acceptanceCriteria: readonly string[];
       sourceBody: string;
     };
 
@@ -1198,9 +1198,9 @@ export function deriveTimelineEntries(
     const managerInstruction: TimelineEntry = {
       id: "worker-thread:manager-instruction",
       kind: "manager-instruction",
-      createdAt: threadCreatedAt ?? sorted[0]?.createdAt ?? new Date().toISOString(),
+      createdAt: threadCreatedAt ?? sorted[0]?.createdAt ?? "",
       refinedBrief: managerMetadata.refinedBrief,
-      acceptanceCriteria: [...managerMetadata.acceptanceCriteria],
+      acceptanceCriteria: managerMetadata.acceptanceCriteria,
       sourceBody: managerMetadata.sourceBody,
     };
     return [managerInstruction, ...sorted];
