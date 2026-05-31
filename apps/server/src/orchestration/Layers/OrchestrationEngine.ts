@@ -68,6 +68,11 @@ function commandToAggregateRef(command: OrchestrationCommand): {
         aggregateKind: "project",
         aggregateId: command.projectId,
       };
+    case "manager.refinement-handoff.record":
+      return {
+        aggregateKind: "thread",
+        aggregateId: command.refinerThreadId,
+      };
     default:
       return {
         aggregateKind: "thread",

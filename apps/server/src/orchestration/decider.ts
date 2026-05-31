@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
+  findThreadById,
   findActiveRefinerThreadForSeededWorkItem,
   findSeededWorkItemOnManagerConsole,
   findManagerConsole,
@@ -21,7 +22,10 @@ import {
   requireThreadAbsent,
   requireThreadNotArchived,
 } from "./commandInvariants.ts";
-import { materializeSeededWorkItems } from "./managerSeededWork.ts";
+import {
+  applyRefinementHandoffToSeededWorkItem,
+  materializeSeededWorkItems,
+} from "./managerSeededWork.ts";
 import { projectEvent } from "./projector.ts";
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
@@ -313,6 +317,114 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           updatedAt: command.createdAt,
         },
       };
+    }
+
+    case "manager.refinement-handoff.record": {
+      const refinerThread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.refinerThreadId,
+      });
+      if (refinerThread.managerMetadata?.role !== "refiner") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.refinerThreadId}' is not a Refiner Thread.`,
+        });
+      }
+      if (command.acceptanceCriteria.length === 0) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: "Refinement Handoff requires at least one acceptance criterion.",
+        });
+      }
+
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: command.targetProjectId,
+      });
+
+      const managerThreadId = refinerThread.managerMetadata.managerThreadId;
+      const seededWorkItemId = refinerThread.managerMetadata.seededWorkItemId;
+      const seededWorkItem = findSeededWorkItemOnManagerConsole(
+        readModel,
+        managerThreadId,
+        seededWorkItemId,
+      );
+      if (seededWorkItem === undefined) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${seededWorkItemId}' does not exist on Manager Console '${managerThreadId}'.`,
+        });
+      }
+
+      const managerConsole = findThreadById(readModel, managerThreadId);
+      if (managerConsole?.managerMetadata?.role !== "console") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${managerThreadId}' is not the Manager Console for command '${command.type}'.`,
+        });
+      }
+
+      const nextSeededWorkItem = applyRefinementHandoffToSeededWorkItem({
+        seededWorkItem,
+        refinementHandoff: {
+          refinerThreadId: command.refinerThreadId,
+          refinedProblemStatement: command.refinedProblemStatement,
+          acceptanceCriteria: command.acceptanceCriteria,
+          targetProjectId: command.targetProjectId,
+          recordedAt: command.createdAt,
+        },
+      });
+      const seededWorkItems = (managerConsole.seededWorkItems ?? []).map((item) =>
+        item.itemId === seededWorkItemId ? nextSeededWorkItem : item,
+      );
+
+      return [
+        {
+          ...withEventBase({
+            aggregateKind: "thread",
+            aggregateId: managerThreadId,
+            occurredAt: command.createdAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.seeded-work-items-upserted",
+          payload: {
+            threadId: managerThreadId,
+            seededWorkItems,
+            updatedAt: command.createdAt,
+          },
+        },
+        ...(nextSeededWorkItem.delegationStatus === "requested"
+          ? [
+              {
+                ...withEventBase({
+                  aggregateKind: "thread" as const,
+                  aggregateId: managerThreadId,
+                  occurredAt: command.createdAt,
+                  commandId: command.commandId,
+                }),
+                type: "thread.activity-appended" as const,
+                payload: {
+                  threadId: managerThreadId,
+                  activity: {
+                    id: crypto.randomUUID() as OrchestrationEvent["eventId"],
+                    tone: "info" as const,
+                    kind: "manager.delegation.requested",
+                    summary: `Auto-requested worker delegation for '${seededWorkItem.title}'.`,
+                    payload: {
+                      seededWorkItemId,
+                      refinerThreadId: command.refinerThreadId,
+                      targetProjectId: command.targetProjectId,
+                    },
+                    turnId: null,
+                    createdAt: command.createdAt,
+                  },
+                },
+              },
+            ]
+          : []),
+      ];
     }
 
     case "project.meta.update": {
