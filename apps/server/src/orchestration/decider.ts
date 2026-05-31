@@ -11,6 +11,7 @@ import {
   findManagerConsole,
   findManagerWorkspace,
   listThreadsByProjectId,
+  requireManagerConsole,
   requireProject,
   requireProjectAbsent,
   requireThread,
@@ -18,6 +19,7 @@ import {
   requireThreadAbsent,
   requireThreadNotArchived,
 } from "./commandInvariants.ts";
+import { materializeSeededWorkItems } from "./managerSeededWork.ts";
 import { projectEvent } from "./projector.ts";
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
@@ -189,6 +191,45 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           },
         },
       ];
+    }
+
+    case "manager.seed-work-items": {
+      yield* requireManagerConsole({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      for (const item of command.items) {
+        if (item.targetProjectId !== null) {
+          yield* requireProject({
+            readModel,
+            command,
+            projectId: item.targetProjectId,
+          });
+        }
+      }
+
+      const seededWorkItems = materializeSeededWorkItems({
+        sourceKind: command.sourceKind,
+        sourceLabel: command.sourceLabel,
+        items: command.items,
+        createdAt: command.createdAt,
+      });
+
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.seeded-work-items-upserted",
+        payload: {
+          threadId: command.threadId,
+          seededWorkItems,
+          updatedAt: command.createdAt,
+        },
+      };
     }
 
     case "project.meta.update": {

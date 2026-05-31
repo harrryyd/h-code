@@ -387,6 +387,129 @@ describe("OrchestrationEngine", () => {
     await secondSystem.dispose();
   });
 
+  it("stores seeded manager work items with readiness classifications through persisted projections", async () => {
+    const dbPath = `/tmp/t3-manager-seeded-work-${crypto.randomUUID()}.sqlite`;
+    const firstSystem = await createOrchestrationSystem({ dbPath });
+    const createdAt = now();
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.bootstrap",
+        commandId: CommandId.make("cmd-manager-bootstrap"),
+        projectId: asProjectId("manager-workspace"),
+        threadId: ThreadId.make("manager-console"),
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        createdAt,
+      }),
+    );
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "project.create",
+        commandId: CommandId.make("cmd-project-app"),
+        projectId: asProjectId("app-project"),
+        title: "App Project",
+        workspaceRoot: "/tmp/app-project",
+        defaultModelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        createdAt,
+      }),
+    );
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.seed-work-items",
+        commandId: CommandId.make("cmd-manager-seed-work"),
+        threadId: ThreadId.make("manager-console"),
+        sourceKind: "todo-list",
+        sourceLabel: "Sprint Backlog",
+        items: [
+          {
+            itemId: "work-ready",
+            title: "Ship settings page",
+            body: "Implement the settings route.",
+            delegationIntent: "delegate",
+            targetProjectId: asProjectId("app-project"),
+            acceptanceCriteria: ["Route loads", "Form saves"],
+          },
+          {
+            itemId: "work-refine",
+            title: "Clarify billing export",
+            body: "The export flow is underspecified.",
+            delegationIntent: "delegate",
+            targetProjectId: asProjectId("app-project"),
+            acceptanceCriteria: [],
+          },
+          {
+            itemId: "work-human",
+            title: "Handle vendor negotiation",
+            body: "Keep this with the human operator.",
+            delegationIntent: "human-owned",
+            targetProjectId: asProjectId("app-project"),
+            acceptanceCriteria: ["Vendor contacted"],
+          },
+          {
+            itemId: "work-blocked",
+            title: "Investigate analytics mismatch",
+            body: "Need the owning project before delegation.",
+            delegationIntent: "delegate",
+            targetProjectId: null,
+            acceptanceCriteria: ["Mismatch reproduced"],
+          },
+        ],
+        createdAt,
+      }),
+    );
+
+    const firstDetail = Option.getOrNull(
+      await firstSystem.threadDetail(ThreadId.make("manager-console")),
+    );
+    expect(firstDetail?.seededWorkItems).toEqual([
+      expect.objectContaining({
+        itemId: "work-ready",
+        sourceKind: "todo-list",
+        sourceLabel: "Sprint Backlog",
+        readiness: "ready-for-worker",
+      }),
+      expect.objectContaining({
+        itemId: "work-refine",
+        readiness: "needs-refinement",
+      }),
+      expect.objectContaining({
+        itemId: "work-human",
+        readiness: "human-owned",
+      }),
+      expect.objectContaining({
+        itemId: "work-blocked",
+        readiness: "blocked-on-context",
+      }),
+    ]);
+
+    await firstSystem.dispose();
+
+    const secondSystem = await createOrchestrationSystem({ dbPath });
+    const reloadedDetail = Option.getOrNull(
+      await secondSystem.threadDetail(ThreadId.make("manager-console")),
+    );
+
+    expect((reloadedDetail?.seededWorkItems ?? []).map((item) => item.readiness)).toEqual([
+      "ready-for-worker",
+      "needs-refinement",
+      "human-owned",
+      "blocked-on-context",
+    ]);
+
+    await secondSystem.dispose();
+  });
+
   it("archives and unarchives threads through orchestration commands", async () => {
     const system = await createOrchestrationSystem();
     const { engine } = system;

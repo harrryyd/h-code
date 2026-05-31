@@ -207,6 +207,53 @@ export const ManagerThreadMetadata = Schema.Struct({
 });
 export type ManagerThreadMetadata = typeof ManagerThreadMetadata.Type;
 
+export const WorkReadiness = Schema.Literals([
+  "ready-for-worker",
+  "needs-refinement",
+  "human-owned",
+  "blocked-on-context",
+]);
+export type WorkReadiness = typeof WorkReadiness.Type;
+
+export const SeededWorkSourceKind = Schema.Literals(["epic", "jira-set", "todo-list"]);
+export type SeededWorkSourceKind = typeof SeededWorkSourceKind.Type;
+
+export const SeededWorkDelegationIntent = Schema.Literals(["delegate", "human-owned"]);
+export type SeededWorkDelegationIntent = typeof SeededWorkDelegationIntent.Type;
+
+export const SeededWorkItemId = TrimmedNonEmptyString;
+export type SeededWorkItemId = typeof SeededWorkItemId.Type;
+
+export const ManagerSeededWorkItemInput = Schema.Struct({
+  itemId: SeededWorkItemId,
+  title: TrimmedNonEmptyString,
+  body: Schema.String,
+  delegationIntent: SeededWorkDelegationIntent,
+  targetProjectId: Schema.NullOr(ProjectId),
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+});
+export type ManagerSeededWorkItemInput = typeof ManagerSeededWorkItemInput.Type;
+
+export const ManagerSeededWorkItem = Schema.Struct({
+  itemId: SeededWorkItemId,
+  sourceKind: SeededWorkSourceKind,
+  sourceLabel: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+  body: Schema.String,
+  delegationIntent: SeededWorkDelegationIntent,
+  targetProjectId: Schema.NullOr(ProjectId),
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  readiness: WorkReadiness,
+  readinessReason: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export type ManagerSeededWorkItem = typeof ManagerSeededWorkItem.Type;
+
 export const OrchestrationProject = Schema.Struct({
   id: ProjectId,
   title: TrimmedNonEmptyString,
@@ -359,6 +406,9 @@ export const OrchestrationThread = Schema.Struct({
   archivedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
+  seededWorkItems: Schema.optional(
+    Schema.Array(ManagerSeededWorkItem).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  ),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -491,6 +541,17 @@ export const ManagerBootstrapCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 export type ManagerBootstrapCommand = typeof ManagerBootstrapCommand.Type;
+
+const ManagerSeedWorkItemsCommand = Schema.Struct({
+  type: Schema.Literal("manager.seed-work-items"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  sourceKind: SeededWorkSourceKind,
+  sourceLabel: TrimmedNonEmptyString,
+  items: Schema.Array(ManagerSeededWorkItemInput),
+  createdAt: IsoDateTime,
+});
+export type ManagerSeedWorkItemsCommand = typeof ManagerSeedWorkItemsCommand.Type;
 
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
@@ -679,6 +740,7 @@ const ThreadSessionStopCommand = Schema.Struct({
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ManagerBootstrapCommand,
+  ManagerSeedWorkItemsCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -701,6 +763,7 @@ export type DispatchableClientOrchestrationCommand =
 export const ClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ManagerBootstrapCommand,
+  ManagerSeedWorkItemsCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -806,6 +869,7 @@ export const OrchestrationEventType = Schema.Literals([
   "project.meta-updated",
   "project.deleted",
   "thread.created",
+  "thread.seeded-work-items-upserted",
   "thread.deleted",
   "thread.archived",
   "thread.unarchived",
@@ -871,6 +935,12 @@ export const ThreadCreatedPayload = Schema.Struct({
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+
+export const ThreadSeededWorkItemsUpsertedPayload = Schema.Struct({
+  threadId: ThreadId,
+  seededWorkItems: Schema.Array(ManagerSeededWorkItem),
   updatedAt: IsoDateTime,
 });
 
@@ -1041,6 +1111,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.created"),
     payload: ThreadCreatedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.seeded-work-items-upserted"),
+    payload: ThreadSeededWorkItemsUpsertedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,
