@@ -1,4 +1,5 @@
 import type {
+  ManagerSeededWorkItem,
   OrchestrationCommand,
   OrchestrationProject,
   OrchestrationReadModel,
@@ -48,6 +49,33 @@ export function findManagerConsole(
   readModel: OrchestrationReadModel,
 ): OrchestrationThread | undefined {
   return readModel.threads.find((thread) => thread.managerMetadata?.role === "console");
+}
+
+export function findSeededWorkItemOnManagerConsole(
+  readModel: OrchestrationReadModel,
+  managerThreadId: ThreadId,
+  seededWorkItemId: string,
+): ManagerSeededWorkItem | undefined {
+  const managerConsole = findThreadById(readModel, managerThreadId);
+  if (managerConsole?.managerMetadata?.role !== "console") {
+    return undefined;
+  }
+  return (managerConsole.seededWorkItems ?? []).find((item) => item.itemId === seededWorkItemId);
+}
+
+export function findActiveRefinerThreadForSeededWorkItem(
+  readModel: OrchestrationReadModel,
+  managerThreadId: ThreadId,
+  seededWorkItemId: string,
+): OrchestrationThread | undefined {
+  return readModel.threads.find(
+    (thread) =>
+      thread.deletedAt === null &&
+      thread.archivedAt === null &&
+      thread.managerMetadata?.role === "refiner" &&
+      thread.managerMetadata.managerThreadId === managerThreadId &&
+      thread.managerMetadata.seededWorkItemId === seededWorkItemId,
+  );
 }
 
 export function requireProject(input: {

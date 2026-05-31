@@ -604,6 +604,59 @@ describe("incremental orchestration updates", () => {
     ]);
   });
 
+  it("preserves refiner manager metadata on thread.created projections", () => {
+    const threadId = ThreadId.make("thread-refiner");
+    const projectId = ProjectId.make("project-1");
+
+    const next = applyOrchestrationEvent(
+      makeEmptyState({
+        projectIds: [projectId],
+        projectById: {
+          [projectId]: {
+            id: projectId,
+            environmentId: localEnvironmentId,
+            name: "Project 1",
+            cwd: "/tmp/project-1",
+            defaultModelSelection: {
+              instanceId: ProviderInstanceId.make("codex"),
+              model: DEFAULT_MODEL,
+            },
+            createdAt: "2026-02-27T00:00:00.000Z",
+            updatedAt: "2026-02-27T00:00:00.000Z",
+            scripts: [],
+          },
+        },
+      }),
+      makeEvent("thread.created", {
+        threadId,
+        projectId,
+        title: "Refine: Billing export",
+        managerMetadata: {
+          role: "refiner",
+          managerThreadId: ThreadId.make("manager-console-1"),
+          seededWorkItemId: "work-refine-1",
+        },
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: DEFAULT_MODEL,
+        },
+        runtimeMode: DEFAULT_RUNTIME_MODE,
+        interactionMode: DEFAULT_INTERACTION_MODE,
+        branch: null,
+        worktreePath: null,
+        createdAt: "2026-02-27T00:00:01.000Z",
+        updatedAt: "2026-02-27T00:00:01.000Z",
+      }),
+      localEnvironmentId,
+    );
+
+    expect(threadsOf(next)[0]?.managerMetadata).toEqual({
+      role: "refiner",
+      managerThreadId: "manager-console-1",
+      seededWorkItemId: "work-refine-1",
+    });
+  });
+
   it("updates only the affected thread for message events", () => {
     const thread1 = makeThread({
       id: ThreadId.make("thread-1"),

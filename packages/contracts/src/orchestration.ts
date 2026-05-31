@@ -202,10 +202,10 @@ export const ManagerProjectMetadata = Schema.Struct({
 });
 export type ManagerProjectMetadata = typeof ManagerProjectMetadata.Type;
 
-export const ManagerThreadMetadata = Schema.Struct({
+export const ManagerConsoleThreadMetadata = Schema.Struct({
   role: Schema.Literal("console"),
 });
-export type ManagerThreadMetadata = typeof ManagerThreadMetadata.Type;
+export type ManagerConsoleThreadMetadata = typeof ManagerConsoleThreadMetadata.Type;
 
 export const WorkReadiness = Schema.Literals([
   "ready-for-worker",
@@ -223,6 +223,19 @@ export type SeededWorkDelegationIntent = typeof SeededWorkDelegationIntent.Type;
 
 export const SeededWorkItemId = TrimmedNonEmptyString;
 export type SeededWorkItemId = typeof SeededWorkItemId.Type;
+
+export const RefinerThreadMetadata = Schema.Struct({
+  role: Schema.Literal("refiner"),
+  managerThreadId: ThreadId,
+  seededWorkItemId: SeededWorkItemId,
+});
+export type RefinerThreadMetadata = typeof RefinerThreadMetadata.Type;
+
+export const ManagerThreadMetadata = Schema.Union([
+  ManagerConsoleThreadMetadata,
+  RefinerThreadMetadata,
+]);
+export type ManagerThreadMetadata = typeof ManagerThreadMetadata.Type;
 
 export const ManagerSeededWorkItemInput = Schema.Struct({
   itemId: SeededWorkItemId,
@@ -553,6 +566,23 @@ const ManagerSeedWorkItemsCommand = Schema.Struct({
 });
 export type ManagerSeedWorkItemsCommand = typeof ManagerSeedWorkItemsCommand.Type;
 
+export const ManagerCreateRefinerThreadCommand = Schema.Struct({
+  type: Schema.Literal("manager.refiner-thread.create"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  managerThreadId: ThreadId,
+  seededWorkItemId: SeededWorkItemId,
+  modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode,
+  interactionMode: ProviderInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  ),
+  branch: Schema.NullOr(TrimmedNonEmptyString),
+  worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  createdAt: IsoDateTime,
+});
+export type ManagerCreateRefinerThreadCommand = typeof ManagerCreateRefinerThreadCommand.Type;
+
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
   commandId: CommandId,
@@ -741,6 +771,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ManagerBootstrapCommand,
   ManagerSeedWorkItemsCommand,
+  ManagerCreateRefinerThreadCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -764,6 +795,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ManagerBootstrapCommand,
   ManagerSeedWorkItemsCommand,
+  ManagerCreateRefinerThreadCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,

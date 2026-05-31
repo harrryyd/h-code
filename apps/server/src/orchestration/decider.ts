@@ -8,6 +8,8 @@ import * as Effect from "effect/Effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
+  findActiveRefinerThreadForSeededWorkItem,
+  findSeededWorkItemOnManagerConsole,
   findManagerConsole,
   findManagerWorkspace,
   listThreadsByProjectId,
@@ -227,6 +229,87 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           seededWorkItems,
+          updatedAt: command.createdAt,
+        },
+      };
+    }
+
+    case "manager.refiner-thread.create": {
+      yield* requireManagerConsole({
+        readModel,
+        command,
+        threadId: command.managerThreadId,
+      });
+      yield* requireThreadAbsent({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+
+      const seededWorkItem = findSeededWorkItemOnManagerConsole(
+        readModel,
+        command.managerThreadId,
+        command.seededWorkItemId,
+      );
+      if (seededWorkItem === undefined) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${command.seededWorkItemId}' does not exist on Manager Console '${command.managerThreadId}'.`,
+        });
+      }
+      if (seededWorkItem.readiness !== "needs-refinement") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${command.seededWorkItemId}' is '${seededWorkItem.readiness}' and cannot create a Refiner Thread.`,
+        });
+      }
+      if (seededWorkItem.targetProjectId === null) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${command.seededWorkItemId}' does not target a Project for refinement.`,
+        });
+      }
+      const existingRefinerThread = findActiveRefinerThreadForSeededWorkItem(
+        readModel,
+        command.managerThreadId,
+        command.seededWorkItemId,
+      );
+      if (existingRefinerThread !== undefined) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Seeded work item '${command.seededWorkItemId}' already has active Refiner Thread '${existingRefinerThread.id}'.`,
+        });
+      }
+
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: seededWorkItem.targetProjectId,
+      });
+
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.created",
+        payload: {
+          threadId: command.threadId,
+          projectId: seededWorkItem.targetProjectId,
+          title: `Refine: ${seededWorkItem.title}`,
+          managerMetadata: {
+            role: "refiner",
+            managerThreadId: command.managerThreadId,
+            seededWorkItemId: command.seededWorkItemId,
+          },
+          modelSelection: command.modelSelection,
+          runtimeMode: command.runtimeMode,
+          interactionMode: command.interactionMode,
+          branch: command.branch,
+          worktreePath: command.worktreePath,
+          createdAt: command.createdAt,
           updatedAt: command.createdAt,
         },
       };

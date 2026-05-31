@@ -12,6 +12,7 @@ import {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
+  ManagerCreateRefinerThreadCommand,
   ManagerBootstrapCommand,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
@@ -31,6 +32,9 @@ const decodeFullThreadDiffInput = Schema.decodeUnknownEffect(OrchestrationGetFul
 const decodeThreadTurnDiff = Schema.decodeUnknownEffect(ThreadTurnDiff);
 const decodeProjectCreateCommand = Schema.decodeUnknownEffect(ProjectCreateCommand);
 const decodeManagerBootstrapCommand = Schema.decodeUnknownEffect(ManagerBootstrapCommand);
+const decodeManagerCreateRefinerThreadCommand = Schema.decodeUnknownEffect(
+  ManagerCreateRefinerThreadCommand,
+);
 const decodeProjectCreatedPayload = Schema.decodeUnknownEffect(ProjectCreatedPayload);
 const decodeProjectMetaUpdatedPayload = Schema.decodeUnknownEffect(ProjectMetaUpdatedPayload);
 const decodeThreadTurnStartCommand = Schema.decodeUnknownEffect(ThreadTurnStartCommand);
@@ -236,6 +240,61 @@ it.effect("decodes manager project and thread metadata on created payloads", () 
 
     assert.deepStrictEqual(project.managerMetadata, { role: "workspace" });
     assert.deepStrictEqual(thread.managerMetadata, { role: "console" });
+  }),
+);
+
+it.effect("decodes refiner thread metadata on created payloads", () =>
+  Effect.gen(function* () {
+    const thread = yield* decodeThreadCreatedPayload({
+      threadId: "refiner-thread-1",
+      projectId: "project-1",
+      title: "Refine: Billing export",
+      managerMetadata: {
+        role: "refiner",
+        managerThreadId: "manager-console-1",
+        seededWorkItemId: "work-refine-1",
+      },
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.deepStrictEqual(thread.managerMetadata, {
+      role: "refiner",
+      managerThreadId: "manager-console-1",
+      seededWorkItemId: "work-refine-1",
+    });
+  }),
+);
+
+it.effect("decodes manager refiner thread creation commands", () =>
+  Effect.gen(function* () {
+    const command = yield* decodeManagerCreateRefinerThreadCommand({
+      type: "manager.refiner-thread.create",
+      commandId: "cmd-refiner-create",
+      threadId: "refiner-thread-1",
+      managerThreadId: "manager-console-1",
+      seededWorkItemId: "work-refine-1",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.strictEqual(command.type, "manager.refiner-thread.create");
+    assert.strictEqual(command.managerThreadId, "manager-console-1");
+    assert.strictEqual(command.seededWorkItemId, "work-refine-1");
   }),
 );
 
