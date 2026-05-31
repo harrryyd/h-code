@@ -318,6 +318,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       ) : null}
       {row.kind === "proposed-plan" ? <ProposedPlanTimelineRow row={row} /> : null}
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
+      {row.kind === "manager-instruction" ? <ManagerInstructionTimelineRow row={row} /> : null}
     </div>
   );
 });
@@ -383,6 +384,45 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
             </>
           }
         />
+      </div>
+    </div>
+  );
+}
+
+function ManagerInstructionTimelineRow({
+  row,
+}: {
+  row: Extract<TimelineRow, { kind: "manager-instruction" }>;
+}) {
+  const ctx = use(TimelineRowCtx);
+
+  return (
+    <div className="flex justify-start">
+      <div className="group relative max-w-[80%] rounded-2xl rounded-bl-sm border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <ZapIcon className="size-3.5 text-blue-500/70" />
+          <span className="text-[11px] font-semibold text-blue-500/80">Manager</span>
+        </div>
+        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          {row.refinedBrief}
+        </div>
+        {row.acceptanceCriteria.length > 0 && (
+          <div className="mt-2.5 border-t border-blue-500/10 pt-2">
+            <p className="mb-1 text-[11px] font-medium text-muted-foreground/70">
+              Acceptance Criteria
+            </p>
+            <ul className="list-disc space-y-0.5 pl-4">
+              {row.acceptanceCriteria.map((criterion, index) => (
+                <li key={index} className="text-xs text-muted-foreground/80">
+                  {criterion}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="mt-1.5 text-right text-[10px] text-muted-foreground/40">
+          {formatTimestamp(row.createdAt, ctx.timestampFormat)}
+        </p>
       </div>
     </div>
   );

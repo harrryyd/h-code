@@ -1340,6 +1340,43 @@ describe("deriveTimelineEntries", () => {
       }),
     ).toBe("assistant-final");
   });
+
+  it("produces a manager-instruction entry prepended when managerMetadata role is worker", () => {
+    const threadCreatedAt = "2026-02-23T00:00:00.000Z";
+    const entries = deriveTimelineEntries(
+      [
+        {
+          id: MessageId.make("msg-1"),
+          role: "user",
+          text: "do something",
+          createdAt: "2026-02-23T00:00:05.000Z",
+          streaming: false,
+        },
+      ],
+      [],
+      [],
+      {
+        role: "worker",
+        managerThreadId: ThreadId.make("manager-console"),
+        seededWorkItemId: "work-1" as const,
+        sourceBody: "Original Jira description",
+        refinedBrief: "Build a CSV export feature.",
+        acceptanceCriteria: ["Must export invoices", "Must support date filtering"],
+      },
+      threadCreatedAt,
+    );
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      kind: "manager-instruction",
+      id: "worker-thread:manager-instruction",
+      refinedBrief: "Build a CSV export feature.",
+      sourceBody: "Original Jira description",
+      acceptanceCriteria: ["Must export invoices", "Must support date filtering"],
+    });
+    expect(entries[0]!.createdAt).toBe(threadCreatedAt);
+    expect(entries[1]!.kind).toBe("message");
+  });
 });
 
 describe("deriveWorkLogEntries context window handling", () => {

@@ -1,5 +1,6 @@
 import {
   ArchiveIcon,
+  ArrowDownRightIcon,
   ArrowUpDownIcon,
   CheckIcon,
   ChevronRightIcon,
@@ -174,6 +175,7 @@ import {
   resolveEffectiveSidebarProjectSortOrder,
   resolveAdjacentThreadId,
   isContextMenuPointerDown,
+  isWorkerThread,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadSeedContext,
   resolveThreadRowClassName,
@@ -720,6 +722,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             </Tooltip>
           )}
           {threadStatus && <ThreadStatusLabel status={threadStatus} />}
+          {isWorkerThread(thread) && (
+            <span
+              title="Delegated Worker Thread"
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-purple-500/20 bg-purple-500/10 px-1.5 py-px text-[9px] font-medium text-purple-600 dark:text-purple-400/80"
+            >
+              <ArrowDownRightIcon className="size-2.5" />
+              <span className="hidden md:inline">Delegated</span>
+            </span>
+          )}
           {renamingThreadKey === threadKey ? (
             <input
               ref={handleRenameInputRef}

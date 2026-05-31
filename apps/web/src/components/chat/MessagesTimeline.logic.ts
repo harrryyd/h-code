@@ -38,7 +38,15 @@ export type MessagesTimelineRow =
       createdAt: string;
       proposedPlan: ProposedPlan;
     }
-  | { kind: "working"; id: string; createdAt: string | null };
+  | { kind: "working"; id: string; createdAt: string | null }
+  | {
+      kind: "manager-instruction";
+      id: string;
+      createdAt: string;
+      refinedBrief: string;
+      acceptanceCriteria: string[];
+      sourceBody: string;
+    };
 
 export interface StableMessagesTimelineRowsState {
   byId: Map<string, MessagesTimelineRow>;
@@ -162,6 +170,18 @@ export function deriveMessagesTimelineRows(input: {
       continue;
     }
 
+    if (timelineEntry.kind === "manager-instruction") {
+      nextRows.push({
+        kind: "manager-instruction",
+        id: timelineEntry.id,
+        createdAt: timelineEntry.createdAt,
+        refinedBrief: timelineEntry.refinedBrief,
+        acceptanceCriteria: timelineEntry.acceptanceCriteria,
+        sourceBody: timelineEntry.sourceBody,
+      });
+      continue;
+    }
+
     const assistantTurnStillInProgress =
       timelineEntry.message.role === "assistant" &&
       input.activeTurnInProgress === true &&
@@ -252,6 +272,15 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.assistantCopyStreaming === bm.assistantCopyStreaming &&
         a.assistantTurnDiffSummary === bm.assistantTurnDiffSummary &&
         a.revertTurnCount === bm.revertTurnCount
+      );
+    }
+
+    case "manager-instruction": {
+      const bm = b as typeof a;
+      return (
+        a.refinedBrief === bm.refinedBrief &&
+        a.acceptanceCriteria === bm.acceptanceCriteria &&
+        a.sourceBody === bm.sourceBody
       );
     }
   }
