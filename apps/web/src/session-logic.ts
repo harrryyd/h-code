@@ -3,6 +3,7 @@ import * as Arr from "effect/Array";
 import {
   ApprovalRequestId,
   isToolLifecycleItemType,
+  type ManagerThreadMetadata,
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
@@ -118,6 +119,14 @@ export type TimelineEntry =
       kind: "work";
       createdAt: string;
       entry: WorkLogEntry;
+    }
+  | {
+      id: string;
+      kind: "manager-instruction";
+      createdAt: string;
+      refinedBrief: string;
+      acceptanceCriteria: readonly string[];
+      sourceBody: string;
     };
 
 export function formatDuration(durationMs: number): string {
@@ -1160,6 +1169,8 @@ export function deriveTimelineEntries(
   messages: ChatMessage[],
   proposedPlans: ProposedPlan[],
   workEntries: WorkLogEntry[],
+  managerMetadata?: ManagerThreadMetadata,
+  threadCreatedAt?: string,
 ): TimelineEntry[] {
   const messageRows: TimelineEntry[] = messages.map((message) => ({
     id: message.id,
@@ -1179,9 +1190,23 @@ export function deriveTimelineEntries(
     createdAt: entry.createdAt,
     entry,
   }));
-  return [...messageRows, ...proposedPlanRows, ...workRows].toSorted((a, b) =>
+  const sorted = [...messageRows, ...proposedPlanRows, ...workRows].toSorted((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
   );
+
+  if (managerMetadata?.role === "worker") {
+    const managerInstruction: TimelineEntry = {
+      id: "worker-thread:manager-instruction",
+      kind: "manager-instruction",
+      createdAt: threadCreatedAt ?? sorted[0]?.createdAt ?? "",
+      refinedBrief: managerMetadata.refinedBrief,
+      acceptanceCriteria: managerMetadata.acceptanceCriteria,
+      sourceBody: managerMetadata.sourceBody,
+    };
+    return [managerInstruction, ...sorted];
+  }
+
+  return sorted;
 }
 
 export function deriveCompletionDividerBeforeEntryId(

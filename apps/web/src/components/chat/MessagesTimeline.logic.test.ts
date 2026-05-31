@@ -539,4 +539,114 @@ describe("computeStableMessagesTimelineRows", () => {
     expect(reordered).not.toBe(initial);
     expect(reordered.result).toEqual([initial.result[1], initial.result[0]]);
   });
+
+  it("passes through manager-instruction entries without loss", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "worker-thread:manager-instruction",
+          kind: "manager-instruction",
+          createdAt: "2026-02-23T00:00:00.000Z",
+          refinedBrief: "Build a CSV export feature.",
+          acceptanceCriteria: ["Must export invoices", "Must support date filtering"],
+          sourceBody: "Original Jira description",
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+    });
+
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    expect(row.kind).toBe("manager-instruction");
+    expect(row.id).toBe("worker-thread:manager-instruction");
+    if (row.kind === "manager-instruction") {
+      expect(row.refinedBrief).toBe("Build a CSV export feature.");
+      expect(row.acceptanceCriteria).toEqual([
+        "Must export invoices",
+        "Must support date filtering",
+      ]);
+      expect(row.sourceBody).toBe("Original Jira description");
+    }
+  });
+
+  it("reuses manager-instruction row reference when content is unchanged", () => {
+    const sharedCriteria = ["Must export invoices"];
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "worker-thread:manager-instruction",
+          kind: "manager-instruction",
+          createdAt: "2026-02-23T00:00:00.000Z",
+          refinedBrief: "Build a CSV export feature.",
+          acceptanceCriteria: sharedCriteria,
+          sourceBody: "Original Jira description",
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+    });
+
+    const first = computeStableMessagesTimelineRows(rows, {
+      byId: new Map(),
+      result: [],
+    });
+
+    const second = computeStableMessagesTimelineRows(rows, first);
+
+    expect(second).toBe(first);
+  });
+
+  it("creates new manager-instruction row when content changes", () => {
+    const firstRows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "worker-thread:manager-instruction",
+          kind: "manager-instruction",
+          createdAt: "2026-02-23T00:00:00.000Z",
+          refinedBrief: "Build a CSV export feature.",
+          acceptanceCriteria: ["Must export invoices"],
+          sourceBody: "Original Jira description",
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+    });
+
+    const initial = computeStableMessagesTimelineRows(firstRows, {
+      byId: new Map(),
+      result: [],
+    });
+
+    const changedRows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "worker-thread:manager-instruction",
+          kind: "manager-instruction",
+          createdAt: "2026-02-23T00:00:00.000Z",
+          refinedBrief: "Updated brief.",
+          acceptanceCriteria: ["Must export invoices"],
+          sourceBody: "Original Jira description",
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+    });
+
+    const updated = computeStableMessagesTimelineRows(changedRows, initial);
+
+    expect(updated).not.toBe(initial);
+  });
 });
