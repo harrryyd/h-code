@@ -42,6 +42,8 @@ import { RuntimeReceiptBusLive } from "./orchestration/Layers/RuntimeReceiptBus.
 import { ProviderRuntimeIngestionLive } from "./orchestration/Layers/ProviderRuntimeIngestion.ts";
 import { ProviderCommandReactorLive } from "./orchestration/Layers/ProviderCommandReactor.ts";
 import { CheckpointReactorLive } from "./orchestration/Layers/CheckpointReactor.ts";
+import { SeededWorkItemWritebackLive } from "./orchestration/Layers/SeededWorkItemWriteback.ts";
+import { SeededWorkItemWritebackReactorLive } from "./orchestration/Layers/SeededWorkItemWritebackReactor.ts";
 import { ThreadDeletionReactorLive } from "./orchestration/Layers/ThreadDeletionReactor.ts";
 import { ProviderRegistryLive } from "./provider/Layers/ProviderRegistry.ts";
 import { ServerSettingsLive } from "./serverSettings.ts";
@@ -140,13 +142,23 @@ const PlatformServicesLive = Layer.unwrap(
   }),
 );
 
-const ReactorLayerLive = Layer.empty.pipe(
-  Layer.provideMerge(OrchestrationReactorLive),
+const SeededWorkItemWritebackCompositeLive = Layer.mergeAll(
+  SeededWorkItemWritebackLive,
+  SeededWorkItemWritebackReactorLive.pipe(Layer.provide(SeededWorkItemWritebackLive)),
+);
+
+const ReactorDependencyLayerLive = Layer.empty.pipe(
   Layer.provideMerge(ProviderRuntimeIngestionLive),
   Layer.provideMerge(ProviderCommandReactorLive),
   Layer.provideMerge(CheckpointReactorLive),
+  Layer.provideMerge(SeededWorkItemWritebackCompositeLive),
   Layer.provideMerge(ThreadDeletionReactorLive),
   Layer.provideMerge(RuntimeReceiptBusLive),
+);
+
+const ReactorLayerLive = Layer.mergeAll(
+  ReactorDependencyLayerLive,
+  OrchestrationReactorLive.pipe(Layer.provide(ReactorDependencyLayerLive)),
 );
 
 const ProviderSessionDirectoryLayerLive = ProviderSessionDirectoryLive.pipe(

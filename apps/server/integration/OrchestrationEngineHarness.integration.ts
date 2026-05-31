@@ -54,6 +54,8 @@ import { RuntimeReceiptBusTest } from "../src/orchestration/Layers/RuntimeReceip
 import { OrchestrationReactorLive } from "../src/orchestration/Layers/OrchestrationReactor.ts";
 import { ProviderCommandReactorLive } from "../src/orchestration/Layers/ProviderCommandReactor.ts";
 import { ProviderRuntimeIngestionLive } from "../src/orchestration/Layers/ProviderRuntimeIngestion.ts";
+import { SeededWorkItemWritebackLive } from "../src/orchestration/Layers/SeededWorkItemWriteback.ts";
+import { SeededWorkItemWritebackReactorLive } from "../src/orchestration/Layers/SeededWorkItemWritebackReactor.ts";
 import {
   OrchestrationEngineService,
   type OrchestrationEngineShape,
@@ -326,24 +328,23 @@ export const makeOrchestrationIntegrationHarness = (
       Layer.provideMerge(textGenerationLayer),
       Layer.provideMerge(serverSettingsLayer),
     );
-    const checkpointReactorLayer = CheckpointReactorLive.pipe(
-      Layer.provideMerge(runtimeServicesLayer),
-      Layer.provideMerge(
-        Layer.succeed(VcsStatusBroadcaster, {
-          getStatus: () => Effect.die("getStatus should not be called in this test"),
-          refreshLocalStatus: () =>
-            Effect.succeed({
-              isRepo: true,
-              hasPrimaryRemote: false,
-              isDefaultRef: true,
-              refName: "main",
-              hasWorkingTreeChanges: false,
-              workingTree: { files: [], insertions: 0, deletions: 0 },
-            }),
-          refreshStatus: () => Effect.die("refreshStatus should not be called in this test"),
-          streamStatus: () => Stream.empty,
+    const vcsStatusBroadcasterLayer = Layer.succeed(VcsStatusBroadcaster, {
+      getStatus: () => Effect.die("getStatus should not be called in this test"),
+      refreshLocalStatus: () =>
+        Effect.succeed({
+          isRepo: true,
+          hasPrimaryRemote: false,
+          isDefaultRef: true,
+          refName: "main",
+          hasWorkingTreeChanges: false,
+          workingTree: { files: [], insertions: 0, deletions: 0 },
         }),
-      ),
+      refreshStatus: () => Effect.die("refreshStatus should not be called in this test"),
+      streamStatus: () => Stream.empty,
+    });
+    const checkpointDependencies = Layer.empty.pipe(
+      Layer.provideMerge(runtimeServicesLayer),
+      Layer.provideMerge(vcsStatusBroadcasterLayer),
       Layer.provideMerge(
         WorkspaceEntriesLive.pipe(
           Layer.provide(WorkspacePathsLive),
@@ -354,16 +355,26 @@ export const makeOrchestrationIntegrationHarness = (
       Layer.provideMerge(WorkspacePathsLive),
       Layer.provideMerge(VcsProcess.layer),
     );
-    const orchestrationReactorLayer = OrchestrationReactorLive.pipe(
-      Layer.provideMerge(runtimeIngestionLayer),
-      Layer.provideMerge(providerCommandReactorLayer),
-      Layer.provideMerge(checkpointReactorLayer),
-      Layer.provideMerge(
-        Layer.succeed(ThreadDeletionReactor, {
-          start: () => Effect.void,
-          drain: Effect.void,
-        }),
-      ),
+    const checkpointReactorLayer = CheckpointReactorLive.pipe(
+      Layer.provide(checkpointDependencies),
+    );
+    const seededWorkItemWritebackReactorLayer = SeededWorkItemWritebackReactorLive.pipe(
+      Layer.provideMerge(runtimeServicesLayer),
+      Layer.provide(SeededWorkItemWritebackLive),
+    );
+    const orchestrationReactorDependencies = Layer.mergeAll(
+      runtimeIngestionLayer,
+      providerCommandReactorLayer,
+      checkpointReactorLayer,
+      seededWorkItemWritebackReactorLayer,
+      Layer.succeed(ThreadDeletionReactor, {
+        start: () => Effect.void,
+        drain: Effect.void,
+      }),
+    );
+    const orchestrationReactorLayer = Layer.mergeAll(
+      orchestrationReactorDependencies,
+      OrchestrationReactorLive.pipe(Layer.provide(orchestrationReactorDependencies)),
     );
     const layer = Layer.empty.pipe(
       Layer.provideMerge(runtimeServicesLayer),
@@ -372,6 +383,8 @@ export const makeOrchestrationIntegrationHarness = (
       Layer.provideMerge(RepositoryIdentityResolverLive),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(ServerConfig.layerTest(workspaceDir, rootDir)),
+      Layer.provideMerge(vcsStatusBroadcasterLayer),
+      Layer.provideMerge(VcsProcess.layer),
       Layer.provideMerge(NodeServices.layer),
     );
 
