@@ -83,6 +83,7 @@ describe("manager seeded work classification", () => {
       seededWorkItem: seededWorkItem!,
       refinementHandoff: {
         refinerThreadId: ThreadId.make("refiner-thread-1"),
+        sourceBody: "No acceptance criteria yet.",
         refinedProblemStatement: "Support CSV export from billing history.",
         acceptanceCriteria: ["Export action is visible", "CSV download includes invoice rows"],
         targetProjectId: ProjectId.make("project-b"),
@@ -97,6 +98,7 @@ describe("manager seeded work classification", () => {
     expect(next.delegationRequestedAt).toBe("2026-01-01T00:00:05.000Z");
     expect(next.refinementHandoff).toEqual({
       refinerThreadId: "refiner-thread-1",
+      sourceBody: "No acceptance criteria yet.",
       refinedProblemStatement: "Support CSV export from billing history.",
       acceptanceCriteria: ["Export action is visible", "CSV download includes invoice rows"],
       targetProjectId: "project-b",
