@@ -220,6 +220,7 @@ function mapProject(
     environmentId,
     name: project.title,
     cwd: project.workspaceRoot,
+    ...(project.managerMetadata ? { managerMetadata: project.managerMetadata } : {}),
     repositoryIdentity: project.repositoryIdentity ?? null,
     defaultModelSelection: project.defaultModelSelection
       ? normalizeModelSelection(project.defaultModelSelection)
@@ -237,6 +238,7 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     codexThreadId: null,
     projectId: thread.projectId,
     title: thread.title,
+    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     modelSelection: normalizeModelSelection(thread.modelSelection),
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
@@ -271,6 +273,7 @@ function mapThreadShell(
     codexThreadId: null,
     projectId: thread.projectId,
     title: thread.title,
+    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     modelSelection: normalizeModelSelection(thread.modelSelection),
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
@@ -291,6 +294,7 @@ function mapThreadShell(
     environmentId,
     projectId: thread.projectId,
     title: thread.title,
+    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     interactionMode: thread.interactionMode,
     session,
     createdAt: thread.createdAt,
