@@ -699,6 +699,16 @@ export const WorkerEscalateCommand = Schema.Struct({
 });
 export type WorkerEscalateCommand = typeof WorkerEscalateCommand.Type;
 
+export const ManagerResolveQueueItemCommand = Schema.Struct({
+  type: Schema.Literal("manager.resolve-queue-item"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  itemId: TrimmedNonEmptyString,
+  instruction: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+export type ManagerResolveQueueItemCommand = typeof ManagerResolveQueueItemCommand.Type;
+
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
   commandId: CommandId,
@@ -901,6 +911,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   WorkerEscalateCommand,
+  ManagerResolveQueueItemCommand,
   ThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -929,6 +940,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   WorkerEscalateCommand,
+  ManagerResolveQueueItemCommand,
   ClientThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,

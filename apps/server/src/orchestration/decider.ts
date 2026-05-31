@@ -1231,6 +1231,96 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "manager.resolve-queue-item": {
+      const managerConsole = yield* requireManagerConsole({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+
+      const existingQueueItems = managerConsole.managerQueueItems ?? [];
+      const queueItemIndex = existingQueueItems.findIndex((item) => item.itemId === command.itemId);
+      if (queueItemIndex === -1) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Queue item '${command.itemId}' not found on Manager Console '${command.threadId}'.`,
+        });
+      }
+
+      const queueItem = existingQueueItems[queueItemIndex];
+      if (queueItem.status !== "pending") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Queue item '${command.itemId}' cannot be resolved because it is already '${queueItem.status}'.`,
+        });
+      }
+
+      const workerThread = yield* requireThread({
+        readModel,
+        command,
+        threadId: queueItem.escalationThreadId,
+      });
+      if (workerThread.managerMetadata?.role !== "worker") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${queueItem.escalationThreadId}' is not a Worker Thread.`,
+        });
+      }
+
+      const updatedItem = {
+        ...queueItem,
+        status: "addressed" as const,
+        addressedAt: command.createdAt,
+      };
+
+      const updatedQueueItems = [
+        ...existingQueueItems.slice(0, queueItemIndex),
+        updatedItem,
+        ...existingQueueItems.slice(queueItemIndex + 1),
+      ];
+
+      return [
+        {
+          ...withEventBase({
+            aggregateKind: "thread" as const,
+            aggregateId: managerConsole.id,
+            occurredAt: command.createdAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.manager-queue-items-upserted" as const,
+          payload: {
+            threadId: managerConsole.id,
+            managerQueueItems: updatedQueueItems,
+            updatedAt: command.createdAt,
+          },
+        },
+        {
+          ...withEventBase({
+            aggregateKind: "thread" as const,
+            aggregateId: queueItem.escalationThreadId,
+            occurredAt: command.createdAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.activity-appended" as const,
+          payload: {
+            threadId: queueItem.escalationThreadId,
+            activity: {
+              id: crypto.randomUUID() as OrchestrationEvent["eventId"],
+              tone: "info" as const,
+              kind: "manager.queue-item.resolved",
+              summary: command.instruction,
+              payload: {
+                queueItemId: command.itemId,
+                category: queueItem.category,
+              },
+              turnId: null,
+              createdAt: command.createdAt,
+            },
+          },
+        },
+      ];
+    }
+
     default: {
       command satisfies never;
       const fallback = command as never as { type: string };
