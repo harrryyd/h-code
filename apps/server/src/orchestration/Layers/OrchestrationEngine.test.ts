@@ -577,6 +577,357 @@ describe("OrchestrationEngine", () => {
     await system.dispose();
   });
 
+  it("creates project-bound refiner threads for needs-refinement work items and persists their projection", async () => {
+    const dbPath = `/tmp/t3-manager-refiner-thread-${crypto.randomUUID()}.sqlite`;
+    const firstSystem = await createOrchestrationSystem({ dbPath });
+    const createdAt = now();
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.bootstrap",
+        commandId: CommandId.make("cmd-manager-bootstrap-refiner"),
+        projectId: asProjectId("manager-workspace"),
+        threadId: ThreadId.make("manager-console"),
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "project.create",
+        commandId: CommandId.make("cmd-project-refiner"),
+        projectId: asProjectId("app-project"),
+        title: "App Project",
+        workspaceRoot: "/tmp/app-project",
+        defaultModelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.seed-work-items",
+        commandId: CommandId.make("cmd-manager-seed-work-refiner"),
+        threadId: ThreadId.make("manager-console"),
+        sourceKind: "todo-list",
+        sourceLabel: "Sprint Backlog",
+        items: [
+          {
+            itemId: "work-refine",
+            title: "Clarify billing export",
+            body: "The export flow is underspecified.",
+            delegationIntent: "delegate",
+            targetProjectId: asProjectId("app-project"),
+            acceptanceCriteria: [],
+          },
+        ],
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.refiner-thread.create",
+        commandId: CommandId.make("cmd-manager-create-refiner-thread"),
+        threadId: ThreadId.make("refiner-thread-1"),
+        managerThreadId: ThreadId.make("manager-console"),
+        seededWorkItemId: "work-refine",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        branch: null,
+        worktreePath: null,
+        createdAt,
+      }),
+    );
+
+    const detail = Option.getOrNull(
+      await firstSystem.threadDetail(ThreadId.make("refiner-thread-1")),
+    );
+    expect(detail?.projectId).toBe("app-project");
+    expect(detail?.title).toBe("Refine: Clarify billing export");
+    expect(detail?.managerMetadata).toEqual({
+      role: "refiner",
+      managerThreadId: "manager-console",
+      seededWorkItemId: "work-refine",
+    });
+
+    await firstSystem.dispose();
+
+    const secondSystem = await createOrchestrationSystem({ dbPath });
+    const reloadedDetail = Option.getOrNull(
+      await secondSystem.threadDetail(ThreadId.make("refiner-thread-1")),
+    );
+    expect(reloadedDetail?.managerMetadata).toEqual({
+      role: "refiner",
+      managerThreadId: "manager-console",
+      seededWorkItemId: "work-refine",
+    });
+    await secondSystem.dispose();
+  });
+
+  it("rejects a second active refiner thread for the same seeded work item", async () => {
+    const system = await createOrchestrationSystem();
+    const createdAt = now();
+
+    await system.run(
+      system.engine.dispatch({
+        type: "manager.bootstrap",
+        commandId: CommandId.make("cmd-manager-bootstrap-refiner-dup"),
+        projectId: asProjectId("manager-workspace"),
+        threadId: ThreadId.make("manager-console"),
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        createdAt,
+      }),
+    );
+    await system.run(
+      system.engine.dispatch({
+        type: "project.create",
+        commandId: CommandId.make("cmd-project-refiner-dup"),
+        projectId: asProjectId("app-project"),
+        title: "App Project",
+        workspaceRoot: "/tmp/app-project",
+        defaultModelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        createdAt,
+      }),
+    );
+    await system.run(
+      system.engine.dispatch({
+        type: "manager.seed-work-items",
+        commandId: CommandId.make("cmd-manager-seed-work-refiner-dup"),
+        threadId: ThreadId.make("manager-console"),
+        sourceKind: "todo-list",
+        sourceLabel: "Sprint Backlog",
+        items: [
+          {
+            itemId: "work-refine",
+            title: "Clarify billing export",
+            body: "The export flow is underspecified.",
+            delegationIntent: "delegate",
+            targetProjectId: asProjectId("app-project"),
+            acceptanceCriteria: [],
+          },
+        ],
+        createdAt,
+      }),
+    );
+    await system.run(
+      system.engine.dispatch({
+        type: "manager.refiner-thread.create",
+        commandId: CommandId.make("cmd-manager-create-refiner-thread-first"),
+        threadId: ThreadId.make("refiner-thread-1"),
+        managerThreadId: ThreadId.make("manager-console"),
+        seededWorkItemId: "work-refine",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        branch: null,
+        worktreePath: null,
+        createdAt,
+      }),
+    );
+
+    await expect(
+      system.run(
+        system.engine.dispatch({
+          type: "manager.refiner-thread.create",
+          commandId: CommandId.make("cmd-manager-create-refiner-thread-second"),
+          threadId: ThreadId.make("refiner-thread-2"),
+          managerThreadId: ThreadId.make("manager-console"),
+          seededWorkItemId: "work-refine",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          runtimeMode: "full-access",
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          branch: null,
+          worktreePath: null,
+          createdAt,
+        }),
+      ),
+    ).rejects.toThrow("already has active Refiner Thread");
+
+    await system.dispose();
+  });
+
+  it("records a refinement handoff on the originating work item and auto-requests delegation when it becomes ready", async () => {
+    const dbPath = `/tmp/t3-manager-refinement-handoff-${crypto.randomUUID()}.sqlite`;
+    const firstSystem = await createOrchestrationSystem({ dbPath });
+    const createdAt = now();
+    const handoffAt = "2026-01-01T00:00:05.000Z";
+
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.bootstrap",
+        commandId: CommandId.make("cmd-manager-bootstrap-handoff"),
+        projectId: asProjectId("manager-workspace"),
+        threadId: ThreadId.make("manager-console"),
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "project.create",
+        commandId: CommandId.make("cmd-project-handoff"),
+        projectId: asProjectId("app-project"),
+        title: "App Project",
+        workspaceRoot: "/tmp/app-project",
+        defaultModelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.seed-work-items",
+        commandId: CommandId.make("cmd-manager-seed-work-handoff"),
+        threadId: ThreadId.make("manager-console"),
+        sourceKind: "todo-list",
+        sourceLabel: "Sprint Backlog",
+        items: [
+          {
+            itemId: "work-refine",
+            title: "Clarify billing export",
+            body: "The export flow is underspecified.",
+            delegationIntent: "delegate",
+            targetProjectId: asProjectId("app-project"),
+            acceptanceCriteria: [],
+          },
+        ],
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.refiner-thread.create",
+        commandId: CommandId.make("cmd-manager-create-refiner-thread-handoff"),
+        threadId: ThreadId.make("refiner-thread-1"),
+        managerThreadId: ThreadId.make("manager-console"),
+        seededWorkItemId: "work-refine",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        branch: null,
+        worktreePath: null,
+        createdAt,
+      }),
+    );
+    await firstSystem.run(
+      firstSystem.engine.dispatch({
+        type: "manager.refinement-handoff.record",
+        commandId: CommandId.make("cmd-manager-record-refinement-handoff"),
+        refinerThreadId: ThreadId.make("refiner-thread-1"),
+        refinedProblemStatement: "Users can export billing data as CSV from the invoices screen.",
+        acceptanceCriteria: [
+          "Invoices screen shows an export action",
+          "Export downloads a CSV with invoice rows",
+        ],
+        targetProjectId: asProjectId("app-project"),
+        createdAt: handoffAt,
+      }),
+    );
+
+    const detail = Option.getOrNull(
+      await firstSystem.threadDetail(ThreadId.make("manager-console")),
+    );
+    expect(detail?.seededWorkItems).toEqual([
+      expect.objectContaining({
+        itemId: "work-refine",
+        body: "Users can export billing data as CSV from the invoices screen.",
+        targetProjectId: "app-project",
+        acceptanceCriteria: [
+          "Invoices screen shows an export action",
+          "Export downloads a CSV with invoice rows",
+        ],
+        readiness: "ready-for-worker",
+        delegationStatus: "requested",
+        delegationRequestedAt: handoffAt,
+        refinementHandoff: {
+          refinerThreadId: "refiner-thread-1",
+          refinedProblemStatement: "Users can export billing data as CSV from the invoices screen.",
+          acceptanceCriteria: [
+            "Invoices screen shows an export action",
+            "Export downloads a CSV with invoice rows",
+          ],
+          targetProjectId: "app-project",
+          recordedAt: handoffAt,
+        },
+      }),
+    ]);
+    expect(detail?.activities).toContainEqual(
+      expect.objectContaining({
+        kind: "manager.delegation.requested",
+        summary: "Auto-requested worker delegation for 'Clarify billing export'.",
+        payload: {
+          seededWorkItemId: "work-refine",
+          refinerThreadId: "refiner-thread-1",
+          targetProjectId: "app-project",
+        },
+        createdAt: handoffAt,
+      }),
+    );
+
+    await firstSystem.dispose();
+
+    const secondSystem = await createOrchestrationSystem({ dbPath });
+    const reloadedDetail = Option.getOrNull(
+      await secondSystem.threadDetail(ThreadId.make("manager-console")),
+    );
+    expect(reloadedDetail?.seededWorkItems?.[0]).toEqual(
+      expect.objectContaining({
+        readiness: "ready-for-worker",
+        delegationStatus: "requested",
+        delegationRequestedAt: handoffAt,
+        refinementHandoff: expect.objectContaining({
+          refinerThreadId: "refiner-thread-1",
+          recordedAt: handoffAt,
+        }),
+      }),
+    );
+    expect(reloadedDetail?.activities).toContainEqual(
+      expect.objectContaining({
+        kind: "manager.delegation.requested",
+        createdAt: handoffAt,
+      }),
+    );
+
+    await secondSystem.dispose();
+  });
   it("archives and unarchives threads through orchestration commands", async () => {
     const system = await createOrchestrationSystem();
     const { engine } = system;

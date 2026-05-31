@@ -103,10 +103,9 @@ const make = Effect.gen(function* () {
     }
 
     const failReason = result.cause.reasons.find(Cause.isFailReason);
-    const detail =
-      isSeededWorkItemWritebackError(failReason?.error)
-        ? failReason.error.detail
-        : Cause.pretty(result.cause);
+    const detail = isSeededWorkItemWritebackError(failReason?.error)
+      ? failReason.error.detail
+      : Cause.pretty(result.cause);
 
     yield* appendOutcomeActivity({
       threadId: payload.threadId,

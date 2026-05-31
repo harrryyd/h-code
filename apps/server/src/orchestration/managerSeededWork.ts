@@ -1,6 +1,7 @@
 import type {
   ManagerSeededWorkItem,
   ManagerSeededWorkItemInput,
+  RefinementHandoff,
   SeededWorkSourceKind,
   WorkReadiness,
 } from "@t3tools/contracts";
@@ -36,6 +37,37 @@ function classifySeededWorkItem(input: ManagerSeededWorkItemInput): {
   };
 }
 
+export function applyRefinementHandoffToSeededWorkItem(input: {
+  readonly seededWorkItem: ManagerSeededWorkItem;
+  readonly refinementHandoff: RefinementHandoff;
+}): ManagerSeededWorkItem {
+  const classification = classifySeededWorkItem({
+    itemId: input.seededWorkItem.itemId,
+    title: input.seededWorkItem.title,
+    body: input.refinementHandoff.refinedProblemStatement,
+    delegationIntent: input.seededWorkItem.delegationIntent,
+    targetProjectId: input.refinementHandoff.targetProjectId,
+    acceptanceCriteria: input.refinementHandoff.acceptanceCriteria,
+  });
+  const delegationRequestedAt =
+    classification.readiness === "ready-for-worker"
+      ? (input.seededWorkItem.delegationRequestedAt ?? input.refinementHandoff.recordedAt)
+      : null;
+
+  return {
+    ...input.seededWorkItem,
+    body: input.refinementHandoff.refinedProblemStatement,
+    acceptanceCriteria: input.refinementHandoff.acceptanceCriteria,
+    targetProjectId: input.refinementHandoff.targetProjectId,
+    refinementHandoff: input.refinementHandoff,
+    readiness: classification.readiness,
+    readinessReason: classification.readinessReason,
+    delegationStatus: classification.readiness === "ready-for-worker" ? "requested" : "idle",
+    delegationRequestedAt,
+    updatedAt: input.refinementHandoff.recordedAt,
+  };
+}
+
 export function materializeSeededWorkItems(input: {
   readonly sourceKind: SeededWorkSourceKind;
   readonly sourceLabel: string;
@@ -50,6 +82,8 @@ export function materializeSeededWorkItems(input: {
       sourceLabel: input.sourceLabel,
       readiness: classification.readiness,
       readinessReason: classification.readinessReason,
+      delegationStatus: "idle",
+      delegationRequestedAt: null,
       createdAt: input.createdAt,
       updatedAt: input.createdAt,
     };
