@@ -2609,13 +2609,18 @@ export default function ChatView(props: ChatViewProps) {
       setIsRevertingCheckpoint(true);
       setThreadError(activeThread.id, null);
       try {
-        await api.orchestration.dispatchCommand({
-          type: "thread.checkpoint.revert",
-          commandId: newCommandId(),
-          threadId: activeThread.id,
-          turnCount,
-          createdAt: new Date().toISOString(),
-        });
+        await Promise.race([
+          api.orchestration.dispatchCommand({
+            type: "thread.checkpoint.revert",
+            commandId: newCommandId(),
+            threadId: activeThread.id,
+            turnCount,
+            createdAt: new Date().toISOString(),
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Revert timed out after 30 seconds.")), 30000),
+          ),
+        ]);
       } catch (err) {
         setThreadError(
           activeThread.id,
@@ -3408,6 +3413,11 @@ export default function ChatView(props: ChatViewProps) {
         resolvedDriverKind !== null &&
         resolvedDriverKind !== lockedProvider
       ) {
+        toastManager.add({
+          type: "info",
+          title: "Model not available",
+          description: "Thread is locked to a different provider.",
+        });
         scheduleComposerFocus();
         return;
       }
@@ -3420,6 +3430,11 @@ export default function ChatView(props: ChatViewProps) {
           entry?.continuation?.groupKey &&
           currentEntry.continuation.groupKey !== entry.continuation.groupKey
         ) {
+          toastManager.add({
+            type: "info",
+            title: "Model not available",
+            description: "Selected provider belongs to a different continuation group.",
+          });
           scheduleComposerFocus();
           return;
         }
@@ -3431,6 +3446,11 @@ export default function ChatView(props: ChatViewProps) {
         model,
       );
       if (!resolvedModel) {
+        toastManager.add({
+          type: "warning",
+          title: "Model not found",
+          description: `Model '${model}' is not available on this instance.`,
+        });
         scheduleComposerFocus();
         return;
       }

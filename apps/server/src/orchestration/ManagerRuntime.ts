@@ -82,7 +82,9 @@ export async function writeWorkspaceStateToFile(
   state: ManagerWorkspaceState,
 ): Promise<void> {
   const serialized = serializeWorkspaceState(state);
-  await fs.writeFile(filePath, serialized, "utf-8");
+  const tmpPath = `${filePath}.${crypto.randomUUID()}.tmp`;
+  await fs.writeFile(tmpPath, serialized, "utf-8");
+  await fs.rename(tmpPath, filePath);
 }
 
 export async function readWorkspaceStateFromFile(
@@ -92,7 +94,12 @@ export async function readWorkspaceStateFromFile(
   try {
     const raw = await fs.readFile(filePath, "utf-8");
     return parseWorkspaceState(raw);
-  } catch {
+  } catch (error) {
+    process.stderr.write(
+      `[ManagerRuntime] Failed to read workspace state from '${filePath}', falling back to empty state: ${
+        error instanceof Error ? error.message : String(error)
+      }\n`,
+    );
     return createEmptyWorkspaceState(now);
   }
 }

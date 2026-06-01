@@ -84,15 +84,23 @@ export function requireProject(input: {
   readonly projectId: ProjectId;
 }): Effect.Effect<OrchestrationProject, OrchestrationCommandInvariantError> {
   const project = findProjectById(input.readModel, input.projectId);
-  if (project) {
-    return Effect.succeed(project);
+  if (!project) {
+    return Effect.fail(
+      invariantError(
+        input.command.type,
+        `Project '${input.projectId}' does not exist for command '${input.command.type}'.`,
+      ),
+    );
   }
-  return Effect.fail(
-    invariantError(
-      input.command.type,
-      `Project '${input.projectId}' does not exist for command '${input.command.type}'.`,
-    ),
-  );
+  if (project.deletedAt !== null) {
+    return Effect.fail(
+      invariantError(
+        input.command.type,
+        `Project '${input.projectId}' has been deleted and cannot handle command '${input.command.type}'.`,
+      ),
+    );
+  }
+  return Effect.succeed(project);
 }
 
 export function requireProjectAbsent(input: {
@@ -100,7 +108,8 @@ export function requireProjectAbsent(input: {
   readonly command: OrchestrationCommand;
   readonly projectId: ProjectId;
 }): Effect.Effect<void, OrchestrationCommandInvariantError> {
-  if (!findProjectById(input.readModel, input.projectId)) {
+  const existing = findProjectById(input.readModel, input.projectId);
+  if (!existing || existing.deletedAt !== null) {
     return Effect.void;
   }
   return Effect.fail(
@@ -117,15 +126,23 @@ export function requireThread(input: {
   readonly threadId: ThreadId;
 }): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
   const thread = findThreadById(input.readModel, input.threadId);
-  if (thread) {
-    return Effect.succeed(thread);
+  if (!thread) {
+    return Effect.fail(
+      invariantError(
+        input.command.type,
+        `Thread '${input.threadId}' does not exist for command '${input.command.type}'.`,
+      ),
+    );
   }
-  return Effect.fail(
-    invariantError(
-      input.command.type,
-      `Thread '${input.threadId}' does not exist for command '${input.command.type}'.`,
-    ),
-  );
+  if (thread.deletedAt !== null) {
+    return Effect.fail(
+      invariantError(
+        input.command.type,
+        `Thread '${input.threadId}' has been deleted and cannot handle command '${input.command.type}'.`,
+      ),
+    );
+  }
+  return Effect.succeed(thread);
 }
 
 export function requireThreadArchived(input: {
@@ -190,7 +207,8 @@ export function requireThreadAbsent(input: {
   readonly command: OrchestrationCommand;
   readonly threadId: ThreadId;
 }): Effect.Effect<void, OrchestrationCommandInvariantError> {
-  if (!findThreadById(input.readModel, input.threadId)) {
+  const existing = findThreadById(input.readModel, input.threadId);
+  if (!existing || existing.deletedAt !== null) {
     return Effect.void;
   }
   return Effect.fail(

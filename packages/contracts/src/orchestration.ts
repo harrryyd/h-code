@@ -709,6 +709,16 @@ export const ManagerResolveQueueItemCommand = Schema.Struct({
 });
 export type ManagerResolveQueueItemCommand = typeof ManagerResolveQueueItemCommand.Type;
 
+export const ManagerDismissQueueItemCommand = Schema.Struct({
+  type: Schema.Literal("manager.dismiss-queue-item"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  itemId: TrimmedNonEmptyString,
+  reason: Schema.optional(Schema.String),
+  createdAt: IsoDateTime,
+});
+export type ManagerDismissQueueItemCommand = typeof ManagerDismissQueueItemCommand.Type;
+
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
   commandId: CommandId,
@@ -912,6 +922,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadInteractionModeSetCommand,
   WorkerEscalateCommand,
   ManagerResolveQueueItemCommand,
+  ManagerDismissQueueItemCommand,
   ThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -941,6 +952,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadInteractionModeSetCommand,
   WorkerEscalateCommand,
   ManagerResolveQueueItemCommand,
+  ManagerDismissQueueItemCommand,
   ClientThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,

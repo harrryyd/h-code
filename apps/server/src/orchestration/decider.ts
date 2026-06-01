@@ -15,6 +15,7 @@ import {
   findManagerWorkspace,
   listThreadsByProjectId,
   requireManagerConsole,
+  requireNonNegativeInteger,
   requireProject,
   requireProjectAbsent,
   requireThread,
@@ -79,7 +80,16 @@ const decideCommandSequence = Effect.fn("decideCommandSequence")(function* ({
       nextReadModel = yield* projectEvent(nextReadModel, {
         ...nextEvent,
         sequence: nextSequence,
-      }).pipe(Effect.orDie);
+      }).pipe(
+        Effect.catch(() =>
+          Effect.fail(
+            new OrchestrationCommandInvariantError({
+              commandType: nextCommand.type,
+              detail: `Projection error in command sequence.`,
+            }),
+          ),
+        ),
+      );
     }
   }
 
@@ -958,6 +968,11 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      yield* requireNonNegativeInteger({
+        commandType: command.type,
+        field: "turnCount",
+        value: command.turnCount,
+      });
       return {
         ...withEventBase({
           aggregateKind: "thread",
@@ -1184,6 +1199,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       }
 
       const managerThreadId = workerThread.managerMetadata.managerThreadId;
+      if (managerThreadId === undefined) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Worker thread '${command.threadId}' is missing a manager thread reference.`,
+        });
+      }
       const managerConsole = yield* requireManagerConsole({
         readModel,
         command,
@@ -1247,7 +1268,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         });
       }
 
-      const queueItem = existingQueueItems[queueItemIndex];
+      const queueItem = existingQueueItems[queueItemIndex]!;
       if (queueItem.status !== "pending") {
         return yield* new OrchestrationCommandInvariantError({
           commandType: command.type,
@@ -1255,15 +1276,18 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         });
       }
 
+      // Capture before yield* boundary so narrowing is preserved
+      const escalatedThreadId = queueItem.escalationThreadId;
+      const queueItemCategory = queueItem.category;
       const workerThread = yield* requireThread({
         readModel,
         command,
-        threadId: queueItem.escalationThreadId,
+        threadId: escalatedThreadId,
       });
       if (workerThread.managerMetadata?.role !== "worker") {
         return yield* new OrchestrationCommandInvariantError({
           commandType: command.type,
-          detail: `Thread '${queueItem.escalationThreadId}' is not a Worker Thread.`,
+          detail: `Thread '${escalatedThreadId}' is not a Worker Thread.`,
         });
       }
 
@@ -1275,7 +1299,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
 
       const updatedQueueItems = [
         ...existingQueueItems.slice(0, queueItemIndex),
-        updatedItem,
+        updatedItem as typeof queueItem,
         ...existingQueueItems.slice(queueItemIndex + 1),
       ];
 
@@ -1303,7 +1327,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           }),
           type: "thread.activity-appended" as const,
           payload: {
-            threadId: queueItem.escalationThreadId,
+            threadId: escalatedThreadId,
             activity: {
               id: crypto.randomUUID() as OrchestrationEvent["eventId"],
               tone: "info" as const,
@@ -1311,7 +1335,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
               summary: command.instruction,
               payload: {
                 queueItemId: command.itemId,
-                category: queueItem.category,
+                category: queueItemCategory,
               },
               turnId: null,
               createdAt: command.createdAt,
@@ -1319,6 +1343,58 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           },
         },
       ];
+    }
+
+    case "manager.dismiss-queue-item": {
+      const managerConsole = yield* requireManagerConsole({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+
+      const existingQueueItems = managerConsole.managerQueueItems ?? [];
+      const queueItemIndex = existingQueueItems.findIndex((item) => item.itemId === command.itemId);
+      if (queueItemIndex === -1) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Queue item '${command.itemId}' not found on Manager Console '${command.threadId}'.`,
+        });
+      }
+
+      const queueItem = existingQueueItems[queueItemIndex]!;
+      if (queueItem.status !== "pending") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Queue item '${command.itemId}' cannot be dismissed because it is already '${queueItem.status}'.`,
+        });
+      }
+
+      const dismissedItem = {
+        ...queueItem,
+        status: "dismissed" as const,
+        dismissedAt: command.createdAt,
+      };
+
+      const updatedQueueItems = [
+        ...existingQueueItems.slice(0, queueItemIndex),
+        dismissedItem as typeof queueItem,
+        ...existingQueueItems.slice(queueItemIndex + 1),
+      ];
+
+      return {
+        ...withEventBase({
+          aggregateKind: "thread" as const,
+          aggregateId: managerConsole.id,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.manager-queue-items-upserted" as const,
+        payload: {
+          threadId: managerConsole.id,
+          managerQueueItems: updatedQueueItems,
+          updatedAt: command.createdAt,
+        },
+      };
     }
 
     default: {
