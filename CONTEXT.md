@@ -88,6 +88,18 @@ _Avoid_: PR icon, badge
 A sidebar thread indicator that marks a Worker Thread as delegated from the Manager Console.
 _Avoid_: Agent badge, child badge
 
+**Manager Agent**:
+The LLM-driven decision maker that operates within the Manager Console to classify work, handle Worker Escalations, create Refiner Threads, and propose Worker delegations.
+_Avoid_: Manager AI, orchestration agent
+
+**Autonomous Turn**:
+A manager turn triggered by domain events (not human input) where the Manager Agent runs Manager CLI commands to process its inbox.
+_Avoid_: Scheduled turn, cron turn, background turn
+
+**Manager CLI**:
+The standalone `foreman` command set that the Manager Agent uses via its provider's bash tool to interact with the orchestration system (classify, resolve, dismiss, refiner create, delegate propose, prefs, status).
+_Avoid_: Manager API, manager SDK
+
 **Manager Inbox**:
 A distinct sidebar section that contains the Manager Console separately from Project-owned Threads.
 _Avoid_: Supervisor project, orchestration group
@@ -118,6 +130,11 @@ _Avoid_: Project metadata, browser-only setting
 - A **Project Thread Default** belongs to one **Project**
 - A **Project Thread Default** selects one **Thread Workspace Mode**
 - A **Project Thread Default** is a **Server-Persisted User Preference**
+- A **Manager Agent** operates within the **Manager Console**
+- A **Manager Agent** uses the **Manager CLI** to execute decisions
+- A **Manager Agent** performs **Autonomous Turns** when triggered by domain events
+- A **Manager Agent** follows the **Manager Queue Discipline**
+- A **Manager Agent** performs **Delegation Intake**
 - A **Manager Inbox** contains the **Manager Console**
 - A **Manager Inbox** presents the **Manager Console** from the **Manager Workspace**
 - A **Manual Sidebar Group** contains many **Projects**

@@ -96,5 +96,8 @@
   "trustedDependencies": [
     "node-pty",
     "electron"
-  ]
+  ],
+  "dependencies": {
+    "@t3tools/monorepo": "."
+  }
 }
