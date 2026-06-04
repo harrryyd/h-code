@@ -32,6 +32,7 @@ import {
   ProviderInstanceId,
   ThreadId,
   type TerminalEvent,
+  TodosLoadError,
   WS_METHODS,
   WsRpcGroup,
 } from "@t3tools/contracts";
@@ -988,9 +989,22 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             "rpc.aggregate": "server",
           }),
         [WS_METHODS.todosLoad]: (_payload) =>
-          observeRpcEffect(WS_METHODS.todosLoad, readTodos.pipe(Effect.orDie), {
-            "rpc.aggregate": "server",
-          }),
+          observeRpcEffect(
+            WS_METHODS.todosLoad,
+            readTodos.pipe(
+              Effect.mapError(
+                (cause) =>
+                  new TodosLoadError({
+                    kind: "io-failure",
+                    detail: `Failed to load todos: ${cause}`,
+                    cause,
+                  }),
+              ),
+            ),
+            {
+              "rpc.aggregate": "server",
+            },
+          ),
         [WS_METHODS.sourceControlLookupRepository]: (input) =>
           observeRpcEffect(
             WS_METHODS.sourceControlLookupRepository,

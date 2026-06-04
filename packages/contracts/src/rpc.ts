@@ -422,9 +422,20 @@ export const TodosLoadResult = Schema.Struct({
 });
 export type TodosLoadResult = typeof TodosLoadResult.Type;
 
+export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("TodosLoadError", {
+  kind: Schema.Literals(["io-failure", "parse-failure"]),
+  detail: Schema.String,
+  cause: Schema.optional(Schema.Defect),
+}) {
+  override get message(): string {
+    return `Todo load error (${this.kind}): ${this.detail}`;
+  }
+}
+
 export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
   payload: Schema.Struct({}),
   success: TodosLoadResult,
+  error: TodosLoadError,
 });
 
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
