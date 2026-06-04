@@ -47,7 +47,7 @@ export const MODEL_PICKER_KEYBINDING_COMMANDS = [
 ] as const;
 export type ModelPickerKeybindingCommand = (typeof MODEL_PICKER_KEYBINDING_COMMANDS)[number];
 
-const STATIC_KEYBINDING_COMMANDS = [
+export const STATIC_KEYBINDING_COMMANDS = [
   "terminal.toggle",
   "terminal.split",
   "terminal.new",
@@ -58,6 +58,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "chat.new",
   "chat.newInProject",
   "chat.newLocal",
+  "todo.toggle",
   "editor.openFavorite",
   "thread.renameCurrent",
   ...MODEL_PICKER_KEYBINDING_COMMANDS,

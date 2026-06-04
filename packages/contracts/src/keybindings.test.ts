@@ -7,6 +7,7 @@ import {
   KeybindingRule,
   ResolvedKeybindingRule,
   ResolvedKeybindingsConfig,
+  STATIC_KEYBINDING_COMMANDS,
 } from "./keybindings.ts";
 
 const decode = <S extends Schema.Top>(
@@ -88,6 +89,12 @@ it.effect("parses keybinding rules", () =>
       command: "thread.previous",
     });
     assert.strictEqual(parsedThreadPrevious.command, "thread.previous");
+
+    const parsedTodoToggle = yield* decode(KeybindingRule, {
+      key: "mod+l",
+      command: "todo.toggle",
+    });
+    assert.strictEqual(parsedTodoToggle.command, "todo.toggle");
   }),
 );
 
@@ -197,4 +204,10 @@ it.effect("drops unknown fields in resolved keybinding rules", () =>
       assert.strictEqual(view.command, "terminal.toggle");
     }),
   ),
+);
+
+it.effect("STATIC_KEYBINDING_COMMANDS includes todo.toggle", () =>
+  Effect.sync(() => {
+    assert.isTrue(STATIC_KEYBINDING_COMMANDS.includes("todo.toggle"));
+  }),
 );

@@ -124,6 +124,11 @@ const DEFAULT_BINDINGS = compile([
   { shortcut: modShortcut("n", { altKey: true }), command: "chat.newInProject" },
   { shortcut: modShortcut("n", { shiftKey: true }), command: "chat.newLocal" },
   { shortcut: modShortcut("o"), command: "editor.openFavorite" },
+  {
+    shortcut: modShortcut("l"),
+    command: "todo.toggle",
+    whenAst: whenNot(whenIdentifier("terminalFocus")),
+  },
   { shortcut: modShortcut("e", { shiftKey: true }), command: "thread.renameCurrent" },
   { shortcut: modShortcut("[", { shiftKey: true }), command: "thread.previous" },
   { shortcut: modShortcut("]", { shiftKey: true }), command: "thread.next" },
@@ -526,6 +531,30 @@ describe("chat/editor shortcuts", () => {
         platform: "MacIntel",
         context: { terminalFocus: true },
       }),
+    );
+  });
+
+  it("matches todo.toggle shortcut outside terminal focus", () => {
+    assert.strictEqual(
+      resolveShortcutCommand(event({ key: "l", metaKey: true }), DEFAULT_BINDINGS, {
+        platform: "MacIntel",
+        context: { terminalFocus: false },
+      }),
+      "todo.toggle",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(event({ key: "l", ctrlKey: true }), DEFAULT_BINDINGS, {
+        platform: "Linux",
+        context: { terminalFocus: false },
+      }),
+      "todo.toggle",
+    );
+    assert.notStrictEqual(
+      resolveShortcutCommand(event({ key: "l", metaKey: true }), DEFAULT_BINDINGS, {
+        platform: "MacIntel",
+        context: { terminalFocus: true },
+      }),
+      "todo.toggle",
     );
   });
 });
