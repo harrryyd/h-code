@@ -150,6 +150,10 @@
     "./relayClient": {
       "types": "./src/relayClient.ts",
       "import": "./src/relayClient.ts"
+    },
+    "./todoStore": {
+      "types": "./src/todoStore.ts",
+      "import": "./src/todoStore.ts"
     }
   },
   "scripts": {

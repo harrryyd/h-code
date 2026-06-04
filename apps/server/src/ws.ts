@@ -47,6 +47,7 @@ import {
   type TerminalError,
   type TerminalEvent,
   type TerminalMetadataStreamEvent,
+  TodosLoadError,
   WS_METHODS,
   WsRpcGroup,
 } from "@t3tools/contracts";
@@ -78,6 +79,7 @@ import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner
 import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import { redactServerSettingsForClient, ServerSettingsService } from "./serverSettings.ts";
+import { readTodos } from "./todoPersistence.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries.ts";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem.ts";
@@ -1172,6 +1174,23 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                   ),
             ),
             { "rpc.aggregate": "cloud" },
+          ),
+        [WS_METHODS.todosLoad]: (_payload) =>
+          observeRpcEffect(
+            WS_METHODS.todosLoad,
+            readTodos.pipe(
+              Effect.mapError(
+                (cause) =>
+                  new TodosLoadError({
+                    kind: "io-failure",
+                    detail: `Failed to load todos: ${cause}`,
+                    cause,
+                  }),
+              ),
+            ),
+            {
+              "rpc.aggregate": "server",
+            },
           ),
         [WS_METHODS.sourceControlLookupRepository]: (input) =>
           observeRpcEffect(

@@ -115,6 +115,7 @@ import {
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
 } from "./sourceControl.ts";
+import { TodoCategory, TodoItem } from "./todos.ts";
 import { VcsError } from "./vcs.ts";
 
 export const WS_METHODS = {
@@ -184,6 +185,9 @@ export const WS_METHODS = {
   sourceControlLookupRepository: "sourceControl.lookupRepository",
   sourceControlCloneRepository: "sourceControl.cloneRepository",
   sourceControlPublishRepository: "sourceControl.publishRepository",
+
+  // Todo methods
+  todosLoad: "todo.load",
 
   // Streaming subscriptions
   subscribeVcsStatus: "subscribeVcsStatus",
@@ -468,6 +472,28 @@ export const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPrevie
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
 });
 
+export const TodosLoadResult = Schema.Struct({
+  categories: Schema.Array(TodoCategory),
+  items: Schema.Array(TodoItem),
+});
+export type TodosLoadResult = typeof TodosLoadResult.Type;
+
+export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("TodosLoadError", {
+  kind: Schema.Literals(["io-failure", "parse-failure"]),
+  detail: Schema.String,
+  cause: Schema.optional(Schema.Defect),
+}) {
+  override get message(): string {
+    return `Todo load error (${this.kind}): ${this.detail}`;
+  }
+}
+
+export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
+  payload: Schema.Struct({}),
+  success: TodosLoadResult,
+  error: TodosLoadError,
+});
+
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
   payload: TerminalOpenInput,
   success: TerminalSessionSnapshot,
@@ -635,6 +661,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsSwitchRefRpc,
   WsVcsInitRpc,
   WsReviewGetDiffPreviewRpc,
+  WsTodosLoadRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,
