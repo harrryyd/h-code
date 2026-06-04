@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   CheckCircle2Icon,
   ChevronDownIcon,
@@ -48,9 +48,26 @@ export function TodoPanel() {
     mutate([{ type: "createCategory", name: "New Category", color: "" }] as TodoMutation[]);
   };
 
+  const handleCycleItem = (itemId: string) => {
+    mutate([{ type: "cycleItemStatus", itemId }]);
+  };
+
   const filteredCategories = hideEmpty
     ? categories.filter((cat) => countActiveItems(items, cat.id) > 0)
     : categories;
+
+  const categoryMap = useMemo(() => new Map(categories.map((cat) => [cat.id, cat])), [categories]);
+
+  const doneItems = useMemo(
+    () =>
+      items
+        .filter((item) => item.status === "done")
+        .toSorted((a, b) =>
+          (b.completedAt ?? b.updatedAt).localeCompare(a.completedAt ?? a.updatedAt),
+        )
+        .slice(0, 10),
+    [items],
+  );
 
   return (
     <>
@@ -75,12 +92,25 @@ export function TodoPanel() {
       <SidebarContent>
         {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>}
         {error && <div className="px-3 py-2 text-xs text-red-500">Failed to load todos</div>}
-        {!loading && !error && filteredCategories.length === 0 && (
+        {!loading && !error && filteredCategories.length === 0 && doneItems.length === 0 && (
           <div className="px-3 py-2 text-xs text-muted-foreground">No todos yet</div>
         )}
         {filteredCategories.map((category) => (
-          <TodoCategoryRow key={category.id} category={category} items={items} mutate={mutate} />
+          <TodoCategoryRow
+            key={category.id}
+            category={category}
+            items={items}
+            mutate={mutate}
+            onCycleItem={handleCycleItem}
+          />
         ))}
+        {doneItems.length > 0 && (
+          <DoneSection
+            doneItems={doneItems}
+            categoryMap={categoryMap}
+            onCycleItem={handleCycleItem}
+          />
+        )}
       </SidebarContent>
     </>
   );
@@ -90,10 +120,12 @@ function TodoCategoryRow({
   category,
   items,
   mutate,
+  onCycleItem,
 }: {
   category: TodoCategory;
   items: TodoItem[];
   mutate: (mutations: TodoMutation[]) => Promise<void>;
+  onCycleItem: (itemId: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(category.collapsed === true);
   const [renaming, setRenaming] = useState(false);
@@ -227,7 +259,11 @@ function TodoCategoryRow({
   const jiraKey = category.jiraLink ? extractJiraKey(category.jiraLink) : null;
 
   const categoryItems = items
-    .filter((item) => item.categoryId === category.id)
+    .filter(
+      (item) =>
+        item.categoryId === category.id &&
+        (item.status === "todo" || item.status === "in_progress"),
+    )
     .toSorted((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return (
@@ -299,7 +335,13 @@ function TodoCategoryRow({
                 key={item.id}
                 className="flex items-center gap-2 pl-7 pr-3 py-0.5 text-xs hover:bg-accent/50"
               >
-                <StatusIcon status={item.status} />
+                <button
+                  className="shrink-0 p-0 rounded hover:bg-accent/50"
+                  onClick={() => onCycleItem(item.id)}
+                  title={`Status: ${item.status}`}
+                >
+                  <StatusIcon status={item.status} />
+                </button>
                 <span className="truncate">{item.title}</span>
               </div>
             ))
@@ -319,4 +361,48 @@ function StatusIcon({ status }: { status: string }) {
     default:
       return <CircleIcon size={12} className="text-muted-foreground shrink-0" />;
   }
+}
+
+function DoneSection({
+  doneItems,
+  categoryMap,
+  onCycleItem,
+}: {
+  doneItems: TodoItem[];
+  categoryMap: Map<string, TodoCategory>;
+  onCycleItem: (itemId: string) => void;
+}) {
+  if (doneItems.length === 0) return null;
+
+  return (
+    <div className="mt-2 border-t border-border">
+      <div className="px-3 py-1.5 text-sm font-medium text-muted-foreground">Done</div>
+      {doneItems.map((item) => {
+        const cat = categoryMap.get(item.categoryId);
+        return (
+          <div
+            key={item.id}
+            className="flex items-center gap-2 pl-3 pr-3 py-0.5 text-xs hover:bg-accent/50"
+          >
+            <button
+              className="shrink-0 p-0 rounded hover:bg-accent/50"
+              onClick={() => onCycleItem(item.id)}
+              title="Click to return to todo"
+            >
+              <CheckCircle2Icon size={12} className="text-green-500 shrink-0" />
+            </button>
+            <span className="truncate">{item.title}</span>
+            {cat && (
+              <span
+                className="shrink-0 text-[10px] px-1 py-0.5 rounded ml-auto opacity-70"
+                style={{ backgroundColor: cat.color + "30", color: cat.color }}
+              >
+                {cat.name}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }

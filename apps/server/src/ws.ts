@@ -80,8 +80,8 @@ import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner
 import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import { redactServerSettingsForClient, ServerSettingsService } from "./serverSettings.ts";
-import { applyMutations } from "@t3tools/shared/todoStore";
-import { readTodos, writeTodos } from "./todoPersistence.ts";
+import { applyMutations, archiveDoneItems } from "@t3tools/shared/todoStore";
+import { appendToArchive, readTodos, writeTodos } from "./todoPersistence.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries.ts";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem.ts";
@@ -1203,8 +1203,12 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                 { categories: current.categories, items: current.items },
                 input.mutations,
               );
-              yield* writeTodos({ categories: next.categories, items: next.items });
-              return { categories: next.categories, items: next.items };
+              const { state: deduped, archived } = archiveDoneItems(next);
+              if (archived.length > 0) {
+                yield* appendToArchive(archived);
+              }
+              yield* writeTodos({ categories: deduped.categories, items: deduped.items });
+              return { categories: deduped.categories, items: deduped.items };
             }).pipe(
               Effect.mapError(
                 (cause) =>
