@@ -4,8 +4,10 @@ import type { TodoCategory, TodoItem } from "@t3tools/contracts";
 import {
   applyMutation,
   applyMutations,
+  archiveDoneItems,
   createCategory,
   createItem,
+  cycleItemStatus,
   deleteCategory,
   loadTodos,
   renameCategory,
@@ -56,6 +58,19 @@ const sampleItems: TodoItem[] = [
     updatedAt: "2024-01-02T00:00:00Z",
   },
 ];
+
+function makeDoneItem(id: string, completedAt: string): TodoItem {
+  return {
+    id,
+    categoryId: "cat-1",
+    title: `Done ${id}`,
+    status: "done",
+    sortOrder: 0,
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: completedAt,
+    completedAt,
+  };
+}
 
 describe("todoStore", () => {
   describe("loadTodos", () => {
@@ -458,6 +473,154 @@ describe("todoStore", () => {
 
       expect(next.categories[0]!.name).toBe("Renamed");
       expect(next.categories[0]!.color).toBe("#333");
+    });
+  });
+
+  describe("cycleItemStatus", () => {
+    const item: TodoItem = {
+      id: "item-1",
+      categoryId: "cat-1",
+      title: "Test item",
+      status: "todo",
+      sortOrder: 0,
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    };
+
+    it("transitions todo -> in_progress", () => {
+      const state = loadTodos(sampleCategories, [item]);
+      const next = cycleItemStatus(state, "item-1");
+
+      expect(next.items[0]!.status).toBe("in_progress");
+      expect(next.items[0]!.updatedAt).not.toBe(item.updatedAt);
+      expect(next.items[0]!.completedAt).toBeUndefined();
+    });
+
+    it("transitions in_progress -> done", () => {
+      const inProgress: TodoItem = { ...item, status: "in_progress" };
+      const state = loadTodos(sampleCategories, [inProgress]);
+      const next = cycleItemStatus(state, "item-1");
+
+      expect(next.items[0]!.status).toBe("done");
+      expect(next.items[0]!.completedAt).toBeTypeOf("string");
+      expect(next.items[0]!.completedAt!.length).toBeGreaterThan(0);
+    });
+
+    it("transitions done -> todo", () => {
+      const doneItem: TodoItem = { ...item, status: "done", completedAt: "2024-06-01T00:00:00Z" };
+      const state = loadTodos(sampleCategories, [doneItem]);
+      const next = cycleItemStatus(state, "item-1");
+
+      expect(next.items[0]!.status).toBe("todo");
+      expect(next.items[0]!.completedAt).toBeUndefined();
+    });
+
+    it("returns state unchanged for unknown item ID", () => {
+      const state = loadTodos(sampleCategories, [item]);
+      const next = cycleItemStatus(state, "nonexistent");
+
+      expect(next).toBe(state);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, [item]);
+      const next = cycleItemStatus(state, "item-1");
+
+      expect(next).not.toBe(state);
+      expect(next.items).not.toBe(state.items);
+      expect(state.items[0]!.status).toBe("todo");
+    });
+
+    it("updates updatedAt on every transition", () => {
+      const state = loadTodos(sampleCategories, [item]);
+      const next = cycleItemStatus(state, "item-1");
+
+      expect(next.items[0]!.updatedAt).not.toBe(item.updatedAt);
+    });
+  });
+
+  describe("archiveDoneItems", () => {
+    it("returns empty archive when fewer than max done items", () => {
+      const items = [makeDoneItem("d1", "2024-01-01T00:00:00Z")];
+      const state = loadTodos(sampleCategories, items);
+      const result = archiveDoneItems(state, 10);
+
+      expect(result.archived).toHaveLength(0);
+      expect(result.state.items).toHaveLength(1);
+    });
+
+    it("returns empty archive when exactly max done items", () => {
+      const items = Array.from({ length: 10 }, (_, i) =>
+        makeDoneItem(`d${i}`, `2024-01-${String(i + 1).padStart(2, "0")}T00:00:00Z`),
+      );
+      const state = loadTodos(sampleCategories, items);
+      const result = archiveDoneItems(state, 10);
+
+      expect(result.archived).toHaveLength(0);
+      expect(result.state.items).toHaveLength(10);
+    });
+
+    it("archives oldest done items when over max", () => {
+      const items = Array.from({ length: 12 }, (_, i) =>
+        makeDoneItem(`d${i}`, `2024-01-${String(i + 1).padStart(2, "0")}T00:00:00Z`),
+      );
+      const state = loadTodos(sampleCategories, items);
+      const result = archiveDoneItems(state, 10);
+
+      expect(result.archived).toHaveLength(2);
+      expect(result.archived[0]!.id).toBe("d0");
+      expect(result.archived[1]!.id).toBe("d1");
+      expect(result.state.items).toHaveLength(10);
+      expect(result.state.items.find((i) => i.id === "d0")).toBeUndefined();
+      expect(result.state.items.find((i) => i.id === "d1")).toBeUndefined();
+      expect(result.state.items.find((i) => i.id === "d11")).toBeDefined();
+    });
+
+    it("archives oldest when exactly at 11", () => {
+      const items = Array.from({ length: 11 }, (_, i) =>
+        makeDoneItem(`d${i}`, `2024-01-${String(i + 1).padStart(2, "0")}T00:00:00Z`),
+      );
+      const state = loadTodos(sampleCategories, items);
+      const result = archiveDoneItems(state, 10);
+
+      expect(result.archived).toHaveLength(1);
+      expect(result.archived[0]!.id).toBe("d0");
+      expect(result.state.items).toHaveLength(10);
+      expect(result.state.items.find((i) => i.id === "d0")).toBeUndefined();
+      expect(result.state.items.find((i) => i.id === "d10")).toBeDefined();
+    });
+
+    it("only archives done items, leaves todo/in_progress", () => {
+      const doneItems = Array.from({ length: 11 }, (_, i) =>
+        makeDoneItem(`d${i}`, `2024-01-${String(i + 1).padStart(2, "0")}T00:00:00Z`),
+      );
+      const activeItem: TodoItem = {
+        id: "active-1",
+        categoryId: "cat-1",
+        title: "Active",
+        status: "todo",
+        sortOrder: 100,
+        createdAt: "2024-01-01T00:00:00Z",
+        updatedAt: "2024-01-01T00:00:00Z",
+      };
+      const state = loadTodos(sampleCategories, [...doneItems, activeItem]);
+      const result = archiveDoneItems(state, 10);
+
+      expect(result.archived).toHaveLength(1);
+      expect(result.state.items.find((i) => i.id === "active-1")).toBeDefined();
+      expect(result.state.items).toHaveLength(11);
+    });
+
+    it("does not mutate the original state", () => {
+      const items = Array.from({ length: 12 }, (_, i) =>
+        makeDoneItem(`d${i}`, `2024-01-${String(i + 1).padStart(2, "0")}T00:00:00Z`),
+      );
+      const state = loadTodos(sampleCategories, items);
+      const result = archiveDoneItems(state, 10);
+
+      expect(result.state).not.toBe(state);
+      expect(result.state.items).not.toBe(state.items);
+      expect(state.items).toHaveLength(12);
     });
   });
 

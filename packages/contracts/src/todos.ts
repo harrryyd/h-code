@@ -25,5 +25,6 @@ export const TodoItem = Schema.Struct({
   sortOrder: Schema.Number,
   createdAt: Schema.String,
   updatedAt: Schema.String,
+  completedAt: Schema.optional(Schema.String),
 });
 export type TodoItem = typeof TodoItem.Type;
