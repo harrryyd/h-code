@@ -38,6 +38,9 @@ const gitStatusListeners = new Set<(event: VcsStatusResult) => void>();
 
 const rpcClientMock = {
   dispose: vi.fn(),
+  todos: {
+    load: vi.fn(),
+  },
   terminal: {
     open: vi.fn(),
     write: vi.fn(),
