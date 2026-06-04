@@ -139,9 +139,55 @@ export function applyMutation(state: TodoState, mutation: TodoMutation): TodoSta
       return deleteCategory(state, mutation.categoryId).state;
     case "createItem":
       return createItem(state, mutation.categoryId, mutation.title);
+    case "cycleItemStatus":
+      return cycleItemStatus(state, mutation.itemId);
     default:
       return state;
   }
+}
+
+export function cycleItemStatus(state: TodoState, itemId: string): TodoState {
+  const item = state.items.find((i) => i.id === itemId);
+  if (!item) return state;
+
+  // @effect-diagnostics-next-line globalDate:off
+  const now = new Date().toISOString();
+  const nextStatus: TodoItem["status"] =
+    item.status === "todo" ? "in_progress" : item.status === "in_progress" ? "done" : "todo";
+
+  const updatedItem: TodoItem = {
+    ...item,
+    status: nextStatus,
+    updatedAt: now,
+    ...(nextStatus === "done" ? { completedAt: now } : {}),
+    ...(nextStatus === "todo" && item.status === "done" ? { completedAt: undefined } : {}),
+  };
+
+  return { ...state, items: state.items.map((i) => (i.id === itemId ? updatedItem : i)) };
+}
+
+export function archiveDoneItems(
+  state: TodoState,
+  maxDoneItems = 10,
+): { state: TodoState; archived: TodoItem[] } {
+  const doneItems = state.items
+    .filter((i) => i.status === "done")
+    .toSorted((a, b) => (a.completedAt ?? a.createdAt).localeCompare(b.completedAt ?? b.createdAt));
+
+  if (doneItems.length <= maxDoneItems) {
+    return { state, archived: [] };
+  }
+
+  const toArchive = doneItems.slice(0, doneItems.length - maxDoneItems);
+  const archiveIds = new Set(toArchive.map((i) => i.id));
+
+  return {
+    state: {
+      ...state,
+      items: state.items.filter((i) => !archiveIds.has(i.id)),
+    },
+    archived: toArchive,
+  };
 }
 
 export function applyMutations(state: TodoState, mutations: readonly TodoMutation[]): TodoState {

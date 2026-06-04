@@ -446,6 +446,7 @@ export const TodoMutationType = Schema.Literals([
   "setCategoryJiraLink",
   "deleteCategory",
   "createItem",
+  "cycleItemStatus",
 ]);
 export type TodoMutationType = typeof TodoMutationType.Type;
 
@@ -480,6 +481,11 @@ export const CreateItemMutation = Schema.Struct({
   title: TrimmedNonEmptyString,
 });
 
+export const CycleItemStatusMutation = Schema.Struct({
+  type: Schema.Literal("cycleItemStatus"),
+  itemId: Schema.String,
+});
+
 export const TodoMutation = Schema.Union([
   CreateCategoryMutation,
   RenameCategoryMutation,
@@ -487,6 +493,7 @@ export const TodoMutation = Schema.Union([
   SetCategoryJiraLinkMutation,
   DeleteCategoryMutation,
   CreateItemMutation,
+  CycleItemStatusMutation,
 ]);
 export type TodoMutation = typeof TodoMutation.Type;
 

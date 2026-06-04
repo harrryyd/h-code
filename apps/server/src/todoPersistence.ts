@@ -6,6 +6,7 @@ import { writeFileStringAtomically } from "./atomicWrite.ts";
 
 export const T3CODE_DIR = Os.homedir() + "/.t3code";
 export const TODOS_PATH = T3CODE_DIR + "/todos.json";
+export const TODOS_ARCHIVE_PATH = T3CODE_DIR + "/todos-archive.json";
 
 export interface TodosData {
   categories: TodoCategory[];
@@ -34,3 +35,26 @@ export const writeTodos = (data: TodosData) => {
     contents,
   });
 };
+
+export const appendToArchive = (items: TodoItem[]) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+
+    yield* fs.makeDirectory(T3CODE_DIR, { recursive: true });
+
+    const archiveExists = yield* fs.exists(TODOS_ARCHIVE_PATH);
+    let existing: TodoItem[] = [];
+    if (archiveExists) {
+      const raw = yield* fs.readFileString(TODOS_ARCHIVE_PATH);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      existing = JSON.parse(raw) as TodoItem[];
+    }
+
+    const updated = [...existing, ...items];
+    // @effect-diagnostics-next-line preferSchemaOverJson:off
+    const contents = JSON.stringify(updated, null, 2);
+    yield* writeFileStringAtomically({
+      filePath: TODOS_ARCHIVE_PATH,
+      contents,
+    });
+  });
