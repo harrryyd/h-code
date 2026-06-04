@@ -228,7 +228,7 @@ function TodoCategoryRow({
 
   const categoryItems = items
     .filter((item) => item.categoryId === category.id)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .toSorted((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return (
     <div>

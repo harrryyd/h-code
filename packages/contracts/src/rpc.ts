@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
-import { ThreadId } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import { AuthAccessStreamEvent } from "./auth.ts";
 import {
@@ -477,7 +477,7 @@ export const DeleteCategoryMutation = Schema.Struct({
 export const CreateItemMutation = Schema.Struct({
   type: Schema.Literal("createItem"),
   categoryId: Schema.String,
-  title: Schema.String,
+  title: TrimmedNonEmptyString,
 });
 
 export const TodoMutation = Schema.Union([

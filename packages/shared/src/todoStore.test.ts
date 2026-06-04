@@ -487,7 +487,7 @@ describe("todoStore", () => {
 
       const cat1Items = next3.items
         .filter((i) => i.categoryId === "cat-1")
-        .sort((a, b) => a.sortOrder - b.sortOrder);
+        .toSorted((a, b) => a.sortOrder - b.sortOrder);
 
       expect(cat1Items[0]!.sortOrder).toBe(0);
       expect(cat1Items[1]!.sortOrder).toBe(1);
