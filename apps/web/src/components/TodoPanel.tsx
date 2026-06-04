@@ -1,7 +1,10 @@
 import { useCallback, useState } from "react";
 import {
+  CheckCircle2Icon,
   ChevronDownIcon,
   ChevronRightIcon,
+  CircleIcon,
+  CircleDotIcon,
   ExternalLinkIcon,
   EyeIcon,
   EyeOffIcon,
@@ -95,6 +98,8 @@ function TodoCategoryRow({
   const [collapsed, setCollapsed] = useState(category.collapsed === true);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(category.name);
+  const [adding, setAdding] = useState(false);
+  const [addValue, setAddValue] = useState("");
 
   const handleDoubleClick = () => {
     setRenameValue(category.name);
@@ -118,6 +123,33 @@ function TodoCategoryRow({
       commitRename();
     } else if (e.key === "Escape") {
       cancelRename();
+    }
+  };
+
+  const startAdd = () => {
+    setAdding(true);
+    setAddValue("");
+  };
+
+  const commitAdd = () => {
+    const trimmed = addValue.trim();
+    if (trimmed) {
+      mutate([{ type: "createItem", categoryId: category.id, title: trimmed }]);
+    }
+    setAdding(false);
+    setAddValue("");
+  };
+
+  const cancelAdd = () => {
+    setAdding(false);
+    setAddValue("");
+  };
+
+  const handleAddKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      commitAdd();
+    } else if (e.key === "Escape") {
+      cancelAdd();
     }
   };
 
@@ -194,6 +226,10 @@ function TodoCategoryRow({
 
   const jiraKey = category.jiraLink ? extractJiraKey(category.jiraLink) : null;
 
+  const categoryItems = items
+    .filter((item) => item.categoryId === category.id)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
   return (
     <div>
       <button
@@ -229,8 +265,58 @@ function TodoCategoryRow({
             {jiraKey}
           </a>
         )}
+        <button
+          className="shrink-0 p-0.5 rounded hover:bg-accent/50 text-muted-foreground ml-auto"
+          onClick={(e) => {
+            e.stopPropagation();
+            startAdd();
+          }}
+          title="Add item"
+        >
+          <PlusIcon size={12} />
+        </button>
       </button>
-      {!collapsed && <div className="pl-7 pr-3 py-0.5 text-xs text-muted-foreground">No items</div>}
+      {!collapsed && (
+        <div>
+          {adding && (
+            <div className="pl-10 pr-3 py-1">
+              <input
+                className="w-full bg-transparent border-b border-primary outline-none text-xs py-0.5"
+                placeholder="Item title..."
+                value={addValue}
+                onChange={(e) => setAddValue(e.target.value)}
+                onKeyDown={handleAddKeyDown}
+                onBlur={cancelAdd}
+                autoFocus
+              />
+            </div>
+          )}
+          {categoryItems.length === 0 ? (
+            <div className="pl-7 pr-3 py-0.5 text-xs text-muted-foreground">No items</div>
+          ) : (
+            categoryItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 pl-7 pr-3 py-0.5 text-xs hover:bg-accent/50"
+              >
+                <StatusIcon status={item.status} />
+                <span className="truncate">{item.title}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+function StatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "done":
+      return <CheckCircle2Icon size={12} className="text-green-500 shrink-0" />;
+    case "in_progress":
+      return <CircleDotIcon size={12} className="text-yellow-500 shrink-0" />;
+    default:
+      return <CircleIcon size={12} className="text-muted-foreground shrink-0" />;
+  }
 }
