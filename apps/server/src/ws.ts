@@ -63,6 +63,7 @@ import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner
 import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import { redactServerSettingsForClient, ServerSettingsService } from "./serverSettings.ts";
+import { readTodos } from "./todoPersistence.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries.ts";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem.ts";
@@ -984,6 +985,10 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
           ),
         [WS_METHODS.serverSignalProcess]: (input) =>
           observeRpcEffect(WS_METHODS.serverSignalProcess, processDiagnostics.signal(input), {
+            "rpc.aggregate": "server",
+          }),
+        [WS_METHODS.todosLoad]: (_payload) =>
+          observeRpcEffect(WS_METHODS.todosLoad, readTodos.pipe(Effect.orDie), {
             "rpc.aggregate": "server",
           }),
         [WS_METHODS.sourceControlLookupRepository]: (input) =>

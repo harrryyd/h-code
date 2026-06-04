@@ -465,6 +465,9 @@ export interface LocalApi {
     setSavedEnvironmentSecret: (environmentId: EnvironmentId, secret: string) => Promise<boolean>;
     removeSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<void>;
   };
+  todos: {
+    load: () => Promise<import("./rpc.ts").TodosLoadResult>;
+  };
   server: {
     getConfig: () => Promise<ServerConfig>;
     /**

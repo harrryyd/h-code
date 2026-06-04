@@ -98,6 +98,7 @@ import {
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
 } from "./sourceControl.ts";
+import { TodoCategory, TodoItem } from "./todos.ts";
 import { VcsError } from "./vcs.ts";
 
 export const WS_METHODS = {
@@ -159,6 +160,9 @@ export const WS_METHODS = {
   sourceControlLookupRepository: "sourceControl.lookupRepository",
   sourceControlCloneRepository: "sourceControl.cloneRepository",
   sourceControlPublishRepository: "sourceControl.publishRepository",
+
+  // Todo methods
+  todosLoad: "todo.load",
 
   // Streaming subscriptions
   subscribeVcsStatus: "subscribeVcsStatus",
@@ -412,6 +416,17 @@ export const WsVcsInitRpc = Rpc.make(WS_METHODS.vcsInit, {
   error: VcsError,
 });
 
+export const TodosLoadResult = Schema.Struct({
+  categories: Schema.Array(TodoCategory),
+  items: Schema.Array(TodoItem),
+});
+export type TodosLoadResult = typeof TodosLoadResult.Type;
+
+export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
+  payload: Schema.Struct({}),
+  success: TodosLoadResult,
+});
+
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
   payload: TerminalOpenInput,
   success: TerminalSessionSnapshot,
@@ -559,6 +574,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsCreateRefRpc,
   WsVcsSwitchRefRpc,
   WsVcsInitRpc,
+  WsTodosLoadRpc,
   WsTerminalOpenRpc,
   WsTerminalWriteRpc,
   WsTerminalResizeRpc,
