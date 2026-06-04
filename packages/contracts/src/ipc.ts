@@ -498,6 +498,9 @@ export interface LocalApi {
   };
   todos: {
     load: () => Promise<import("./rpc.ts").TodosLoadResult>;
+    mutate: (
+      input: import("./rpc.ts").TodosMutateInput,
+    ) => Promise<import("./rpc.ts").TodosLoadResult>;
   };
   server: {
     getConfig: () => Promise<ServerConfig>;

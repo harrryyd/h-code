@@ -188,6 +188,7 @@ export const WS_METHODS = {
 
   // Todo methods
   todosLoad: "todo.load",
+  todosMutate: "todo.mutate",
 
   // Streaming subscriptions
   subscribeVcsStatus: "subscribeVcsStatus",
@@ -494,6 +495,73 @@ export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
   error: TodosLoadError,
 });
 
+export const TodoMutationType = Schema.Literals([
+  "createCategory",
+  "renameCategory",
+  "setCategoryColor",
+  "setCategoryJiraLink",
+  "deleteCategory",
+]);
+export type TodoMutationType = typeof TodoMutationType.Type;
+
+export const CreateCategoryMutation = Schema.Struct({
+  type: Schema.Literal("createCategory"),
+  name: Schema.String,
+  color: Schema.String,
+});
+export const RenameCategoryMutation = Schema.Struct({
+  type: Schema.Literal("renameCategory"),
+  categoryId: Schema.String,
+  name: Schema.String,
+});
+export const SetCategoryColorMutation = Schema.Struct({
+  type: Schema.Literal("setCategoryColor"),
+  categoryId: Schema.String,
+  color: Schema.String,
+});
+export const SetCategoryJiraLinkMutation = Schema.Struct({
+  type: Schema.Literal("setCategoryJiraLink"),
+  categoryId: Schema.String,
+  jiraLink: Schema.String,
+});
+export const DeleteCategoryMutation = Schema.Struct({
+  type: Schema.Literal("deleteCategory"),
+  categoryId: Schema.String,
+});
+
+export const TodoMutation = Schema.Union([
+  CreateCategoryMutation,
+  RenameCategoryMutation,
+  SetCategoryColorMutation,
+  SetCategoryJiraLinkMutation,
+  DeleteCategoryMutation,
+]);
+export type TodoMutation = typeof TodoMutation.Type;
+
+export const TodosMutateInput = Schema.Struct({
+  mutations: Schema.Array(TodoMutation),
+});
+export type TodosMutateInput = typeof TodosMutateInput.Type;
+
+export class TodosMutateError extends Schema.TaggedErrorClass<TodosMutateError>()(
+  "TodosMutateError",
+  {
+    kind: Schema.Literals(["io-failure", "validation-failure"]),
+    detail: Schema.String,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {
+  override get message(): string {
+    return `Todo mutate error (${this.kind}): ${this.detail}`;
+  }
+}
+
+export const WsTodosMutateRpc = Rpc.make(WS_METHODS.todosMutate, {
+  payload: TodosMutateInput,
+  success: TodosLoadResult,
+  error: TodosMutateError,
+});
+
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
   payload: TerminalOpenInput,
   success: TerminalSessionSnapshot,
@@ -662,6 +730,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsInitRpc,
   WsReviewGetDiffPreviewRpc,
   WsTodosLoadRpc,
+  WsTodosMutateRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,
