@@ -3,6 +3,15 @@ import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 
 import { TodoCategory, TodoItem } from "./todos.ts";
+import {
+  CreateCategoryMutation,
+  DeleteCategoryMutation,
+  RenameCategoryMutation,
+  SetCategoryColorMutation,
+  SetCategoryJiraLinkMutation,
+  TodoMutation,
+  TodosMutateInput,
+} from "./rpc.ts";
 
 const decode = <S extends Schema.Top>(
   schema: S,
@@ -126,6 +135,105 @@ it.effect("rejects a TodoItem with empty title", () =>
         sortOrder: 0,
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z",
+      }),
+    );
+    assert.strictEqual(result._tag, "Failure");
+  }),
+);
+
+it.effect("parses a valid CreateCategoryMutation", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(CreateCategoryMutation, {
+      type: "createCategory",
+      name: "Backend",
+      color: "#3b82f6",
+    });
+    assert.strictEqual(parsed.type, "createCategory");
+    assert.strictEqual(parsed.name, "Backend");
+    assert.strictEqual(parsed.color, "#3b82f6");
+  }),
+);
+
+it.effect("parses a valid RenameCategoryMutation", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(RenameCategoryMutation, {
+      type: "renameCategory",
+      categoryId: "cat-1",
+      name: "API",
+    });
+    assert.strictEqual(parsed.type, "renameCategory");
+    assert.strictEqual(parsed.categoryId, "cat-1");
+    assert.strictEqual(parsed.name, "API");
+  }),
+);
+
+it.effect("parses a valid SetCategoryColorMutation", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(SetCategoryColorMutation, {
+      type: "setCategoryColor",
+      categoryId: "cat-1",
+      color: "#ff0000",
+    });
+    assert.strictEqual(parsed.type, "setCategoryColor");
+    assert.strictEqual(parsed.categoryId, "cat-1");
+    assert.strictEqual(parsed.color, "#ff0000");
+  }),
+);
+
+it.effect("parses a valid SetCategoryJiraLinkMutation", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(SetCategoryJiraLinkMutation, {
+      type: "setCategoryJiraLink",
+      categoryId: "cat-1",
+      jiraLink: "https://jira.example.com/browse/PROJ-1",
+    });
+    assert.strictEqual(parsed.type, "setCategoryJiraLink");
+    assert.strictEqual(parsed.categoryId, "cat-1");
+    assert.strictEqual(parsed.jiraLink, "https://jira.example.com/browse/PROJ-1");
+  }),
+);
+
+it.effect("parses a valid DeleteCategoryMutation", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(DeleteCategoryMutation, {
+      type: "deleteCategory",
+      categoryId: "cat-1",
+    });
+    assert.strictEqual(parsed.type, "deleteCategory");
+    assert.strictEqual(parsed.categoryId, "cat-1");
+  }),
+);
+
+it.effect("parses TodosMutateInput with multiple mutations", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(TodosMutateInput, {
+      mutations: [
+        { type: "createCategory", name: "Backend", color: "#3b82f6" },
+        { type: "renameCategory", categoryId: "cat-1", name: "API" },
+      ],
+    });
+    assert.strictEqual(parsed.mutations.length, 2);
+    assert.strictEqual(parsed.mutations[0]!.type, "createCategory");
+    assert.strictEqual(parsed.mutations[1]!.type, "renameCategory");
+  }),
+);
+
+it.effect("discriminates mutation types in TodoMutation union", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(TodoMutation, {
+      type: "deleteCategory",
+      categoryId: "cat-1",
+    });
+    assert.strictEqual(parsed.type, "deleteCategory");
+  }),
+);
+
+it.effect("rejects invalid mutation type", () =>
+  Effect.gen(function* () {
+    const result = yield* Effect.exit(
+      decode(TodoMutation, {
+        type: "invalidType",
+        categoryId: "cat-1",
       }),
     );
     assert.strictEqual(result._tag, "Failure");

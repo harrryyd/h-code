@@ -121,6 +121,8 @@ function createBrowserLocalApi(rpcClient?: WsRpcClient): LocalApi {
     todos: {
       load: () =>
         rpcClient ? rpcClient.todos.load() : Promise.reject(unavailableLocalBackendError()),
+      mutate: (input) =>
+        rpcClient ? rpcClient.todos.mutate(input) : Promise.reject(unavailableLocalBackendError()),
     },
     server: {
       getConfig: () =>

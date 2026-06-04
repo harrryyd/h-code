@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { TodoCategory, TodoItem } from "@t3tools/contracts";
 
-import { loadTodos, reorderCategories, toggleCategory } from "./todoStore.ts";
+import {
+  applyMutation,
+  applyMutations,
+  createCategory,
+  deleteCategory,
+  loadTodos,
+  renameCategory,
+  reorderCategories,
+  setCategoryColor,
+  setCategoryJiraLink,
+  toggleCategory,
+} from "./todoStore.ts";
 
 const sampleCategories: TodoCategory[] = [
   {
@@ -135,6 +146,303 @@ describe("todoStore", () => {
       expect(next).not.toBe(state);
       expect(next.categories).not.toBe(state.categories);
       expect(state.categories[0]!.id).toBe("cat-1");
+    });
+  });
+
+  describe("createCategory", () => {
+    it("adds a new category with default name", () => {
+      const state = loadTodos([], []);
+      const next = createCategory(state);
+
+      expect(next.categories).toHaveLength(1);
+      expect(next.categories[0]!.name).toBe("New Category");
+    });
+
+    it("assigns a unique id", () => {
+      const state = loadTodos([], []);
+      const next = createCategory(state);
+
+      expect(next.categories[0]!.id).toBeTypeOf("string");
+      expect(next.categories[0]!.id.length).toBeGreaterThan(0);
+    });
+
+    it("assigns a color from the palette", () => {
+      const palette = [
+        "#3b82f6",
+        "#ef4444",
+        "#10b981",
+        "#f59e0b",
+        "#8b5cf6",
+        "#ec4899",
+        "#06b6d4",
+        "#84cc16",
+      ];
+      const state = loadTodos([], []);
+      const next = createCategory(state);
+
+      expect(palette).toContain(next.categories[0]!.color);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = createCategory(state);
+
+      expect(next).not.toBe(state);
+      expect(next.categories).not.toBe(state.categories);
+      expect(state.categories).toHaveLength(3);
+    });
+
+    it("appends category to existing list", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = createCategory(state);
+
+      expect(next.categories).toHaveLength(4);
+      expect(next.categories[0]!.id).toBe("cat-1");
+      expect(next.categories[1]!.id).toBe("cat-2");
+      expect(next.categories[2]!.id).toBe("cat-3");
+    });
+  });
+
+  describe("renameCategory", () => {
+    it("changes category name", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameCategory(state, "cat-1", "API");
+
+      expect(next.categories[0]!.name).toBe("API");
+    });
+
+    it("does not affect other categories", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameCategory(state, "cat-1", "API");
+
+      expect(next.categories[1]!.name).toBe("Frontend");
+      expect(next.categories[2]!.name).toBe("DevOps");
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameCategory(state, "cat-1", "API");
+
+      expect(next).not.toBe(state);
+      expect(next.categories).not.toBe(state.categories);
+      expect(state.categories[0]!.name).toBe("Backend");
+    });
+
+    it("returns unchanged state for unknown category ID", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameCategory(state, "nonexistent", "Test");
+
+      expect(next.categories).toEqual(state.categories);
+    });
+  });
+
+  describe("setCategoryColor", () => {
+    it("changes category color", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setCategoryColor(state, "cat-1", "#123456");
+
+      expect(next.categories[0]!.color).toBe("#123456");
+    });
+
+    it("does not affect other categories", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setCategoryColor(state, "cat-1", "#123456");
+
+      expect(next.categories[1]!.color).toBe("#00FF00");
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setCategoryColor(state, "cat-1", "#123456");
+
+      expect(next).not.toBe(state);
+      expect(state.categories[0]!.color).toBe("#FF0000");
+    });
+  });
+
+  describe("setCategoryJiraLink", () => {
+    it("sets a JIRA link on a category", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setCategoryJiraLink(state, "cat-1", "https://jira.example.com/browse/PROJ-1");
+
+      expect(next.categories[0]!.jiraLink).toBe("https://jira.example.com/browse/PROJ-1");
+    });
+
+    it("clears a JIRA link when given null", () => {
+      const state = loadTodos(
+        [
+          { ...sampleCategories[0]!, jiraLink: "https://jira.example.com/browse/PROJ-1" },
+          sampleCategories[1]!,
+          sampleCategories[2]!,
+        ],
+        sampleItems,
+      );
+      const next = setCategoryJiraLink(state, "cat-1", null);
+
+      expect(next.categories[0]!.jiraLink).toBeUndefined();
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setCategoryJiraLink(state, "cat-1", "https://jira.example.com/browse/PROJ-1");
+
+      expect(next).not.toBe(state);
+      expect(state.categories[0]!.jiraLink).toBeUndefined();
+    });
+  });
+
+  describe("deleteCategory", () => {
+    it("deletes an empty category and its items", () => {
+      const items: TodoItem[] = [
+        {
+          id: "item-1",
+          categoryId: "cat-3",
+          title: "Done item",
+          status: "done",
+          sortOrder: 0,
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+        },
+      ];
+      const state = loadTodos(sampleCategories, items);
+      const result = deleteCategory(state, "cat-3");
+
+      expect(result.deleted).toBe(true);
+      expect(result.state.categories).toHaveLength(2);
+      expect(result.state.categories.find((c) => c.id === "cat-3")).toBeUndefined();
+      expect(result.state.items).toHaveLength(0);
+    });
+
+    it("blocks deletion when category has active (todo) items", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const result = deleteCategory(state, "cat-1");
+
+      expect(result.deleted).toBe(false);
+      expect(result.state).toBe(state);
+    });
+
+    it("blocks deletion when category has active (in_progress) items", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const result = deleteCategory(state, "cat-2");
+
+      expect(result.deleted).toBe(false);
+      expect(result.state).toBe(state);
+    });
+
+    it("allows deletion when category only has done items", () => {
+      const items: TodoItem[] = [
+        {
+          id: "item-1",
+          categoryId: "cat-3",
+          title: "Done item",
+          status: "done",
+          sortOrder: 0,
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+        },
+      ];
+      const state = loadTodos(sampleCategories, items);
+      const result = deleteCategory(state, "cat-3");
+
+      expect(result.deleted).toBe(true);
+      expect(result.state.categories).toHaveLength(2);
+    });
+  });
+
+  describe("applyMutation", () => {
+    it("applies createCategory mutation", () => {
+      const state = loadTodos([], []);
+      const next = applyMutation(state, { type: "createCategory", name: "Test", color: "#123" });
+
+      expect(next.categories).toHaveLength(1);
+      expect(next.categories[0]!.name).toBe("New Category");
+    });
+
+    it("applies renameCategory mutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "renameCategory",
+        categoryId: "cat-1",
+        name: "API",
+      });
+
+      expect(next.categories[0]!.name).toBe("API");
+    });
+
+    it("applies setCategoryColor mutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "setCategoryColor",
+        categoryId: "cat-1",
+        color: "#abc",
+      });
+
+      expect(next.categories[0]!.color).toBe("#abc");
+    });
+
+    it("applies setCategoryJiraLink mutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "setCategoryJiraLink",
+        categoryId: "cat-1",
+        jiraLink: "https://jira.example.com/browse/PROJ-1",
+      });
+
+      expect(next.categories[0]!.jiraLink).toBe("https://jira.example.com/browse/PROJ-1");
+    });
+
+    it("applies deleteCategory mutation (success)", () => {
+      const items: TodoItem[] = [
+        {
+          id: "item-1",
+          categoryId: "cat-3",
+          title: "Done item",
+          status: "done",
+          sortOrder: 0,
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+        },
+      ];
+      const state = loadTodos(sampleCategories, items);
+      const next = applyMutation(state, { type: "deleteCategory", categoryId: "cat-3" });
+
+      expect(next.categories).toHaveLength(2);
+    });
+
+    it("applies deleteCategory mutation (blocked)", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, { type: "deleteCategory", categoryId: "cat-1" });
+
+      expect(next.categories).toHaveLength(3);
+    });
+  });
+
+  describe("applyMutations", () => {
+    it("applies multiple mutations in sequence", () => {
+      const state = loadTodos([], []);
+      const next = applyMutations(state, [
+        { type: "createCategory", name: "A", color: "#111" },
+        { type: "createCategory", name: "B", color: "#222" },
+      ]);
+
+      expect(next.categories).toHaveLength(2);
+      expect(next.categories[0]!.name).toBe("New Category");
+      expect(next.categories[1]!.name).toBe("New Category");
+    });
+
+    it("chains mutation results", () => {
+      const state = loadTodos([], []);
+      const withCat = applyMutations(state, [
+        { type: "createCategory", name: "Temp", color: "#111" },
+      ]);
+      const catId = withCat.categories[0]!.id;
+      const next = applyMutations(withCat, [
+        { type: "renameCategory", categoryId: catId, name: "Renamed" },
+        { type: "setCategoryColor", categoryId: catId, color: "#333" },
+      ]);
+
+      expect(next.categories[0]!.name).toBe("Renamed");
+      expect(next.categories[0]!.color).toBe("#333");
     });
   });
 });

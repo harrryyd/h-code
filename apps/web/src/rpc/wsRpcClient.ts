@@ -59,6 +59,7 @@ export interface WsRpcClient {
   readonly isHeartbeatFresh: () => boolean;
   readonly todos: {
     readonly load: RpcUnaryNoArgMethod<typeof WS_METHODS.todosLoad>;
+    readonly mutate: RpcUnaryMethod<typeof WS_METHODS.todosMutate>;
   };
   readonly terminal: {
     readonly open: RpcUnaryMethod<typeof WS_METHODS.terminalOpen>;
@@ -172,6 +173,7 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
     isHeartbeatFresh: () => transport.isHeartbeatFresh(),
     todos: {
       load: () => transport.request((client) => client[WS_METHODS.todosLoad]({})),
+      mutate: (input) => transport.request((client) => client[WS_METHODS.todosMutate](input)),
     },
     terminal: {
       open: (input) => transport.request((client) => client[WS_METHODS.terminalOpen](input)),

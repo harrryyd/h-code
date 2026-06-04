@@ -33,6 +33,7 @@ import {
   ThreadId,
   type TerminalEvent,
   TodosLoadError,
+  TodosMutateError,
   WS_METHODS,
   WsRpcGroup,
 } from "@t3tools/contracts";
@@ -64,7 +65,8 @@ import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner
 import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import { redactServerSettingsForClient, ServerSettingsService } from "./serverSettings.ts";
-import { readTodos } from "./todoPersistence.ts";
+import { applyMutations } from "@t3tools/shared/todoStore";
+import { readTodos, writeTodos } from "./todoPersistence.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries.ts";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem.ts";
@@ -997,6 +999,31 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                   new TodosLoadError({
                     kind: "io-failure",
                     detail: `Failed to load todos: ${cause}`,
+                    cause,
+                  }),
+              ),
+            ),
+            {
+              "rpc.aggregate": "server",
+            },
+          ),
+        [WS_METHODS.todosMutate]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.todosMutate,
+            Effect.gen(function* () {
+              const current = yield* readTodos;
+              const next = applyMutations(
+                { categories: current.categories, items: current.items },
+                input.mutations,
+              );
+              yield* writeTodos({ categories: next.categories, items: next.items });
+              return { categories: next.categories, items: next.items };
+            }).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new TodosMutateError({
+                    kind: "io-failure",
+                    detail: `Failed to mutate todos: ${cause}`,
                     cause,
                   }),
               ),

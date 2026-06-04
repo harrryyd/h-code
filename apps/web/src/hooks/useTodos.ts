@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TodoCategory, TodoItem } from "@t3tools/contracts";
+import type { TodoCategory, TodoItem, TodoMutation } from "@t3tools/contracts";
 import { ensureLocalApi } from "~/localApi";
 
 export interface UseTodosResult {
@@ -8,6 +8,7 @@ export interface UseTodosResult {
   loading: boolean;
   error: string | null;
   reload: () => void;
+  mutate: (mutations: TodoMutation[]) => Promise<void>;
 }
 
 export function useTodos(): UseTodosResult {
@@ -40,6 +41,13 @@ export function useTodos(): UseTodosResult {
       });
   }, []);
 
+  const mutate = useCallback(async (mutations: TodoMutation[]) => {
+    const result = await ensureLocalApi().todos.mutate({ mutations });
+    if (!mountedRef.current) return;
+    setCategories([...result.categories]);
+    setItems([...result.items]);
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     load();
@@ -48,5 +56,5 @@ export function useTodos(): UseTodosResult {
     };
   }, [load]);
 
-  return { categories, items, loading, error, reload: load };
+  return { categories, items, loading, error, reload: load, mutate };
 }
