@@ -88,6 +88,28 @@ export function deleteCategory(
   };
 }
 
+export function createItem(state: TodoState, categoryId: string, title: string): TodoState {
+  // @effect-diagnostics-next-line globalDate:off
+  const now = new Date().toISOString();
+  const categoryItems = state.items.filter((item) => item.categoryId === categoryId);
+  const maxOrder = categoryItems.reduce((max, item) => Math.max(max, item.sortOrder), -1);
+
+  const item: TodoItem = {
+    id: crypto.randomUUID(),
+    categoryId,
+    title,
+    status: "todo",
+    sortOrder: maxOrder + 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return {
+    ...state,
+    items: [...state.items, item],
+  };
+}
+
 function getRandomColor(): string {
   const colors = [
     "#3b82f6",
@@ -115,6 +137,8 @@ export function applyMutation(state: TodoState, mutation: TodoMutation): TodoSta
       return setCategoryJiraLink(state, mutation.categoryId, mutation.jiraLink);
     case "deleteCategory":
       return deleteCategory(state, mutation.categoryId).state;
+    case "createItem":
+      return createItem(state, mutation.categoryId, mutation.title);
     default:
       return state;
   }

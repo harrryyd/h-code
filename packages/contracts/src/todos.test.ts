@@ -5,6 +5,7 @@ import * as Effect from "effect/Effect";
 import { TodoCategory, TodoItem } from "./todos.ts";
 import {
   CreateCategoryMutation,
+  CreateItemMutation,
   DeleteCategoryMutation,
   RenameCategoryMutation,
   SetCategoryColorMutation,
@@ -201,6 +202,19 @@ it.effect("parses a valid DeleteCategoryMutation", () =>
     });
     assert.strictEqual(parsed.type, "deleteCategory");
     assert.strictEqual(parsed.categoryId, "cat-1");
+  }),
+);
+
+it.effect("parses a valid CreateItemMutation", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(CreateItemMutation, {
+      type: "createItem",
+      categoryId: "cat-1",
+      title: "Fix login bug",
+    });
+    assert.strictEqual(parsed.type, "createItem");
+    assert.strictEqual(parsed.categoryId, "cat-1");
+    assert.strictEqual(parsed.title, "Fix login bug");
   }),
 );
 

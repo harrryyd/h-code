@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
-import { ThreadId } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
   AuthAccessStreamError,
@@ -501,6 +501,7 @@ export const TodoMutationType = Schema.Literals([
   "setCategoryColor",
   "setCategoryJiraLink",
   "deleteCategory",
+  "createItem",
 ]);
 export type TodoMutationType = typeof TodoMutationType.Type;
 
@@ -529,12 +530,19 @@ export const DeleteCategoryMutation = Schema.Struct({
   categoryId: Schema.String,
 });
 
+export const CreateItemMutation = Schema.Struct({
+  type: Schema.Literal("createItem"),
+  categoryId: Schema.String,
+  title: TrimmedNonEmptyString,
+});
+
 export const TodoMutation = Schema.Union([
   CreateCategoryMutation,
   RenameCategoryMutation,
   SetCategoryColorMutation,
   SetCategoryJiraLinkMutation,
   DeleteCategoryMutation,
+  CreateItemMutation,
 ]);
 export type TodoMutation = typeof TodoMutation.Type;
 
