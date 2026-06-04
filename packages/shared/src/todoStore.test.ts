@@ -5,6 +5,7 @@ import {
   applyMutation,
   applyMutations,
   createCategory,
+  createItem,
   deleteCategory,
   loadTodos,
   renameCategory,
@@ -415,6 +416,20 @@ describe("todoStore", () => {
 
       expect(next.categories).toHaveLength(3);
     });
+
+    it("applies createItem mutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "createItem",
+        categoryId: "cat-1",
+        title: "New task",
+      });
+
+      expect(next.items).toHaveLength(3);
+      expect(next.items[2]!.title).toBe("New task");
+      expect(next.items[2]!.status).toBe("todo");
+      expect(next.items[2]!.categoryId).toBe("cat-1");
+    });
   });
 
   describe("applyMutations", () => {
@@ -443,6 +458,66 @@ describe("todoStore", () => {
 
       expect(next.categories[0]!.name).toBe("Renamed");
       expect(next.categories[0]!.color).toBe("#333");
+    });
+  });
+
+  describe("createItem", () => {
+    it("creates an item with correct defaults", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = createItem(state, "cat-1", "New task");
+
+      expect(next.items).toHaveLength(3);
+      const created = next.items.find((i) => i.title === "New task");
+      expect(created).toBeDefined();
+      expect(created!.status).toBe("todo");
+      expect(created!.categoryId).toBe("cat-1");
+      expect(created!.id).toBeTypeOf("string");
+      expect(created!.id.length).toBeGreaterThan(0);
+      expect(created!.createdAt).toBeTypeOf("string");
+      expect(created!.updatedAt).toBeTypeOf("string");
+      expect(created!.sortOrder).toBeTypeOf("number");
+    });
+
+    it("assigns incrementing sortOrder within a category", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+
+      const next1 = createItem(state, "cat-1", "First");
+      const next2 = createItem(next1, "cat-1", "Second");
+      const next3 = createItem(next2, "cat-1", "Third");
+
+      const cat1Items = next3.items
+        .filter((i) => i.categoryId === "cat-1")
+        .toSorted((a, b) => a.sortOrder - b.sortOrder);
+
+      expect(cat1Items[0]!.sortOrder).toBe(0);
+      expect(cat1Items[1]!.sortOrder).toBe(1);
+      expect(cat1Items[2]!.sortOrder).toBe(2);
+      expect(cat1Items[3]!.sortOrder).toBe(3);
+    });
+
+    it("keeps sortOrder independent across categories", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = createItem(state, "cat-3", "DevOps task");
+
+      const newItem = next.items.find((i) => i.title === "DevOps task");
+      expect(newItem!.sortOrder).toBe(0);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = createItem(state, "cat-1", "Task");
+
+      expect(next).not.toBe(state);
+      expect(next.items).not.toBe(state.items);
+      expect(state.items).toHaveLength(2);
+    });
+
+    it("assigns sortOrder 0 when category has no items", () => {
+      const state = loadTodos(sampleCategories, []);
+      const next = createItem(state, "cat-1", "First item");
+
+      const created = next.items.find((i) => i.categoryId === "cat-1");
+      expect(created!.sortOrder).toBe(0);
     });
   });
 });
