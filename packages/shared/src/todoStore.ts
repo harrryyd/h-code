@@ -170,6 +170,8 @@ export function applyMutation(state: TodoState, mutation: TodoMutation): TodoSta
       return reorderItems(state, mutation.updates);
     case "reorderCategories":
       return reorderCategories(state, mutation.orderedIds);
+    case "updateItemDescription":
+      return updateDescription(state, mutation.itemId, mutation.description);
     default:
       return state;
   }
@@ -193,6 +195,26 @@ export function cycleItemStatus(state: TodoState, itemId: string): TodoState {
   };
 
   return { ...state, items: state.items.map((i) => (i.id === itemId ? updatedItem : i)) };
+}
+
+export function updateDescription(
+  state: TodoState,
+  itemId: string,
+  description: string,
+): TodoState {
+  return {
+    ...state,
+    items: state.items.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            description,
+            // @effect-diagnostics-next-line globalDate:off
+            updatedAt: new Date().toISOString(),
+          }
+        : item,
+    ),
+  };
 }
 
 export function archiveDoneItems(
