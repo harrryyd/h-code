@@ -749,6 +749,34 @@ describe("todoStore", () => {
       const created = next.items.find((i) => i.categoryId === "cat-1");
       expect(created!.sortOrder).toBe(0);
     });
+
+    it("rejects empty title and returns unchanged state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = createItem(state, "cat-1", "");
+
+      expect(next).toBe(state);
+      expect(next.items).toHaveLength(2);
+    });
+
+    it("rejects whitespace-only title and returns unchanged state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = createItem(state, "cat-1", "   ");
+
+      expect(next).toBe(state);
+      expect(next.items).toHaveLength(2);
+    });
+
+    it("rejects whitespace-only title through applyMutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "createItem",
+        categoryId: "cat-1",
+        title: "   ",
+      });
+
+      expect(next).toBe(state);
+      expect(next.items).toHaveLength(2);
+    });
   });
 
   describe("updateDescription", () => {
