@@ -12,6 +12,7 @@ import {
   loadTodos,
   renameCategory,
   reorderCategories,
+  reorderItems,
   setCategoryColor,
   setCategoryJiraLink,
   toggleCategory,
@@ -162,6 +163,69 @@ describe("todoStore", () => {
       expect(next).not.toBe(state);
       expect(next.categories).not.toBe(state.categories);
       expect(state.categories[0]!.id).toBe("cat-1");
+    });
+  });
+
+  describe("reorderItems", () => {
+    it("updates sortOrder for items within the same category", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = reorderItems(state, [{ id: "item-1", categoryId: "cat-1", sortOrder: 5 }]);
+
+      expect(next.items[0]!.sortOrder).toBe(5);
+      expect(next.items[0]!.categoryId).toBe("cat-1");
+      expect(next.items[0]!.updatedAt).not.toBe(sampleItems[0]!.updatedAt);
+    });
+
+    it("recategorizes an item by changing its categoryId", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = reorderItems(state, [{ id: "item-1", categoryId: "cat-2", sortOrder: 10 }]);
+
+      expect(next.items[0]!.categoryId).toBe("cat-2");
+      expect(next.items[0]!.sortOrder).toBe(10);
+    });
+
+    it("reorders and recategorizes multiple items at once", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = reorderItems(state, [
+        { id: "item-1", categoryId: "cat-2", sortOrder: 0 },
+        { id: "item-2", categoryId: "cat-1", sortOrder: 0 },
+      ]);
+
+      expect(next.items[0]!.categoryId).toBe("cat-2");
+      expect(next.items[0]!.sortOrder).toBe(0);
+      expect(next.items[1]!.categoryId).toBe("cat-1");
+      expect(next.items[1]!.sortOrder).toBe(0);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = reorderItems(state, [{ id: "item-1", categoryId: "cat-2", sortOrder: 0 }]);
+
+      expect(next).not.toBe(state);
+      expect(next.items).not.toBe(state.items);
+      expect(state.items[0]!.categoryId).toBe("cat-1");
+      expect(state.items[0]!.sortOrder).toBe(0);
+    });
+
+    it("leaves unmatched items unchanged", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = reorderItems(state, [{ id: "nonexistent", categoryId: "cat-2", sortOrder: 99 }]);
+
+      expect(next.items[0]!.sortOrder).toBe(0);
+      expect(next.items[0]!.categoryId).toBe("cat-1");
+      expect(next.items[1]!.sortOrder).toBe(1);
+      expect(next.items[1]!.categoryId).toBe("cat-2");
+    });
+
+    it("updates updatedAt on all changed items", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = reorderItems(state, [
+        { id: "item-1", categoryId: "cat-1", sortOrder: 3 },
+        { id: "item-2", categoryId: "cat-2", sortOrder: 7 },
+      ]);
+
+      expect(next.items[0]!.updatedAt).not.toBe(sampleItems[0]!.updatedAt);
+      expect(next.items[1]!.updatedAt).not.toBe(sampleItems[1]!.updatedAt);
     });
   });
 

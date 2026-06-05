@@ -18,13 +18,34 @@ export function toggleCategory(state: TodoState, categoryId: string): TodoState 
   };
 }
 
-export function reorderCategories(state: TodoState, orderedIds: string[]): TodoState {
+export function reorderCategories(state: TodoState, orderedIds: ReadonlyArray<string>): TodoState {
   const orderMap = new Map(orderedIds.map((id, i) => [id, i]));
   return {
     ...state,
     categories: state.categories.toSorted(
       (a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999),
     ),
+  };
+}
+
+export function reorderItems(
+  state: TodoState,
+  updates: ReadonlyArray<{ readonly id: string; readonly categoryId: string; readonly sortOrder: number }>,
+): TodoState {
+  const updateMap = new Map(updates.map((u) => [u.id, u]));
+  return {
+    ...state,
+    items: state.items.map((item) => {
+      const update = updateMap.get(item.id);
+      if (!update) return item;
+      return {
+        ...item,
+        categoryId: update.categoryId,
+        sortOrder: update.sortOrder,
+        // @effect-diagnostics-next-line globalDate:off
+        updatedAt: new Date().toISOString(),
+      };
+    }),
   };
 }
 
@@ -141,6 +162,10 @@ export function applyMutation(state: TodoState, mutation: TodoMutation): TodoSta
       return createItem(state, mutation.categoryId, mutation.title);
     case "cycleItemStatus":
       return cycleItemStatus(state, mutation.itemId);
+    case "reorderItems":
+      return reorderItems(state, mutation.updates);
+    case "reorderCategories":
+      return reorderCategories(state, mutation.orderedIds);
     default:
       return state;
   }
