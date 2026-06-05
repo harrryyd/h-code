@@ -114,6 +114,8 @@ export function deleteCategory(
 }
 
 export function createItem(state: TodoState, categoryId: string, title: string): TodoState {
+  if (!title.trim()) return state;
+
   // @effect-diagnostics-next-line globalDate:off
   const now = new Date().toISOString();
   const categoryItems = state.items.filter((item) => item.categoryId === categoryId);
