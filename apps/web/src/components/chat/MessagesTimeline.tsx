@@ -412,8 +412,8 @@ function ManagerInstructionTimelineRow({
               Acceptance Criteria
             </p>
             <ul className="list-disc space-y-0.5 pl-4">
-              {row.acceptanceCriteria.map((criterion, index) => (
-                <li key={index} className="text-xs text-muted-foreground/80">
+              {row.acceptanceCriteria.map((criterion) => (
+                <li key={criterion} className="text-xs text-muted-foreground/80">
                   {criterion}
                 </li>
               ))}

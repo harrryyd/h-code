@@ -283,16 +283,13 @@ describe("worker.delegate", () => {
     const readModelWithoutHandoff: OrchestrationReadModel = {
       ...readModel,
       threads: readModel.threads.map((thread) => {
-        if (thread.id === asThreadId("manager-console")) {
-          return {
-            ...thread,
-            seededWorkItems: thread.seededWorkItems?.map((item) => ({
-              ...item,
-              refinementHandoff: undefined,
-            })),
-          };
-        }
-        return thread;
+        if (thread.id !== asThreadId("manager-console")) return thread;
+        return Object.assign({}, thread, {
+          seededWorkItems: thread.seededWorkItems?.map((item) => {
+            const copy = { ...item, refinementHandoff: undefined };
+            return copy;
+          }),
+        });
       }),
     };
 
@@ -330,16 +327,13 @@ describe("worker.delegate", () => {
     const readModelNotRequested: OrchestrationReadModel = {
       ...readModel,
       threads: readModel.threads.map((thread) => {
-        if (thread.id === asThreadId("manager-console")) {
-          return {
-            ...thread,
-            seededWorkItems: thread.seededWorkItems?.map((item) => ({
-              ...item,
-              delegationStatus: "idle" as const,
-            })),
-          };
-        }
-        return thread;
+        if (thread.id !== asThreadId("manager-console")) return thread;
+        return Object.assign({}, thread, {
+          seededWorkItems: thread.seededWorkItems?.map((item) => {
+            const copy = { ...item, delegationStatus: "idle" as const };
+            return copy;
+          }),
+        });
       }),
     };
 

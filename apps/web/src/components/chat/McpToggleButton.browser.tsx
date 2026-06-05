@@ -68,6 +68,12 @@ async function mountButton(props?: { threadId?: ThreadId; environmentId?: Enviro
   };
 }
 
+function deferredListServersResolver(label: string) {
+  return () => {
+    throw new Error(`Expected ${label} MCP list resolver to be captured.`);
+  };
+}
+
 describe("McpToggleButton", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -80,9 +86,8 @@ describe("McpToggleButton", () => {
   });
 
   it("does not flash loading chrome on fast initial open", async () => {
-    let resolveListServers: (value: { servers: ReadonlyArray<McpServerSnapshot> }) => void = () => {
-      throw new Error("Expected MCP list resolver to be captured.");
-    };
+    let resolveListServers: (value: { servers: ReadonlyArray<McpServerSnapshot> }) => void =
+      deferredListServersResolver("first");
     const listServers = vi.fn(
       () =>
         new Promise<{ servers: ReadonlyArray<McpServerSnapshot> }>((resolve) => {
@@ -120,9 +125,8 @@ describe("McpToggleButton", () => {
   });
 
   it("shows loading chrome when the initial load is slow", async () => {
-    let resolveListServers: (value: { servers: ReadonlyArray<McpServerSnapshot> }) => void = () => {
-      throw new Error("Expected MCP list resolver to be captured.");
-    };
+    let resolveListServers: (value: { servers: ReadonlyArray<McpServerSnapshot> }) => void =
+      deferredListServersResolver("second");
     const listServers = vi.fn(
       () =>
         new Promise<{ servers: ReadonlyArray<McpServerSnapshot> }>((resolve) => {
@@ -159,11 +163,8 @@ describe("McpToggleButton", () => {
   });
 
   it("clears stale servers when the thread changes while the menu stays open", async () => {
-    let resolveCurrentListServers: (value: {
-      servers: ReadonlyArray<McpServerSnapshot>;
-    }) => void = () => {
-      throw new Error("Expected MCP list resolver to be captured.");
-    };
+    let resolveCurrentListServers: (value: { servers: ReadonlyArray<McpServerSnapshot> }) => void =
+      deferredListServersResolver("current");
     const listServers = vi.fn(
       ({ threadId }: { threadId: ThreadId }) =>
         new Promise<{ servers: ReadonlyArray<McpServerSnapshot> }>((resolve) => {
@@ -207,16 +208,10 @@ describe("McpToggleButton", () => {
 
   it("ignores a late response from a closed menu before reopening", async () => {
     let requestCount = 0;
-    let resolveFirstListServers: (value: {
-      servers: ReadonlyArray<McpServerSnapshot>;
-    }) => void = () => {
-      throw new Error("Expected first MCP list resolver to be captured.");
-    };
-    let resolveSecondListServers: (value: {
-      servers: ReadonlyArray<McpServerSnapshot>;
-    }) => void = () => {
-      throw new Error("Expected second MCP list resolver to be captured.");
-    };
+    let resolveFirstListServers: (value: { servers: ReadonlyArray<McpServerSnapshot> }) => void =
+      deferredListServersResolver("first");
+    let resolveSecondListServers: (value: { servers: ReadonlyArray<McpServerSnapshot> }) => void =
+      deferredListServersResolver("second");
     const listServers = vi.fn(
       () =>
         new Promise<{ servers: ReadonlyArray<McpServerSnapshot> }>((resolve) => {

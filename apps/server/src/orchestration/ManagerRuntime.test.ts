@@ -21,7 +21,6 @@ import {
   serializeWorkspaceState,
   updateWorkspaceState,
   writeWorkspaceStateToFile,
-  type ManagerRuntimeContext,
   type ManagerWorkspaceState,
 } from "./ManagerRuntime.ts";
 

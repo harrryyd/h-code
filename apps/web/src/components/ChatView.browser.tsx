@@ -2676,15 +2676,14 @@ describe("ChatView timeline estimator parity (full app)", () => {
     const worktreePath = "/repo/worktrees/pr-1359";
     const snapshot = {
       ...snapshotBase,
-      threads: snapshotBase.threads.map((thread) =>
-        thread.id === THREAD_ID
-          ? {
-              ...thread,
-              branch: "feature/archive-settings-overhaul",
-              worktreePath,
-            }
-          : thread,
-      ),
+      threads: snapshotBase.threads.map((thread) => {
+        if (thread.id !== THREAD_ID) return thread;
+        const copy = Object.assign({}, thread, {
+          branch: "feature/archive-settings-overhaul",
+          worktreePath,
+        });
+        return copy;
+      }),
     };
 
     mockedGitStatusesRef.current.set(`${LOCAL_ENVIRONMENT_ID}:${worktreePath}`, {
