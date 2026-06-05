@@ -233,7 +233,13 @@ export function TodoPanel() {
         {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>}
         {error && <div className="px-3 py-2 text-xs text-red-500">Failed to load todos</div>}
         {!loading && !error && filteredCategories.length === 0 && doneItems.length === 0 && (
-          <div className="px-3 py-2 text-xs text-muted-foreground">No todos yet</div>
+          <div className="flex items-center justify-center h-full px-4 py-8">
+            <p className="text-xs text-muted-foreground text-center">
+              No categories yet.
+              <br />
+              Click <span className="font-medium">+</span> to create one.
+            </p>
+          </div>
         )}
         <SortableContext items={categorySortableIds} strategy={verticalListSortingStrategy}>
           {filteredCategories.map((category) => (
@@ -378,12 +384,14 @@ function SortableCategoryHeader({
 
 function SortableTodoItem({
   item,
+  categoryColor,
   categoryJiraLink,
   onCycleItem,
   onSelectItem,
   mutate,
 }: {
   item: TodoItem;
+  categoryColor: string;
   categoryJiraLink: string | undefined;
   onCycleItem: (itemId: string) => void;
   onSelectItem: (itemId: string) => void;
@@ -453,7 +461,7 @@ function SortableTodoItem({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, backgroundColor: categoryColor + "08" }}
       className="flex items-center gap-2 pl-7 pr-3 py-0.5 text-xs hover:bg-accent/50"
       onContextMenu={handleContextMenu}
     >
@@ -540,9 +548,8 @@ function TodoCategoryRow({
 
   const commitAdd = () => {
     const trimmed = addValue.trim();
-    if (trimmed) {
-      mutate([{ type: "createItem", categoryId: category.id, title: trimmed }]);
-    }
+    if (!trimmed) return;
+    mutate([{ type: "createItem", categoryId: category.id, title: trimmed }]);
     setAdding(false);
     setAddValue("");
   };
@@ -682,6 +689,7 @@ function TodoCategoryRow({
                 <SortableTodoItem
                   key={item.id}
                   item={item}
+                  categoryColor={category.color}
                   categoryJiraLink={category.jiraLink}
                   onCycleItem={onCycleItem}
                   onSelectItem={onSelectItem}
