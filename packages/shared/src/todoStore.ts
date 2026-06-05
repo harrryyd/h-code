@@ -172,6 +172,10 @@ export function applyMutation(state: TodoState, mutation: TodoMutation): TodoSta
       return reorderCategories(state, mutation.orderedIds);
     case "updateItemDescription":
       return updateDescription(state, mutation.itemId, mutation.description);
+    case "setItemJiraLink":
+      return setItemJiraLink(state, mutation.itemId, mutation.jiraLink);
+    case "deleteItem":
+      return deleteItem(state, mutation.itemId);
     default:
       return state;
   }
@@ -214,6 +218,34 @@ export function updateDescription(
           }
         : item,
     ),
+  };
+}
+
+export function setItemJiraLink(
+  state: TodoState,
+  itemId: string,
+  jiraLink: string | null,
+): TodoState {
+  const value = jiraLink || null;
+  return {
+    ...state,
+    items: state.items.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            jiraLink: value ?? undefined,
+            // @effect-diagnostics-next-line globalDate:off
+            updatedAt: new Date().toISOString(),
+          }
+        : item,
+    ),
+  };
+}
+
+export function deleteItem(state: TodoState, itemId: string): TodoState {
+  return {
+    ...state,
+    items: state.items.filter((item) => item.id !== itemId),
   };
 }
 

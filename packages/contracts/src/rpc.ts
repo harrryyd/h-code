@@ -506,6 +506,8 @@ export const TodoMutationType = Schema.Literals([
   "reorderItems",
   "reorderCategories",
   "updateItemDescription",
+  "setItemJiraLink",
+  "deleteItem",
 ]);
 export type TodoMutationType = typeof TodoMutationType.Type;
 
@@ -567,6 +569,17 @@ export const UpdateItemDescriptionMutation = Schema.Struct({
   description: Schema.String,
 });
 
+export const SetItemJiraLinkMutation = Schema.Struct({
+  type: Schema.Literal("setItemJiraLink"),
+  itemId: Schema.String,
+  jiraLink: Schema.String,
+});
+
+export const DeleteItemMutation = Schema.Struct({
+  type: Schema.Literal("deleteItem"),
+  itemId: Schema.String,
+});
+
 export const TodoMutation = Schema.Union([
   CreateCategoryMutation,
   RenameCategoryMutation,
@@ -578,6 +591,8 @@ export const TodoMutation = Schema.Union([
   ReorderItemsMutation,
   ReorderCategoriesMutation,
   UpdateItemDescriptionMutation,
+  SetItemJiraLinkMutation,
+  DeleteItemMutation,
 ]);
 export type TodoMutation = typeof TodoMutation.Type;
 

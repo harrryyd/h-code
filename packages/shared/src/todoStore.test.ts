@@ -9,12 +9,14 @@ import {
   createItem,
   cycleItemStatus,
   deleteCategory,
+  deleteItem,
   loadTodos,
   renameCategory,
   reorderCategories,
   reorderItems,
   setCategoryColor,
   setCategoryJiraLink,
+  setItemJiraLink,
   toggleCategory,
   updateDescription,
 } from "./todoStore.ts";
@@ -794,6 +796,154 @@ describe("todoStore", () => {
       expect(next).not.toBe(state);
       expect(next.items).not.toBe(state.items);
       expect(state.items[0]!.description).toBeUndefined();
+    });
+  });
+
+  describe("setItemJiraLink", () => {
+    it("sets a JIRA link on an item", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemJiraLink(state, "item-1", "https://jira.example.com/browse/PROJ-42");
+
+      expect(next.items[0]!.jiraLink).toBe("https://jira.example.com/browse/PROJ-42");
+      expect(next.items[0]!.updatedAt).not.toBe(sampleItems[0]!.updatedAt);
+    });
+
+    it("clears a JIRA link when given null", () => {
+      const items: TodoItem[] = [
+        {
+          ...sampleItems[0]!,
+          jiraLink: "https://jira.example.com/browse/PROJ-42",
+        },
+        sampleItems[1]!,
+      ];
+      const state = loadTodos(sampleCategories, items);
+      const next = setItemJiraLink(state, "item-1", null);
+
+      expect(next.items[0]!.jiraLink).toBeUndefined();
+    });
+
+    it("clears a JIRA link when given empty string", () => {
+      const items: TodoItem[] = [
+        {
+          ...sampleItems[0]!,
+          jiraLink: "https://jira.example.com/browse/PROJ-42",
+        },
+        sampleItems[1]!,
+      ];
+      const state = loadTodos(sampleCategories, items);
+      const next = setItemJiraLink(state, "item-1", "");
+
+      expect(next.items[0]!.jiraLink).toBeUndefined();
+    });
+
+    it("updates the JIRA link on an item that already had one", () => {
+      const items: TodoItem[] = [
+        {
+          ...sampleItems[0]!,
+          jiraLink: "https://jira.example.com/browse/PROJ-1",
+        },
+        sampleItems[1]!,
+      ];
+      const state = loadTodos(sampleCategories, items);
+      const next = setItemJiraLink(state, "item-1", "https://jira.example.com/browse/PROJ-99");
+
+      expect(next.items[0]!.jiraLink).toBe("https://jira.example.com/browse/PROJ-99");
+    });
+
+    it("returns unchanged state for unknown item ID", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemJiraLink(state, "nonexistent", "https://jira.example.com/browse/PROJ-1");
+
+      expect(next.items).toEqual(state.items);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemJiraLink(state, "item-1", "https://jira.example.com/browse/PROJ-1");
+
+      expect(next).not.toBe(state);
+      expect(next.items).not.toBe(state.items);
+      expect(state.items[0]!.jiraLink).toBeUndefined();
+    });
+
+    it("does not affect other items", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemJiraLink(state, "item-1", "https://jira.example.com/browse/PROJ-1");
+
+      expect(next.items[1]!.jiraLink).toBeUndefined();
+      expect(next.items[1]).toBe(state.items[1]);
+    });
+  });
+
+  describe("deleteItem", () => {
+    it("removes an existing item from the state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = deleteItem(state, "item-1");
+
+      expect(next.items).toHaveLength(1);
+      expect(next.items.find((i) => i.id === "item-1")).toBeUndefined();
+    });
+
+    it("returns unchanged state for unknown item ID", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = deleteItem(state, "nonexistent");
+
+      expect(next.items).toEqual(state.items);
+    });
+
+    it("keeps remaining items intact", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = deleteItem(state, "item-1");
+
+      expect(next.items[0]).toBe(state.items[1]);
+      expect(next.items[0]!.id).toBe("item-2");
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = deleteItem(state, "item-1");
+
+      expect(next).not.toBe(state);
+      expect(next.items).not.toBe(state.items);
+      expect(state.items).toHaveLength(2);
+    });
+
+    it("does not affect categories", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = deleteItem(state, "item-1");
+
+      expect(next.categories).toEqual(state.categories);
+    });
+
+    it("deletes the last remaining item", () => {
+      const state = loadTodos(sampleCategories, [sampleItems[0]!]);
+      const next = deleteItem(state, "item-1");
+
+      expect(next.items).toHaveLength(0);
+    });
+  });
+
+  describe("applyMutation with setItemJiraLink and deleteItem", () => {
+    it("applies setItemJiraLink mutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "setItemJiraLink",
+        itemId: "item-1",
+        jiraLink: "https://jira.example.com/browse/PROJ-42",
+      });
+
+      expect(next.items[0]!.jiraLink).toBe("https://jira.example.com/browse/PROJ-42");
+    });
+
+    it("applies deleteItem mutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "deleteItem",
+        itemId: "item-1",
+      });
+
+      expect(next.items).toHaveLength(1);
+      expect(next.items.find((i) => i.id === "item-1")).toBeUndefined();
     });
   });
 });
