@@ -16,6 +16,7 @@ import {
   setCategoryColor,
   setCategoryJiraLink,
   toggleCategory,
+  updateDescription,
 } from "./todoStore.ts";
 
 const sampleCategories: TodoCategory[] = [
@@ -745,6 +746,54 @@ describe("todoStore", () => {
 
       const created = next.items.find((i) => i.categoryId === "cat-1");
       expect(created!.sortOrder).toBe(0);
+    });
+  });
+
+  describe("updateDescription", () => {
+    it("sets description on an item that had none", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = updateDescription(state, "item-1", "A new description");
+
+      expect(next.items[0]!.description).toBe("A new description");
+      expect(next.items[0]!.updatedAt).not.toBe(sampleItems[0]!.updatedAt);
+    });
+
+    it("updates description on an item that already had one", () => {
+      const itemWithDesc: TodoItem = {
+        ...sampleItems[0]!,
+        description: "Old description",
+      };
+      const state = loadTodos(sampleCategories, [itemWithDesc, sampleItems[1]!]);
+      const next = updateDescription(state, "item-1", "New description");
+
+      expect(next.items[0]!.description).toBe("New description");
+    });
+
+    it("clears description when given empty string", () => {
+      const itemWithDesc: TodoItem = {
+        ...sampleItems[0]!,
+        description: "Old description",
+      };
+      const state = loadTodos(sampleCategories, [itemWithDesc, sampleItems[1]!]);
+      const next = updateDescription(state, "item-1", "");
+
+      expect(next.items[0]!.description).toBe("");
+    });
+
+    it("returns unchanged state for unknown item ID", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = updateDescription(state, "nonexistent", "Test");
+
+      expect(next.items).toEqual(state.items);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = updateDescription(state, "item-1", "Desc");
+
+      expect(next).not.toBe(state);
+      expect(next.items).not.toBe(state.items);
+      expect(state.items[0]!.description).toBeUndefined();
     });
   });
 });

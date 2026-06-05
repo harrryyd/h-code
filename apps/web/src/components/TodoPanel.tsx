@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   DndContext,
-  DragCancelEvent,
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
@@ -59,6 +60,7 @@ export function TodoPanel() {
   const [hideEmpty, setHideEmpty] = useState(false);
   const [draggedItem, setDraggedItem] = useState<TodoItem | null>(null);
   const [draggedCategory, setDraggedCategory] = useState<TodoCategory | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -90,6 +92,15 @@ export function TodoPanel() {
   const handleCycleItem = (itemId: string) => {
     mutate([{ type: "cycleItemStatus", itemId }]);
   };
+
+  const handleUpdateDescription = (itemId: string, description: string) => {
+    mutate([{ type: "updateItemDescription", itemId, description }]);
+  };
+
+  const selectedItem = selectedItemId ? (items.find((i) => i.id === selectedItemId) ?? null) : null;
+  const selectedCategory = selectedItem
+    ? categories.find((c) => c.id === selectedItem.categoryId)
+    : undefined;
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -232,6 +243,7 @@ export function TodoPanel() {
               items={items}
               mutate={mutate}
               onCycleItem={handleCycleItem}
+              onSelectItem={setSelectedItemId}
             />
           ))}
         </SortableContext>
@@ -240,9 +252,18 @@ export function TodoPanel() {
             doneItems={doneItems}
             categoryMap={categoryMap}
             onCycleItem={handleCycleItem}
+            onSelectItem={setSelectedItemId}
           />
         )}
       </SidebarContent>
+      {selectedItem && selectedItemId && (
+        <ItemDetailPanel
+          item={selectedItem}
+          category={selectedCategory}
+          onClose={() => setSelectedItemId(null)}
+          onUpdateDescription={handleUpdateDescription}
+        />
+      )}
       <DragOverlay>
         {draggedItem && (
           <div className="flex items-center gap-2 px-3 py-0.5 text-xs bg-background border rounded shadow-lg opacity-90">
@@ -358,9 +379,11 @@ function SortableCategoryHeader({
 function SortableTodoItem({
   item,
   onCycleItem,
+  onSelectItem,
 }: {
   item: TodoItem;
   onCycleItem: (itemId: string) => void;
+  onSelectItem: (itemId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -389,7 +412,9 @@ function SortableTodoItem({
       >
         <StatusIcon status={item.status} />
       </button>
-      <span className="truncate">{item.title}</span>
+      <span className="truncate cursor-pointer" onClick={() => onSelectItem(item.id)}>
+        {item.title}
+      </span>
     </div>
   );
 }
@@ -399,11 +424,13 @@ function TodoCategoryRow({
   items,
   mutate,
   onCycleItem,
+  onSelectItem,
 }: {
   category: TodoCategory;
   items: TodoItem[];
   mutate: (mutations: TodoMutation[]) => Promise<void>;
   onCycleItem: (itemId: string) => void;
+  onSelectItem: (itemId: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(category.collapsed === true);
   const [renaming, setRenaming] = useState(false);
@@ -582,12 +609,106 @@ function TodoCategoryRow({
           ) : (
             <SortableContext items={itemSortableIds} strategy={verticalListSortingStrategy}>
               {categoryItems.map((item) => (
-                <SortableTodoItem key={item.id} item={item} onCycleItem={onCycleItem} />
+                <SortableTodoItem
+                  key={item.id}
+                  item={item}
+                  onCycleItem={onCycleItem}
+                  onSelectItem={onSelectItem}
+                />
               ))}
             </SortableContext>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ItemDetailPanel({
+  item,
+  category,
+  onClose,
+  onUpdateDescription,
+}: {
+  item: TodoItem;
+  category: TodoCategory | undefined;
+  onClose: () => void;
+  onUpdateDescription: (itemId: string, description: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(item.description ?? "");
+
+  const handleStartEdit = () => {
+    setEditValue(item.description ?? "");
+    setEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (editValue !== (item.description ?? "")) {
+      onUpdateDescription(item.id, editValue);
+    }
+    setEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      handleSaveEdit();
+    }
+  };
+
+  return (
+    <div className="absolute left-full top-0 w-72 h-full border-l border-border bg-card z-10 overflow-y-auto">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground text-lg leading-none"
+        >
+          &times;
+        </button>
+        <span className="text-sm font-medium">Item Detail</span>
+      </div>
+      <div className="p-3">
+        <div className="text-sm font-medium mb-1">{item.title}</div>
+        <div className="flex items-center gap-2 mb-2">
+          <StatusIcon status={item.status} />
+          {category && (
+            <span
+              className="text-[10px] px-1 py-0.5 rounded"
+              style={{ backgroundColor: category.color + "30", color: category.color }}
+            >
+              {category.name}
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground mb-1">Description</div>
+        {editing ? (
+          <div>
+            <textarea
+              className="w-full h-32 bg-background border border-border rounded p-2 text-xs resize-none"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleSaveEdit}
+              autoFocus
+            />
+            <div className="text-[10px] text-muted-foreground mt-1">Editing&hellip;</div>
+          </div>
+        ) : item.description ? (
+          <div
+            className="text-xs prose prose-sm max-w-none cursor-pointer"
+            onClick={handleStartEdit}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.description}</ReactMarkdown>
+          </div>
+        ) : (
+          <div
+            className="text-xs text-muted-foreground cursor-pointer italic"
+            onClick={handleStartEdit}
+          >
+            Click to add description&hellip;
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -607,10 +728,12 @@ function DoneSection({
   doneItems,
   categoryMap,
   onCycleItem,
+  onSelectItem,
 }: {
   doneItems: TodoItem[];
   categoryMap: Map<string, TodoCategory>;
   onCycleItem: (itemId: string) => void;
+  onSelectItem: (itemId: string) => void;
 }) {
   if (doneItems.length === 0) return null;
 
@@ -631,7 +754,9 @@ function DoneSection({
             >
               <CheckCircle2Icon size={12} className="text-green-500 shrink-0" />
             </button>
-            <span className="truncate">{item.title}</span>
+            <span className="truncate cursor-pointer" onClick={() => onSelectItem(item.id)}>
+              {item.title}
+            </span>
             {cat && (
               <span
                 className="shrink-0 text-[10px] px-1 py-0.5 rounded ml-auto opacity-70"
