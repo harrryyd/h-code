@@ -739,7 +739,7 @@ function ItemDetailPanel({
   };
 
   return (
-    <div className="absolute left-full top-0 w-72 h-full border-l border-border bg-card z-10 overflow-y-auto">
+    <div className="absolute right-full top-0 w-72 h-full border-r border-border bg-card z-10 overflow-y-auto">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <button
           onClick={onClose}
