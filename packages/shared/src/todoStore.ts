@@ -30,7 +30,11 @@ export function reorderCategories(state: TodoState, orderedIds: ReadonlyArray<st
 
 export function reorderItems(
   state: TodoState,
-  updates: ReadonlyArray<{ readonly id: string; readonly categoryId: string; readonly sortOrder: number }>,
+  updates: ReadonlyArray<{
+    readonly id: string;
+    readonly categoryId: string;
+    readonly sortOrder: number;
+  }>,
 ): TodoState {
   const updateMap = new Map(updates.map((u) => [u.id, u]));
   return {

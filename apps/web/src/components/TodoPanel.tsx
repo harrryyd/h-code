@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   DndContext,
+  DragCancelEvent,
   DragEndEvent,
   DragOverlay,
+  DragStartEvent,
   closestCenter,
   PointerSensor,
   useSensor,
@@ -90,7 +92,7 @@ export function TodoPanel() {
   };
 
   const handleDragStart = useCallback(
-    (event: any) => {
+    (event: DragStartEvent) => {
       const { active } = event;
       if (active.data.current?.kind === "item") {
         const item = items.find((i) => i.id === active.id);
@@ -103,6 +105,11 @@ export function TodoPanel() {
     },
     [items, categories],
   );
+
+  const handleDragCancel = useCallback(() => {
+    setDraggedItem(null);
+    setDraggedCategory(null);
+  }, []);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -158,24 +165,19 @@ export function TodoPanel() {
 
         targetItems.splice(insertIndex, 0, activeItem);
 
-        const fromItems = activeItemsAll
-          .filter((i) => i.categoryId === fromCatId && i.id !== activeItem.id)
-          .toSorted((a, b) => a.sortOrder - b.sortOrder);
-
         const affected: Array<{ id: string; categoryId: string; sortOrder: number }> = [];
 
-        fromItems.forEach((item, idx) => {
-          affected.push({ id: item.id, categoryId: fromCatId, sortOrder: idx });
-        });
+        if (fromCatId !== toCatId) {
+          const fromItems = activeItemsAll
+            .filter((i) => i.categoryId === fromCatId && i.id !== activeItem.id)
+            .toSorted((a, b) => a.sortOrder - b.sortOrder);
 
-        const finalToItems =
-          fromCatId === toCatId
-            ? targetItems
-            : targetItems.filter((i) => i.categoryId === toCatId || i.id === activeItem.id);
+          fromItems.forEach((item, idx) => {
+            affected.push({ id: item.id, categoryId: fromCatId, sortOrder: idx });
+          });
+        }
 
-        const toAssign = fromCatId === toCatId ? targetItems : targetItems;
-
-        toAssign.forEach((item, idx) => {
+        targetItems.forEach((item, idx) => {
           affected.push({ id: item.id, categoryId: toCatId, sortOrder: idx });
         });
 
@@ -196,6 +198,7 @@ export function TodoPanel() {
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <SidebarHeader className="flex-row items-center gap-2 px-3 py-2 border-b border-border">
         <span className="text-sm font-medium">Todos</span>
@@ -539,7 +542,7 @@ function TodoCategoryRow({
         item.categoryId === category.id &&
         (item.status === "todo" || item.status === "in_progress"),
     )
-    .toSorted((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .toSorted((a, b) => a.sortOrder - b.sortOrder);
 
   const itemSortableIds = useMemo(() => categoryItems.map((i) => i.id), [categoryItems]);
 
