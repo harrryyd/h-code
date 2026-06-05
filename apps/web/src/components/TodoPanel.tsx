@@ -1,5 +1,18 @@
 import { useCallback, useMemo, useState } from "react";
 import {
+  DndContext,
+  DragCancelEvent,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   CheckCircle2Icon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -8,6 +21,7 @@ import {
   ExternalLinkIcon,
   EyeIcon,
   EyeOffIcon,
+  GripVerticalIcon,
   PlusIcon,
 } from "lucide-react";
 import type { TodoCategory, TodoItem, ContextMenuItem, TodoMutation } from "@t3tools/contracts";
@@ -43,14 +57,14 @@ function countActiveItems(items: TodoItem[], categoryId: string): number {
 export function TodoPanel() {
   const { categories, items, loading, error, mutate } = useTodos();
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [draggedItem, setDraggedItem] = useState<TodoItem | null>(null);
+  const [draggedCategory, setDraggedCategory] = useState<TodoCategory | null>(null);
 
-  const handleCreateCategory = () => {
-    mutate([{ type: "createCategory", name: "New Category", color: "" }] as TodoMutation[]);
-  };
-
-  const handleCycleItem = (itemId: string) => {
-    mutate([{ type: "cycleItemStatus", itemId }]);
-  };
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 4 },
+    }),
+  );
 
   const filteredCategories = hideEmpty
     ? categories.filter((cat) => countActiveItems(items, cat.id) > 0)
@@ -69,8 +83,123 @@ export function TodoPanel() {
     [items],
   );
 
+  const handleCreateCategory = () => {
+    mutate([{ type: "createCategory", name: "New Category", color: "" }] as TodoMutation[]);
+  };
+
+  const handleCycleItem = (itemId: string) => {
+    mutate([{ type: "cycleItemStatus", itemId }]);
+  };
+
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const { active } = event;
+      if (active.data.current?.kind === "item") {
+        const item = items.find((i) => i.id === active.id);
+        if (item) setDraggedItem(item);
+      } else if (active.data.current?.kind === "category") {
+        const catId = (active.id as string).replace("category:", "");
+        const cat = categories.find((c) => c.id === catId);
+        if (cat) setDraggedCategory(cat);
+      }
+    },
+    [items, categories],
+  );
+
+  const handleDragCancel = useCallback(() => {
+    setDraggedItem(null);
+    setDraggedCategory(null);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setDraggedItem(null);
+      setDraggedCategory(null);
+
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const activeData = active.data.current;
+      const overData = over.data.current;
+
+      if (activeData?.kind === "category") {
+        const activeCatId = (active.id as string).replace("category:", "");
+        const overCatId = (over.id as string).replace("category:", "");
+
+        const oldIdx = categories.findIndex((c) => c.id === activeCatId);
+        const newIdx = categories.findIndex((c) => c.id === overCatId);
+        if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+          const orderedIds = categories.map((c) => c.id);
+          const [moved] = orderedIds.splice(oldIdx, 1);
+          orderedIds.splice(newIdx, 0, moved!);
+          mutate([{ type: "reorderCategories", orderedIds }]);
+        }
+        return;
+      }
+
+      if (activeData?.kind === "item") {
+        const activeItem = items.find((i) => i.id === active.id);
+        if (!activeItem) return;
+
+        const fromCatId = activeItem.categoryId;
+        const activeItemsAll = items.filter(
+          (i) => i.status === "todo" || i.status === "in_progress",
+        );
+
+        const toCatId =
+          overData?.kind === "item"
+            ? overData.categoryId
+            : overData?.kind === "category"
+              ? overData.categoryId
+              : fromCatId;
+
+        const targetItems = activeItemsAll
+          .filter((i) => i.categoryId === toCatId && i.id !== activeItem.id)
+          .toSorted((a, b) => a.sortOrder - b.sortOrder);
+
+        let insertIndex = targetItems.length;
+        if (overData?.kind === "item" && overData.categoryId === toCatId) {
+          insertIndex = targetItems.findIndex((i) => i.id === over.id);
+          if (insertIndex === -1) insertIndex = targetItems.length;
+        }
+
+        targetItems.splice(insertIndex, 0, activeItem);
+
+        const affected: Array<{ id: string; categoryId: string; sortOrder: number }> = [];
+
+        if (fromCatId !== toCatId) {
+          const fromItems = activeItemsAll
+            .filter((i) => i.categoryId === fromCatId && i.id !== activeItem.id)
+            .toSorted((a, b) => a.sortOrder - b.sortOrder);
+
+          fromItems.forEach((item, idx) => {
+            affected.push({ id: item.id, categoryId: fromCatId, sortOrder: idx });
+          });
+        }
+
+        targetItems.forEach((item, idx) => {
+          affected.push({ id: item.id, categoryId: toCatId, sortOrder: idx });
+        });
+
+        mutate([{ type: "reorderItems", updates: affected }]);
+      }
+    },
+    [items, categories, mutate],
+  );
+
+  const categorySortableIds = useMemo(
+    () => filteredCategories.map((c) => `category:${c.id}`),
+    [filteredCategories],
+  );
+
   return (
-    <>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <SidebarHeader className="flex-row items-center gap-2 px-3 py-2 border-b border-border">
         <span className="text-sm font-medium">Todos</span>
         <div className="flex-1" />
@@ -95,15 +224,17 @@ export function TodoPanel() {
         {!loading && !error && filteredCategories.length === 0 && doneItems.length === 0 && (
           <div className="px-3 py-2 text-xs text-muted-foreground">No todos yet</div>
         )}
-        {filteredCategories.map((category) => (
-          <TodoCategoryRow
-            key={category.id}
-            category={category}
-            items={items}
-            mutate={mutate}
-            onCycleItem={handleCycleItem}
-          />
-        ))}
+        <SortableContext items={categorySortableIds} strategy={verticalListSortingStrategy}>
+          {filteredCategories.map((category) => (
+            <TodoCategoryRow
+              key={category.id}
+              category={category}
+              items={items}
+              mutate={mutate}
+              onCycleItem={handleCycleItem}
+            />
+          ))}
+        </SortableContext>
         {doneItems.length > 0 && (
           <DoneSection
             doneItems={doneItems}
@@ -112,7 +243,154 @@ export function TodoPanel() {
           />
         )}
       </SidebarContent>
-    </>
+      <DragOverlay>
+        {draggedItem && (
+          <div className="flex items-center gap-2 px-3 py-0.5 text-xs bg-background border rounded shadow-lg opacity-90">
+            <StatusIcon status={draggedItem.status} />
+            <span className="truncate">{draggedItem.title}</span>
+          </div>
+        )}
+        {draggedCategory && (
+          <div className="flex items-center gap-2 px-3 py-1.5 text-sm bg-background border rounded shadow-lg opacity-90">
+            <div
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: draggedCategory.color }}
+            />
+            <span className="truncate">{draggedCategory.name}</span>
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function SortableCategoryHeader({
+  category,
+  collapsed,
+  onToggle,
+  renaming,
+  renameValue,
+  onRenameChange,
+  onRenameKeyDown,
+  onRenameCommit,
+  onDoubleClick,
+  onContextMenu,
+  jiraKey,
+  onAddItem,
+}: {
+  category: TodoCategory;
+  collapsed: boolean;
+  onToggle: () => void;
+  renaming: boolean;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameKeyDown: (e: React.KeyboardEvent) => void;
+  onRenameCommit: () => void;
+  onDoubleClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  jiraKey: string | null;
+  onAddItem: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `category:${category.id}`,
+    data: { kind: "category", categoryId: category.id },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <button
+        className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent/50"
+        onClick={onToggle}
+        onContextMenu={onContextMenu}
+        onDoubleClick={onDoubleClick}
+        style={{ backgroundColor: category.color + "20" }}
+      >
+        <div className="shrink-0 cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>
+          <GripVerticalIcon size={10} className="text-muted-foreground/50" />
+        </div>
+        {collapsed ? <ChevronRightIcon size={14} /> : <ChevronDownIcon size={14} />}
+        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
+        {renaming ? (
+          <input
+            className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
+            value={renameValue}
+            onChange={(e) => onRenameChange(e.target.value)}
+            onKeyDown={onRenameKeyDown}
+            onBlur={onRenameCommit}
+            autoFocus
+          />
+        ) : (
+          <span className="truncate">{category.name}</span>
+        )}
+        {jiraKey && (
+          <a
+            href={category.jiraLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 text-[10px] text-muted-foreground hover:underline flex items-center gap-0.5 ml-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLinkIcon size={10} />
+            {jiraKey}
+          </a>
+        )}
+        <button
+          className="shrink-0 p-0.5 rounded hover:bg-accent/50 text-muted-foreground ml-auto"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddItem();
+          }}
+          title="Add item"
+        >
+          <PlusIcon size={12} />
+        </button>
+      </button>
+    </div>
+  );
+}
+
+function SortableTodoItem({
+  item,
+  onCycleItem,
+}: {
+  item: TodoItem;
+  onCycleItem: (itemId: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    data: { kind: "item", categoryId: item.categoryId },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 pl-7 pr-3 py-0.5 text-xs hover:bg-accent/50"
+    >
+      <div className="shrink-0 cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>
+        <GripVerticalIcon size={10} className="text-muted-foreground/50" />
+      </div>
+      <button
+        className="shrink-0 p-0 rounded hover:bg-accent/50"
+        onClick={() => onCycleItem(item.id)}
+        title={`Status: ${item.status}`}
+      >
+        <StatusIcon status={item.status} />
+      </button>
+      <span className="truncate">{item.title}</span>
+    </div>
   );
 }
 
@@ -264,54 +542,26 @@ function TodoCategoryRow({
         item.categoryId === category.id &&
         (item.status === "todo" || item.status === "in_progress"),
     )
-    .toSorted((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .toSorted((a, b) => a.sortOrder - b.sortOrder);
+
+  const itemSortableIds = useMemo(() => categoryItems.map((i) => i.id), [categoryItems]);
 
   return (
     <div>
-      <button
-        className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent/50"
-        onClick={() => setCollapsed((prev) => !prev)}
-        onContextMenu={handleContextMenu}
+      <SortableCategoryHeader
+        category={category}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((prev) => !prev)}
+        renaming={renaming}
+        renameValue={renameValue}
+        onRenameChange={setRenameValue}
+        onRenameKeyDown={handleRenameKeyDown}
+        onRenameCommit={commitRename}
         onDoubleClick={handleDoubleClick}
-        style={{ backgroundColor: category.color + "20" }}
-      >
-        {collapsed ? <ChevronRightIcon size={14} /> : <ChevronDownIcon size={14} />}
-        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
-        {renaming ? (
-          <input
-            className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={handleRenameKeyDown}
-            onBlur={commitRename}
-            autoFocus
-          />
-        ) : (
-          <span className="truncate">{category.name}</span>
-        )}
-        {jiraKey && (
-          <a
-            href={category.jiraLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 text-[10px] text-muted-foreground hover:underline flex items-center gap-0.5 ml-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ExternalLinkIcon size={10} />
-            {jiraKey}
-          </a>
-        )}
-        <button
-          className="shrink-0 p-0.5 rounded hover:bg-accent/50 text-muted-foreground ml-auto"
-          onClick={(e) => {
-            e.stopPropagation();
-            startAdd();
-          }}
-          title="Add item"
-        >
-          <PlusIcon size={12} />
-        </button>
-      </button>
+        onContextMenu={handleContextMenu}
+        jiraKey={jiraKey}
+        onAddItem={startAdd}
+      />
       {!collapsed && (
         <div>
           {adding && (
@@ -330,21 +580,11 @@ function TodoCategoryRow({
           {categoryItems.length === 0 ? (
             <div className="pl-7 pr-3 py-0.5 text-xs text-muted-foreground">No items</div>
           ) : (
-            categoryItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-2 pl-7 pr-3 py-0.5 text-xs hover:bg-accent/50"
-              >
-                <button
-                  className="shrink-0 p-0 rounded hover:bg-accent/50"
-                  onClick={() => onCycleItem(item.id)}
-                  title={`Status: ${item.status}`}
-                >
-                  <StatusIcon status={item.status} />
-                </button>
-                <span className="truncate">{item.title}</span>
-              </div>
-            ))
+            <SortableContext items={itemSortableIds} strategy={verticalListSortingStrategy}>
+              {categoryItems.map((item) => (
+                <SortableTodoItem key={item.id} item={item} onCycleItem={onCycleItem} />
+              ))}
+            </SortableContext>
           )}
         </div>
       )}

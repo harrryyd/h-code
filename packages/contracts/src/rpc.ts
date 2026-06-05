@@ -503,6 +503,8 @@ export const TodoMutationType = Schema.Literals([
   "deleteCategory",
   "createItem",
   "cycleItemStatus",
+  "reorderItems",
+  "reorderCategories",
 ]);
 export type TodoMutationType = typeof TodoMutationType.Type;
 
@@ -542,6 +544,22 @@ export const CycleItemStatusMutation = Schema.Struct({
   itemId: Schema.String,
 });
 
+export const ReorderItemsMutation = Schema.Struct({
+  type: Schema.Literal("reorderItems"),
+  updates: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      categoryId: Schema.String,
+      sortOrder: Schema.Number,
+    }),
+  ),
+});
+
+export const ReorderCategoriesMutation = Schema.Struct({
+  type: Schema.Literal("reorderCategories"),
+  orderedIds: Schema.Array(Schema.String),
+});
+
 export const TodoMutation = Schema.Union([
   CreateCategoryMutation,
   RenameCategoryMutation,
@@ -550,6 +568,8 @@ export const TodoMutation = Schema.Union([
   DeleteCategoryMutation,
   CreateItemMutation,
   CycleItemStatusMutation,
+  ReorderItemsMutation,
+  ReorderCategoriesMutation,
 ]);
 export type TodoMutation = typeof TodoMutation.Type;
 
