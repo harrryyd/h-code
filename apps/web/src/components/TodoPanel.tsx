@@ -378,12 +378,16 @@ function SortableCategoryHeader({
 
 function SortableTodoItem({
   item,
+  categoryJiraLink,
   onCycleItem,
   onSelectItem,
+  mutate,
 }: {
   item: TodoItem;
+  categoryJiraLink: string | undefined;
   onCycleItem: (itemId: string) => void;
   onSelectItem: (itemId: string) => void;
+  mutate: (mutations: TodoMutation[]) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -396,11 +400,62 @@ function SortableTodoItem({
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const handleContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+
+    const api = ensureLocalApi();
+
+    void api.contextMenu
+      .show(
+        [
+          {
+            id: `jira:${item.id}`,
+            label: item.jiraLink ? "Change JIRA Link" : "Edit JIRA Link",
+          },
+          ...(item.jiraLink
+            ? [{ id: `clear-jira:${item.id}` as string, label: "Clear JIRA Link" }]
+            : []),
+          {
+            id: `delete:${item.id}`,
+            label: "Delete",
+            destructive: true,
+          },
+        ],
+        { x: event.clientX, y: event.clientY },
+      )
+      .then((clicked) => {
+        if (!clicked) return;
+
+        if (clicked === `jira:${item.id}`) {
+          const url = window.prompt("Enter JIRA issue URL:", item.jiraLink ?? "");
+          if (url !== null) {
+            const trimmed = url.trim();
+            if (trimmed) {
+              mutate([{ type: "setItemJiraLink", itemId: item.id, jiraLink: trimmed }]);
+            } else {
+              mutate([{ type: "setItemJiraLink", itemId: item.id, jiraLink: "" }]);
+            }
+          }
+        } else if (clicked === `clear-jira:${item.id}`) {
+          mutate([{ type: "setItemJiraLink", itemId: item.id, jiraLink: "" }]);
+        } else if (clicked === `delete:${item.id}`) {
+          if (window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
+            mutate([{ type: "deleteItem", itemId: item.id }]);
+          }
+        }
+      });
+  };
+
+  const effectiveJiraLink = item.jiraLink ?? categoryJiraLink;
+  const jiraKey = effectiveJiraLink ? extractJiraKey(effectiveJiraLink) : null;
+  const isInherited = !item.jiraLink && !!categoryJiraLink;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className="flex items-center gap-2 pl-7 pr-3 py-0.5 text-xs hover:bg-accent/50"
+      onContextMenu={handleContextMenu}
     >
       <div className="shrink-0 cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>
         <GripVerticalIcon size={10} className="text-muted-foreground/50" />
@@ -415,6 +470,21 @@ function SortableTodoItem({
       <span className="truncate cursor-pointer" onClick={() => onSelectItem(item.id)}>
         {item.title}
       </span>
+      {jiraKey && (
+        <a
+          href={effectiveJiraLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`shrink-0 text-[10px] hover:underline flex items-center gap-0.5 ml-auto ${
+            isInherited ? "text-muted-foreground/50 italic" : "text-muted-foreground"
+          }`}
+          onClick={(e) => e.stopPropagation()}
+          title={isInherited ? `Inherited from category: ${jiraKey}` : jiraKey}
+        >
+          <ExternalLinkIcon size={10} />
+          {jiraKey}
+        </a>
+      )}
     </div>
   );
 }
@@ -612,8 +682,10 @@ function TodoCategoryRow({
                 <SortableTodoItem
                   key={item.id}
                   item={item}
+                  categoryJiraLink={category.jiraLink}
                   onCycleItem={onCycleItem}
                   onSelectItem={onSelectItem}
+                  mutate={mutate}
                 />
               ))}
             </SortableContext>
