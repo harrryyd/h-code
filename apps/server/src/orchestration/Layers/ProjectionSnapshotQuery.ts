@@ -1537,14 +1537,11 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 ),
               threads: threadRows
                 .filter((row) => row.deletedAt === null)
-                .map(
-                  (row): OrchestrationThreadShell => ({
+                .map((row): OrchestrationThreadShell => {
+                  const shell: Record<string, unknown> = {
                     id: row.threadId,
                     projectId: row.projectId,
                     title: row.title,
-                    ...(row.managerMetadata !== null
-                      ? { managerMetadata: row.managerMetadata }
-                      : {}),
                     modelSelection: row.modelSelection,
                     runtimeMode: row.runtimeMode,
                     interactionMode: row.interactionMode,
@@ -1559,8 +1556,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                     hasPendingApprovals: row.pendingApprovalCount > 0,
                     hasPendingUserInput: row.pendingUserInputCount > 0,
                     hasActionableProposedPlan: row.hasActionableProposedPlan > 0,
-                  }),
-                ),
+                  };
+                  if (row.managerMetadata !== null) {
+                    shell.managerMetadata = row.managerMetadata;
+                  }
+                  return shell as OrchestrationThreadShell;
+                }),
               updatedAt: updatedAt ?? "1970-01-01T00:00:00.000Z",
             };
 

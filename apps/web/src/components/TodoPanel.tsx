@@ -204,84 +204,86 @@ export function TodoPanel() {
   );
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      <SidebarHeader className="flex-row items-center gap-2 px-3 py-2 border-b border-border">
-        <span className="text-sm font-medium">Todos</span>
-        <div className="flex-1" />
-        <button
-          className="p-0.5 rounded hover:bg-accent/50 text-muted-foreground"
-          onClick={() => setHideEmpty((prev) => !prev)}
-          title={hideEmpty ? "Show empty categories" : "Hide empty categories"}
-        >
-          {hideEmpty ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />}
-        </button>
-        <button
-          className="p-0.5 rounded hover:bg-accent/50 text-muted-foreground"
-          onClick={handleCreateCategory}
-          title="New category"
-        >
-          <PlusIcon size={14} />
-        </button>
-      </SidebarHeader>
-      <SidebarContent>
-        {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>}
-        {error && <div className="px-3 py-2 text-xs text-red-500">Failed to load todos</div>}
-        {!loading && !error && filteredCategories.length === 0 && doneItems.length === 0 && (
-          <div className="px-3 py-2 text-xs text-muted-foreground">No todos yet</div>
-        )}
-        <SortableContext items={categorySortableIds} strategy={verticalListSortingStrategy}>
-          {filteredCategories.map((category) => (
-            <TodoCategoryRow
-              key={category.id}
-              category={category}
-              items={items}
-              mutate={mutate}
+    <div className="relative h-full">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <SidebarHeader className="flex-row items-center gap-2 px-3 py-2 border-b border-border">
+          <span className="text-sm font-medium">Todos</span>
+          <div className="flex-1" />
+          <button
+            className="p-0.5 rounded hover:bg-accent/50 text-muted-foreground"
+            onClick={() => setHideEmpty((prev) => !prev)}
+            title={hideEmpty ? "Show empty categories" : "Hide empty categories"}
+          >
+            {hideEmpty ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />}
+          </button>
+          <button
+            className="p-0.5 rounded hover:bg-accent/50 text-muted-foreground"
+            onClick={handleCreateCategory}
+            title="New category"
+          >
+            <PlusIcon size={14} />
+          </button>
+        </SidebarHeader>
+        <SidebarContent>
+          {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>}
+          {error && <div className="px-3 py-2 text-xs text-red-500">Failed to load todos</div>}
+          {!loading && !error && filteredCategories.length === 0 && doneItems.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">No todos yet</div>
+          )}
+          <SortableContext items={categorySortableIds} strategy={verticalListSortingStrategy}>
+            {filteredCategories.map((category) => (
+              <TodoCategoryRow
+                key={category.id}
+                category={category}
+                items={items}
+                mutate={mutate}
+                onCycleItem={handleCycleItem}
+                onSelectItem={setSelectedItemId}
+              />
+            ))}
+          </SortableContext>
+          {doneItems.length > 0 && (
+            <DoneSection
+              doneItems={doneItems}
+              categoryMap={categoryMap}
               onCycleItem={handleCycleItem}
               onSelectItem={setSelectedItemId}
             />
-          ))}
-        </SortableContext>
-        {doneItems.length > 0 && (
-          <DoneSection
-            doneItems={doneItems}
-            categoryMap={categoryMap}
-            onCycleItem={handleCycleItem}
-            onSelectItem={setSelectedItemId}
+          )}
+        </SidebarContent>
+        {selectedItem && selectedItemId && (
+          <ItemDetailPanel
+            item={selectedItem}
+            category={selectedCategory}
+            onClose={() => setSelectedItemId(null)}
+            onUpdateDescription={handleUpdateDescription}
           />
         )}
-      </SidebarContent>
-      {selectedItem && selectedItemId && (
-        <ItemDetailPanel
-          item={selectedItem}
-          category={selectedCategory}
-          onClose={() => setSelectedItemId(null)}
-          onUpdateDescription={handleUpdateDescription}
-        />
-      )}
-      <DragOverlay>
-        {draggedItem && (
-          <div className="flex items-center gap-2 px-3 py-0.5 text-xs bg-background border rounded shadow-lg opacity-90">
-            <StatusIcon status={draggedItem.status} />
-            <span className="truncate">{draggedItem.title}</span>
-          </div>
-        )}
-        {draggedCategory && (
-          <div className="flex items-center gap-2 px-3 py-1.5 text-sm bg-background border rounded shadow-lg opacity-90">
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: draggedCategory.color }}
-            />
-            <span className="truncate">{draggedCategory.name}</span>
-          </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+        <DragOverlay>
+          {draggedItem && (
+            <div className="flex items-center gap-2 px-3 py-0.5 text-xs bg-background border rounded shadow-lg opacity-90">
+              <StatusIcon status={draggedItem.status} />
+              <span className="truncate">{draggedItem.title}</span>
+            </div>
+          )}
+          {draggedCategory && (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-sm bg-background border rounded shadow-lg opacity-90">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: draggedCategory.color }}
+              />
+              <span className="truncate">{draggedCategory.name}</span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }
 
