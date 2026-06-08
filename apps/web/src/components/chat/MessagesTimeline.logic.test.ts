@@ -540,3 +540,85 @@ describe("computeStableMessagesTimelineRows", () => {
     expect(reordered.result).toEqual([initial.result[1], initial.result[0]]);
   });
 });
+
+describe("deriveMessagesTimelineRows context-trim", () => {
+  it("produces context-trim rows from timeline entries", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "entry-trim-1",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:05Z",
+          trimPoint: {
+            id: "trim-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            beforeEntryId: "msg-1",
+            prunedMessageCount: 10,
+            prunedTurnIds: ["turn-1" as never, "turn-2" as never],
+          },
+        },
+        {
+          id: "entry-user-1",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:10Z",
+          message: {
+            id: "user-1" as never,
+            role: "user",
+            text: "Hello",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:10Z",
+            streaming: false,
+          },
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.kind).toBe("context-trim");
+    if (rows[0]!.kind === "context-trim") {
+      expect(rows[0]!.id).toBe("entry-trim-1");
+      expect(rows[0]!.trimPoint.prunedMessageCount).toBe(10);
+      expect(rows[0]!.trimPoint.beforeEntryId).toBe("msg-1");
+    }
+    expect(rows[1]!.kind).toBe("message");
+  });
+
+  it("context-trim rows are stable across identical invocations", () => {
+    const createRows = () =>
+      deriveMessagesTimelineRows({
+        timelineEntries: [
+          {
+            id: "entry-trim-1",
+            kind: "context-trim",
+            createdAt: "2026-01-01T00:00:05Z",
+            trimPoint: {
+              id: "trim-1" as never,
+              createdAt: "2026-01-01T00:00:05Z",
+              beforeEntryId: "msg-1",
+              prunedMessageCount: 10,
+              prunedTurnIds: ["turn-1" as never],
+            },
+          },
+        ],
+        completionDividerBeforeEntryId: null,
+        isWorking: false,
+        activeTurnStartedAt: null,
+        turnDiffSummaryByAssistantMessageId: new Map(),
+        revertTurnCountByUserMessageId: new Map(),
+      });
+
+    const initial = computeStableMessagesTimelineRows(createRows(), {
+      byId: new Map(),
+      result: [],
+    });
+
+    const repeated = computeStableMessagesTimelineRows(createRows(), initial);
+
+    expect(repeated).toBe(initial);
+  });
+});

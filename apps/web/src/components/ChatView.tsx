@@ -167,7 +167,6 @@ import {
   createLocalDispatchSnapshot,
   deriveComposerSendState,
   hasServerAcknowledgedLocalDispatch,
-  getStartedThreadModelChangeBlockReason,
   LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
   LastInvokedScriptByProjectSchema,
   type LocalDispatchSnapshot,
@@ -1769,8 +1768,22 @@ export default function ChatView(props: ChatViewProps) {
   }, [serverMessages, attachmentPreviewHandoffByMessageId, optimisticUserMessages]);
   const timelineEntries = useMemo(
     () =>
-      deriveTimelineEntries(timelineMessages, activeThread?.proposedPlans ?? [], workLogEntries),
-    [activeThread?.proposedPlans, timelineMessages, workLogEntries],
+      deriveTimelineEntries(
+        timelineMessages,
+        activeThread?.proposedPlans ?? [],
+        workLogEntries,
+        activeThread?.managerMetadata,
+        activeThread?.createdAt,
+        activeThread?.contextTrimPoints,
+      ),
+    [
+      activeThread?.managerMetadata,
+      activeThread?.createdAt,
+      activeThread?.proposedPlans,
+      activeThread?.contextTrimPoints,
+      timelineMessages,
+      workLogEntries,
+    ],
   );
   const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
     useTurnDiffSummaries(activeThread);
@@ -2793,6 +2806,7 @@ export default function ChatView(props: ChatViewProps) {
     onToggleDiff,
     toggleTerminalVisibility,
     composerRef,
+    focusComposer,
   ]);
 
   const onRevertToTurnCount = useCallback(
@@ -2826,13 +2840,18 @@ export default function ChatView(props: ChatViewProps) {
       setIsRevertingCheckpoint(true);
       setThreadError(activeThread.id, null);
       try {
-        await api.orchestration.dispatchCommand({
-          type: "thread.checkpoint.revert",
-          commandId: newCommandId(),
-          threadId: activeThread.id,
-          turnCount,
-          createdAt: new Date().toISOString(),
-        });
+        await Promise.race([
+          api.orchestration.dispatchCommand({
+            type: "thread.checkpoint.revert",
+            commandId: newCommandId(),
+            threadId: activeThread.id,
+            turnCount,
+            createdAt: new Date().toISOString(),
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Revert timed out after 30 seconds.")), 30000),
+          ),
+        ]);
       } catch (err) {
         setThreadError(
           activeThread.id,
@@ -2911,7 +2930,19 @@ export default function ChatView(props: ChatViewProps) {
         ? parseStandaloneComposerSlashCommand(trimmed)
         : null;
     if (standaloneSlashCommand) {
-      handleInteractionModeChange(standaloneSlashCommand);
+      if (typeof standaloneSlashCommand === "object" && standaloneSlashCommand.command === "clear") {
+        void api.orchestration.dispatchCommand({
+          type: "thread.context.trim",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          ...(standaloneSlashCommand.keepLastNTurns !== undefined
+            ? { keepLastNTurns: standaloneSlashCommand.keepLastNTurns }
+            : {}),
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        handleInteractionModeChange(standaloneSlashCommand);
+      }
       promptRef.current = "";
       clearComposerDraftContent(composerDraftTarget);
       composerRef.current?.resetCursorState();
@@ -3627,6 +3658,11 @@ export default function ChatView(props: ChatViewProps) {
         resolvedDriverKind !== null &&
         resolvedDriverKind !== lockedProvider
       ) {
+        toastManager.add({
+          type: "info",
+          title: "Model not available",
+          description: "Thread is locked to a different provider.",
+        });
         scheduleComposerFocus();
         return;
       }
@@ -3639,6 +3675,11 @@ export default function ChatView(props: ChatViewProps) {
           entry?.continuation?.groupKey &&
           currentEntry.continuation.groupKey !== entry.continuation.groupKey
         ) {
+          toastManager.add({
+            type: "info",
+            title: "Model not available",
+            description: "Selected provider belongs to a different continuation group.",
+          });
           scheduleComposerFocus();
           return;
         }
@@ -3650,6 +3691,11 @@ export default function ChatView(props: ChatViewProps) {
         model,
       );
       if (!resolvedModel) {
+        toastManager.add({
+          type: "warning",
+          title: "Model not found",
+          description: `Model '${model}' is not available on this instance.`,
+        });
         scheduleComposerFocus();
         return;
       }
@@ -3657,22 +3703,6 @@ export default function ChatView(props: ChatViewProps) {
         instanceId,
         model: resolvedModel,
       };
-      const modelChangeBlockReason = getStartedThreadModelChangeBlockReason({
-        providers: providerStatuses,
-        hasStartedSession: activeThread.session !== null,
-        currentModelSelection: activeThread.modelSelection,
-        currentProviderInstanceId: activeThread.session?.providerInstanceId ?? null,
-        nextModelSelection,
-      });
-      if (modelChangeBlockReason) {
-        toastManager.add({
-          type: "warning",
-          title: modelChangeBlockReason.title,
-          description: modelChangeBlockReason.description,
-        });
-        scheduleComposerFocus();
-        return;
-      }
       setComposerDraftModelSelection(
         scopeThreadRef(activeThread.environmentId, activeThread.id),
         nextModelSelection,

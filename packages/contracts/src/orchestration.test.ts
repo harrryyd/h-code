@@ -11,16 +11,24 @@ import {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
+  ManagerCreateRefinerThreadCommand,
+  ManagerRecordRefinementHandoffCommand,
+  ManagerBootstrapCommand,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
   OrchestrationProposedPlan,
   OrchestrationSession,
   ProjectCreateCommand,
+  RuntimeMode,
   ThreadMetaUpdatedPayload,
   ThreadTurnStartCommand,
   ThreadCreatedPayload,
   ThreadTurnDiff,
   ThreadTurnStartRequestedPayload,
+  ThreadContextTrimCommand,
+  ContextTrimPoint,
+  ThreadTrimPointCreatedPayload,
+  OrchestrationThread,
 } from "./orchestration.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 
@@ -28,6 +36,13 @@ const decodeTurnDiffInput = Schema.decodeUnknownEffect(OrchestrationGetTurnDiffI
 const decodeFullThreadDiffInput = Schema.decodeUnknownEffect(OrchestrationGetFullThreadDiffInput);
 const decodeThreadTurnDiff = Schema.decodeUnknownEffect(ThreadTurnDiff);
 const decodeProjectCreateCommand = Schema.decodeUnknownEffect(ProjectCreateCommand);
+const decodeManagerBootstrapCommand = Schema.decodeUnknownEffect(ManagerBootstrapCommand);
+const decodeManagerCreateRefinerThreadCommand = Schema.decodeUnknownEffect(
+  ManagerCreateRefinerThreadCommand,
+);
+const decodeManagerRecordRefinementHandoffCommand = Schema.decodeUnknownEffect(
+  ManagerRecordRefinementHandoffCommand,
+);
 const decodeProjectCreatedPayload = Schema.decodeUnknownEffect(ProjectCreatedPayload);
 const decodeProjectMetaUpdatedPayload = Schema.decodeUnknownEffect(ProjectMetaUpdatedPayload);
 const decodeThreadTurnStartCommand = Schema.decodeUnknownEffect(ThreadTurnStartCommand);
@@ -154,6 +169,29 @@ it.effect("decodes project.create with createWorkspaceRootIfMissing enabled", ()
   }),
 );
 
+it.effect(
+  "decodes manager.bootstrap with manager metadata defaults handled by the command shape",
+  () =>
+    Effect.gen(function* () {
+      const parsed = yield* decodeManagerBootstrapCommand({
+        type: "manager.bootstrap",
+        commandId: "cmd-manager-bootstrap",
+        projectId: "manager-workspace-1",
+        threadId: "manager-console-1",
+        workspaceRoot: "/tmp/manager-workspace",
+        modelSelection: {
+          provider: "codex",
+          model: "gpt-5-codex",
+        },
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+
+      assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
+      assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+      assert.strictEqual(parsed.modelSelection.instanceId, "codex");
+    }),
+);
+
 it.effect("decodes historical project.created payloads with a default provider", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeProjectCreatedPayload({
@@ -169,6 +207,125 @@ it.effect("decodes historical project.created payloads with a default provider",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
     assert.strictEqual(parsed.defaultModelSelection?.instanceId, "codex");
+    assert.strictEqual(parsed.managerMetadata, undefined);
+  }),
+);
+
+it.effect("decodes manager project and thread metadata on created payloads", () =>
+  Effect.gen(function* () {
+    const project = yield* decodeProjectCreatedPayload({
+      projectId: "manager-workspace-1",
+      title: "Manager Workspace",
+      workspaceRoot: "/tmp/manager-workspace",
+      managerMetadata: {
+        role: "workspace",
+      },
+      defaultModelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      scripts: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const thread = yield* decodeThreadCreatedPayload({
+      threadId: "manager-console-1",
+      projectId: "manager-workspace-1",
+      title: "Manager Console",
+      managerMetadata: {
+        role: "console",
+      },
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.deepStrictEqual(project.managerMetadata, { role: "workspace" });
+    assert.deepStrictEqual(thread.managerMetadata, { role: "console" });
+  }),
+);
+
+it.effect("decodes refiner thread metadata on created payloads", () =>
+  Effect.gen(function* () {
+    const thread = yield* decodeThreadCreatedPayload({
+      threadId: "refiner-thread-1",
+      projectId: "project-1",
+      title: "Refine: Billing export",
+      managerMetadata: {
+        role: "refiner",
+        managerThreadId: "manager-console-1",
+        seededWorkItemId: "work-refine-1",
+      },
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.deepStrictEqual(thread.managerMetadata, {
+      role: "refiner",
+      managerThreadId: "manager-console-1",
+      seededWorkItemId: "work-refine-1",
+    } as typeof thread.managerMetadata);
+  }),
+);
+
+it.effect("decodes manager refiner thread creation commands", () =>
+  Effect.gen(function* () {
+    const command = yield* decodeManagerCreateRefinerThreadCommand({
+      type: "manager.refiner-thread.create",
+      commandId: "cmd-refiner-create",
+      threadId: "refiner-thread-1",
+      managerThreadId: "manager-console-1",
+      seededWorkItemId: "work-refine-1",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.strictEqual(command.type, "manager.refiner-thread.create");
+    assert.strictEqual(command.managerThreadId, "manager-console-1");
+    assert.strictEqual(command.seededWorkItemId, "work-refine-1");
+  }),
+);
+
+it.effect("decodes manager refinement handoff commands", () =>
+  Effect.gen(function* () {
+    const command = yield* decodeManagerRecordRefinementHandoffCommand({
+      type: "manager.refinement-handoff.record",
+      commandId: "cmd-refinement-handoff",
+      refinerThreadId: "refiner-thread-1",
+      refinedProblemStatement: " Tighten the billing export brief. ",
+      acceptanceCriteria: [" Export action is visible ", " CSV includes invoice rows "],
+      targetProjectId: " project-1 ",
+      createdAt: "2026-01-01T00:00:05.000Z",
+    });
+
+    assert.strictEqual(command.type, "manager.refinement-handoff.record");
+    assert.strictEqual(command.refinerThreadId, "refiner-thread-1");
+    assert.strictEqual(command.refinedProblemStatement, "Tighten the billing export brief.");
+    assert.deepStrictEqual(command.acceptanceCriteria, [
+      "Export action is visible",
+      "CSV includes invoice rows",
+    ]);
+    assert.strictEqual(command.targetProjectId, "project-1");
   }),
 );
 
@@ -730,14 +887,229 @@ it.effect("ModelSelection encodes to the canonical instanceId wire form", () =>
   }),
 );
 
-it.effect("ModelSelection rejects malformed instance ids", () =>
+it.effect("RuntimeMode decodes 'review' and rejects invalid values", () =>
+  Effect.gen(function* () {
+    const decode = Schema.decodeUnknownEffect(RuntimeMode);
+
+    const accept = yield* decode("review");
+    assert.strictEqual(accept, "review");
+
+    const reject = yield* Effect.exit(decode("not-a-mode"));
+    assert.strictEqual(reject._tag, "Failure");
+  }),
+);
+
+// ── changeRequest.getPrDiff RPC round-trip ────────────────────────
+
+import {
+  ChangeRequestGetPrDiffInput,
+  ChangeRequestGetPrDiffResult,
+} from "./rpc.ts";
+
+const decodePrDiffInput = Schema.decodeUnknownEffect(ChangeRequestGetPrDiffInput);
+const decodePrDiffResult = Schema.decodeUnknownEffect(ChangeRequestGetPrDiffResult);
+
+it.effect("changeRequest.getPrDiff input decodes threadId and prNumber", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodePrDiffInput({
+      threadId: "thread-1",
+      prNumber: 42,
+    });
+    assert.strictEqual(parsed.threadId, "thread-1");
+    assert.strictEqual(parsed.prNumber, 42);
+  }),
+);
+
+it.effect("changeRequest.getPrDiff input rejects invalid prNumber", () =>
   Effect.gen(function* () {
     const result = yield* Effect.exit(
-      decodeModelSelection({
-        instanceId: "1invalid", // must start with a letter
-        model: "x",
+      decodePrDiffInput({
+        threadId: "thread-1",
+        prNumber: 0,
       }),
     );
     assert.strictEqual(result._tag, "Failure");
+  }),
+);
+
+it.effect("changeRequest.getPrDiff result decodes diff string", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodePrDiffResult({
+      diff: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new",
+    });
+    assert.strictEqual(parsed.diff.startsWith("---"), true);
+  }),
+);
+
+// ── Context trim command & event ─────────────────────────────────────
+
+const decodeThreadContextTrimCommand = Schema.decodeUnknownEffect(ThreadContextTrimCommand);
+const decodeContextTrimPoint = Schema.decodeUnknownEffect(ContextTrimPoint);
+const decodeThreadTrimPointCreatedPayload = Schema.decodeUnknownEffect(ThreadTrimPointCreatedPayload);
+const decodeOrchestrationThread = Schema.decodeUnknownEffect(OrchestrationThread);
+
+it.effect("decodes thread.context.trim command", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextTrimCommand({
+      type: "thread.context.trim",
+      commandId: "cmd-trim-1",
+      threadId: "thread-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.context.trim");
+    assert.strictEqual(parsed.keepLastNTurns, undefined);
+  }),
+);
+
+it.effect("decodes thread.context.trim command with keepLastNTurns", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextTrimCommand({
+      type: "thread.context.trim",
+      commandId: "cmd-trim-3",
+      threadId: "thread-1",
+      keepLastNTurns: 3,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.keepLastNTurns, 3);
+  }),
+);
+
+it.effect("decodes ContextTrimPoint", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeContextTrimPoint({
+      id: "trim-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      beforeEntryId: "msg-5",
+      prunedMessageCount: 10,
+      prunedTurnIds: ["turn-1", "turn-2"],
+    });
+    assert.strictEqual(parsed.id, "trim-1");
+    assert.strictEqual(parsed.beforeEntryId, "msg-5");
+    assert.strictEqual(parsed.prunedMessageCount, 10);
+    assert.deepStrictEqual(parsed.prunedTurnIds, ["turn-1", "turn-2"]);
+  }),
+);
+
+it.effect("decodes thread.trim-point-created payload", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadTrimPointCreatedPayload({
+      threadId: "thread-1",
+      trimPoint: {
+        id: "trim-1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        beforeEntryId: "msg-5",
+        prunedMessageCount: 10,
+        prunedTurnIds: ["turn-1", "turn-2"],
+      },
+    });
+    assert.strictEqual(parsed.threadId, "thread-1");
+    assert.strictEqual(parsed.trimPoint.prunedMessageCount, 10);
+  }),
+);
+
+it.effect("decodes thread.trim-point-created event", () =>
+  Effect.gen(function* () {
+    const event = yield* decodeOrchestrationEvent({
+      sequence: 100,
+      eventId: "event-trim-1",
+      aggregateKind: "thread",
+      aggregateId: "thread-1",
+      type: "thread.trim-point-created",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-trim-1",
+      causationEventId: null,
+      correlationId: "cmd-trim-1",
+      metadata: {},
+      payload: {
+        threadId: "thread-1",
+        trimPoint: {
+          id: "trim-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          beforeEntryId: "msg-5",
+          prunedMessageCount: 10,
+          prunedTurnIds: ["turn-1", "turn-2"],
+        },
+      },
+    });
+    assert.strictEqual(event.type, "thread.trim-point-created");
+    if (event.type === "thread.trim-point-created") {
+      assert.strictEqual(event.payload.trimPoint.beforeEntryId, "msg-5");
+      assert.strictEqual(event.payload.trimPoint.prunedMessageCount, 10);
+    }
+  }),
+);
+
+it.effect("OrchestrationThread defaults contextTrimPoints to empty array", () =>
+  Effect.gen(function* () {
+    const thread = yield* decodeOrchestrationThread({
+      id: "thread-1",
+      projectId: "project-1",
+      title: "Test Thread",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      runtimeMode: "full-access",
+      branch: null,
+      worktreePath: null,
+      latestTurn: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      deletedAt: null,
+      messages: [],
+      activities: [],
+      checkpoints: [],
+      session: null,
+    });
+    assert.deepStrictEqual(thread.contextTrimPoints, []);
+  }),
+);
+
+it.effect("OrchestrationThread decodes explicit contextTrimPoints", () =>
+  Effect.gen(function* () {
+    const thread = yield* decodeOrchestrationThread({
+      id: "thread-1",
+      projectId: "project-1",
+      title: "Test Thread",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      runtimeMode: "full-access",
+      branch: null,
+      worktreePath: null,
+      latestTurn: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      deletedAt: null,
+      messages: [],
+      activities: [],
+      checkpoints: [],
+      contextTrimPoints: [
+        {
+          id: "trim-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          beforeEntryId: "msg-5",
+          prunedMessageCount: 10,
+          prunedTurnIds: ["turn-1", "turn-2"],
+        },
+      ],
+      session: null,
+    });
+    assert.strictEqual(thread.contextTrimPoints.length, 1);
+    assert.strictEqual(thread.contextTrimPoints[0]?.prunedMessageCount, 10);
+  }),
+);
+
+it.effect("decodes thread.context.trim as part of OrchestrationCommand union", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.context.trim",
+      commandId: "cmd-trim-1",
+      threadId: "thread-1",
+      keepLastNTurns: 5,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.context.trim");
   }),
 );
