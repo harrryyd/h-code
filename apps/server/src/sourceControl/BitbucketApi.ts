@@ -37,7 +37,7 @@ export class BitbucketApiError extends Schema.TaggedErrorClass<BitbucketApiError
     operation: Schema.String,
     detail: Schema.String,
     status: Schema.optional(Schema.Number),
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   },
 ) {
   override get message(): string {
@@ -154,7 +154,7 @@ export interface BitbucketApiShape {
 }
 
 export class BitbucketApi extends Context.Service<BitbucketApi, BitbucketApiShape>()(
-  "t3/source-control/BitbucketApi",
+  "t3/sourceControl/BitbucketApi",
 ) {}
 
 function nonEmpty(value: string | undefined): Option.Option<string> {

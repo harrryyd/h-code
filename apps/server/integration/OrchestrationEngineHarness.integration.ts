@@ -79,6 +79,7 @@ import * as VcsDriverRegistry from "../src/vcs/VcsDriverRegistry.ts";
 import { VcsStatusBroadcaster } from "../src/vcs/VcsStatusBroadcaster.ts";
 import { GitWorkflowService } from "../src/git/GitWorkflowService.ts";
 import * as VcsProcess from "../src/vcs/VcsProcess.ts";
+import * as AgentAwarenessRelay from "../src/relay/AgentAwarenessRelay.ts";
 
 const decodeCodexSettings = Schema.decodeEffect(CodexSettings);
 
@@ -162,7 +163,7 @@ class OrchestrationHarnessRuntimeError extends Schema.TaggedErrorClass<Orchestra
   "OrchestrationHarnessRuntimeError",
   {
     operation: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   },
 ) {}
 
@@ -362,19 +363,23 @@ export const makeOrchestrationIntegrationHarness = (
       Layer.provideMerge(runtimeServicesLayer),
       Layer.provide(SeededWorkItemWritebackLive),
     );
-    const orchestrationReactorDependencies = Layer.mergeAll(
-      runtimeIngestionLayer,
-      providerCommandReactorLayer,
-      checkpointReactorLayer,
-      seededWorkItemWritebackReactorLayer,
-      Layer.succeed(ThreadDeletionReactor, {
-        start: () => Effect.void,
-        drain: Effect.void,
-      }),
-    );
-    const orchestrationReactorLayer = Layer.mergeAll(
-      orchestrationReactorDependencies,
-      OrchestrationReactorLive.pipe(Layer.provide(orchestrationReactorDependencies)),
+    const orchestrationReactorLayer = OrchestrationReactorLive.pipe(
+      Layer.provideMerge(runtimeIngestionLayer),
+      Layer.provideMerge(providerCommandReactorLayer),
+      Layer.provideMerge(checkpointReactorLayer),
+      Layer.provideMerge(seededWorkItemWritebackReactorLayer),
+      Layer.provideMerge(
+        Layer.succeed(ThreadDeletionReactor, {
+          start: () => Effect.void,
+          drain: Effect.void,
+        }),
+      ),
+      Layer.provideMerge(
+        Layer.succeed(AgentAwarenessRelay.AgentAwarenessRelay, {
+          publishThread: () => Effect.void,
+          start: () => Effect.void,
+        }),
+      ),
     );
     const layer = Layer.empty.pipe(
       Layer.provideMerge(runtimeServicesLayer),
