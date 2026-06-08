@@ -20,7 +20,11 @@ import {
 } from "../store";
 import { useTerminalStateStore } from "../terminalStateStore";
 import { buildThreadRouteParams, resolveThreadRouteRef } from "../threadRoutes";
-import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
+import {
+  formatWorktreePathForDisplay,
+  getOrphanedWorktreePathForThread,
+  getOrphanedWorktreePathsForThreads,
+} from "../worktreeCleanup";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useSettings } from "./useSettings";
 
@@ -98,6 +102,35 @@ export function useThreadActions() {
       threadId: target.threadId,
     });
     refreshArchivedThreadsForEnvironment(target.environmentId);
+  }, []);
+
+  const bulkUnarchiveThreads = useCallback(async (targets: ScopedThreadRef[]) => {
+    if (targets.length === 0) return;
+
+    const first = targets[0]!;
+    const api = readEnvironmentApi(first.environmentId);
+    if (!api) return;
+
+    for (const target of targets) {
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "thread.unarchive",
+          commandId: newCommandId(),
+          threadId: target.threadId,
+        });
+      } catch (error) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Unarchive stopped",
+            description: error instanceof Error ? error.message : "An error occurred.",
+          }),
+        );
+        return;
+      }
+    }
+
+    refreshArchivedThreadsForEnvironment(first.environmentId);
   }, []);
 
   const deleteThread = useCallback(
@@ -261,6 +294,102 @@ export function useThreadActions() {
     ],
   );
 
+  const bulkDeleteThreads = useCallback(
+    async (
+      targets: ScopedThreadRef[],
+      threadShells: ReadonlyArray<{
+        id: string;
+        title: string;
+        worktreePath: string | null;
+        projectId: string;
+      }>,
+      projects: ReadonlyArray<{ id: string; cwd: string }>,
+    ) => {
+      if (targets.length === 0) return;
+
+      const first = targets[0]!;
+      const environmentId = first.environmentId;
+      const api = readEnvironmentApi(environmentId);
+      if (!api) return;
+      const localApi = readLocalApi();
+      if (!localApi) return;
+
+      const titles = targets.map((t) => {
+        const shell = threadShells.find((s) => s.id === t.threadId);
+        return shell?.title ?? t.threadId;
+      });
+      const displayedTitles = titles.slice(0, 50);
+      const overflow = titles.length > 50 ? `\n\n...and ${titles.length - 50} more` : "";
+      const titleList = displayedTitles.map((t) => `• ${t}`).join("\n");
+      const confirmed = await localApi.dialogs.confirm(
+        `Delete ${targets.length} thread${targets.length > 1 ? "s" : ""}?\n\n${titleList}${overflow}\n\nThis permanently clears conversation history.`,
+      );
+      if (!confirmed) return;
+
+      const targetIds = new Set(targets.map((t) => t.threadId));
+      const orphanedWorktreePaths = getOrphanedWorktreePathsForThreads(threadShells, targetIds);
+
+      let shouldDeleteWorktrees = false;
+      if (orphanedWorktreePaths.length > 0) {
+        shouldDeleteWorktrees = await localApi.dialogs.confirm(
+          `${orphanedWorktreePaths.length} worktree${orphanedWorktreePaths.length > 1 ? "s" : ""} will become orphaned. Delete them too?`,
+        );
+      }
+
+      for (const target of targets) {
+        try {
+          await api.orchestration.dispatchCommand({
+            type: "thread.delete",
+            commandId: newCommandId(),
+            threadId: target.threadId,
+          });
+        } catch (error) {
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title: "Delete stopped",
+              description: error instanceof Error ? error.message : "An error occurred.",
+            }),
+          );
+          return;
+        }
+      }
+
+      if (shouldDeleteWorktrees) {
+        const envApi = await ensureEnvironmentApi(environmentId);
+        for (const worktreePath of orphanedWorktreePaths) {
+          const owningThread = threadShells.find((s) => s.worktreePath === worktreePath);
+          const project = owningThread
+            ? projects.find((p) => p.id === owningThread.projectId)
+            : undefined;
+
+          if (!project) continue;
+
+          try {
+            await envApi.vcs.removeWorktree({
+              cwd: project.cwd,
+              path: worktreePath,
+              force: true,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Worktree removal failed",
+                description: `Could not remove ${formatWorktreePathForDisplay(worktreePath)}. ${message}`,
+              }),
+            );
+            return;
+          }
+        }
+      }
+
+      refreshArchivedThreadsForEnvironment(environmentId);
+    },
+    [],
+  );
+
   const confirmAndDeleteThread = useCallback(
     async (target: ScopedThreadRef) => {
       const api = readEnvironmentApi(target.environmentId);
@@ -289,7 +418,9 @@ export function useThreadActions() {
   return {
     archiveThread,
     unarchiveThread,
+    bulkUnarchiveThreads,
     deleteThread,
+    bulkDeleteThreads,
     confirmAndDeleteThread,
   };
 }

@@ -11,7 +11,7 @@ import {
   type ProviderInstanceId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
-import { scopeThreadRef } from "@t3tools/client-runtime";
+import { parseScopedThreadKey, scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime";
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import { createModelSelection } from "@t3tools/shared/model";
 import * as Duration from "effect/Duration";
@@ -47,7 +47,9 @@ import { ensureLocalApi, readLocalApi } from "../../localApi";
 import { useShallow } from "zustand/react/shallow";
 import { selectProjectsAcrossEnvironments, useStore } from "../../store";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
+import { isMacPlatform } from "../../lib/utils";
 import { formatRelativeTime, formatRelativeTimeLabel } from "../../timestampFormat";
+import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { Button } from "../ui/button";
 import { DraftInput } from "../ui/draft-input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -1333,7 +1335,8 @@ export function ProviderSettingsPanel() {
 
 export function ArchivedThreadsPanel() {
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
-  const { unarchiveThread, confirmAndDeleteThread } = useThreadActions();
+  const { unarchiveThread, confirmAndDeleteThread, bulkUnarchiveThreads, bulkDeleteThreads } =
+    useThreadActions();
   const environmentIds = useMemo(
     () => [...new Set(projects.map((project) => project.environmentId))],
     [projects],
@@ -1344,6 +1347,13 @@ export function ArchivedThreadsPanel() {
     isLoading: isLoadingArchive,
     refresh: refreshArchivedThreads,
   } = useArchivedThreadSnapshots(environmentIds);
+
+  const toggleThreadSelection = useThreadSelectionStore((state) => state.toggleThread);
+  const rangeSelectTo = useThreadSelectionStore((state) => state.rangeSelectTo);
+  const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
+  const setSelectionAnchor = useThreadSelectionStore((state) => state.setAnchor);
+  const removeFromSelection = useThreadSelectionStore((state) => state.removeFromSelection);
+  const selectedThreadKeys = useThreadSelectionStore((state) => state.selectedThreadKeys);
 
   const archivedGroups = useMemo(() => {
     const projectsByEnvironmentAndId = new Map(
@@ -1386,8 +1396,136 @@ export function ArchivedThreadsPanel() {
       .filter((group) => group.threads.length > 0);
   }, [archivedSnapshots]);
 
+  const allThreadShells = useMemo(
+    () =>
+      archivedSnapshots.flatMap(({ environmentId, snapshot }) =>
+        snapshot.threads.map((thread) => ({
+          id: thread.id,
+          title: thread.title,
+          worktreePath: thread.worktreePath as string | null,
+          projectId: thread.projectId,
+          environmentId,
+        })),
+      ),
+    [archivedSnapshots],
+  );
+
+  const allProjects = useMemo(
+    () =>
+      archivedSnapshots.flatMap(({ environmentId, snapshot }) =>
+        snapshot.projects.map((project) => ({
+          id: project.id,
+          cwd: project.workspaceRoot,
+          environmentId,
+        })),
+      ),
+    [archivedSnapshots],
+  );
+
+  const threadShellsByEnvironment = useMemo(() => {
+    const map = new Map<string, typeof allThreadShells>();
+    for (const shell of allThreadShells) {
+      const list = map.get(shell.environmentId);
+      if (list) {
+        list.push(shell);
+      } else {
+        map.set(shell.environmentId, [shell]);
+      }
+    }
+    return map;
+  }, [allThreadShells]);
+
+  const handleArchivedThreadClick = useCallback(
+    (
+      event: React.MouseEvent,
+      threadRef: ScopedThreadRef,
+      orderedProjectThreadKeys: readonly string[],
+    ) => {
+      const isMac = isMacPlatform(navigator.platform);
+      const isModClick = isMac ? event.metaKey : event.ctrlKey;
+      const isShiftClick = event.shiftKey;
+      const threadKey = scopedThreadKey(threadRef);
+      const currentSelectionCount = useThreadSelectionStore.getState().selectedThreadKeys.size;
+
+      if (isModClick) {
+        event.preventDefault();
+        toggleThreadSelection(threadKey);
+        return;
+      }
+
+      if (isShiftClick) {
+        event.preventDefault();
+        rangeSelectTo(threadKey, orderedProjectThreadKeys);
+        return;
+      }
+
+      if (currentSelectionCount > 0) {
+        clearSelection();
+      }
+      setSelectionAnchor(threadKey);
+    },
+    [clearSelection, rangeSelectTo, setSelectionAnchor, toggleThreadSelection],
+  );
+
+  const handleMultiSelectContextMenu = useCallback(
+    async (position: { x: number; y: number }) => {
+      const api = readLocalApi();
+      if (!api) return;
+      const threadKeys = [...useThreadSelectionStore.getState().selectedThreadKeys];
+      if (threadKeys.length === 0) return;
+      const count = threadKeys.length;
+
+      const clicked = await api.contextMenu.show(
+        [
+          { id: "unarchive", label: `Unarchive (${count})` },
+          { id: "delete", label: `Delete (${count})`, destructive: true },
+        ],
+        position,
+      );
+
+      if (clicked === "unarchive") {
+        const refs = threadKeys
+          .map((key) => parseScopedThreadKey(key))
+          .filter((r): r is ScopedThreadRef => r !== null);
+        await bulkUnarchiveThreads(refs);
+        removeFromSelection(threadKeys);
+        return;
+      }
+
+      if (clicked !== "delete") return;
+
+      const refs = threadKeys
+        .map((key) => parseScopedThreadKey(key))
+        .filter((r): r is ScopedThreadRef => r !== null);
+      if (refs.length === 0) return;
+
+      const first = refs[0]!;
+      const environmentId = first.environmentId;
+      const shells = threadShellsByEnvironment.get(environmentId) ?? [];
+      const proj = allProjects.filter((p) => p.environmentId === environmentId);
+
+      await bulkDeleteThreads(refs, shells, proj);
+      removeFromSelection(threadKeys);
+    },
+    [
+      allProjects,
+      bulkDeleteThreads,
+      bulkUnarchiveThreads,
+      removeFromSelection,
+      threadShellsByEnvironment,
+    ],
+  );
+
   const handleArchivedThreadContextMenu = useCallback(
     async (threadRef: ScopedThreadRef, position: { x: number; y: number }) => {
+      const threadKey = scopedThreadKey(threadRef);
+      const hasSelection = useThreadSelectionStore.getState().selectedThreadKeys.has(threadKey);
+
+      if (hasSelection) {
+        void handleMultiSelectContextMenu(position);
+        return;
+      }
+
       const api = readLocalApi();
       if (!api) return;
       const clicked = await api.contextMenu.show(
@@ -1419,7 +1557,7 @@ export function ArchivedThreadsPanel() {
         refreshArchivedThreads();
       }
     },
-    [confirmAndDeleteThread, refreshArchivedThreads, unarchiveThread],
+    [confirmAndDeleteThread, handleMultiSelectContextMenu, refreshArchivedThreads, unarchiveThread],
   );
 
   return (
@@ -1449,62 +1587,76 @@ export function ArchivedThreadsPanel() {
           />
         </SettingsSection>
       ) : (
-        archivedGroups.map(({ project, threads: projectThreads }) => (
-          <SettingsSection
-            key={project.id}
-            title={project.name}
-            icon={<ProjectFavicon environmentId={project.environmentId} cwd={project.cwd} />}
-          >
-            {projectThreads.map((thread) => (
-              <SettingsRow
-                key={thread.id}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  void handleArchivedThreadContextMenu(
-                    scopeThreadRef(thread.environmentId, thread.id),
-                    {
-                      x: event.clientX,
-                      y: event.clientY,
-                    },
-                  );
-                }}
-                title={thread.title}
-                description={
-                  <>
-                    Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
-                    {" \u00b7 Created "}
-                    {formatRelativeTimeLabel(thread.createdAt)}
-                  </>
-                }
-                control={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 shrink-0 cursor-pointer gap-1.5 px-2.5"
-                    onClick={() =>
-                      void unarchiveThread(scopeThreadRef(thread.environmentId, thread.id))
-                        .then(() => refreshArchivedThreads())
-                        .catch((error) => {
-                          toastManager.add(
-                            stackedThreadToast({
-                              type: "error",
-                              title: "Failed to unarchive thread",
-                              description:
-                                error instanceof Error ? error.message : "An error occurred.",
-                            }),
-                          );
-                        })
+        archivedGroups.map(({ project, threads: projectThreads }) => {
+          const orderedProjectThreadKeys = projectThreads.map((thread) =>
+            scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
+          );
+
+          return (
+            <SettingsSection
+              key={project.id}
+              title={project.name}
+              icon={<ProjectFavicon environmentId={project.environmentId} cwd={project.cwd} />}
+            >
+              {projectThreads.map((thread) => {
+                const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+                const threadKey = scopedThreadKey(threadRef);
+                const isSelected = selectedThreadKeys.has(threadKey);
+
+                return (
+                  <SettingsRow
+                    key={thread.id}
+                    data-thread-selection-safe
+                    className={isSelected ? "bg-accent" : ""}
+                    onClick={(event) => {
+                      handleArchivedThreadClick(event, threadRef, orderedProjectThreadKeys);
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      void handleArchivedThreadContextMenu(threadRef, {
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
+                    title={thread.title}
+                    description={
+                      <>
+                        Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
+                        {" · Created "}
+                        {formatRelativeTimeLabel(thread.createdAt)}
+                      </>
                     }
-                  >
-                    <ArchiveX className="size-3.5" />
-                    <span>Unarchive</span>
-                  </Button>
-                }
-              />
-            ))}
-          </SettingsSection>
-        ))
+                    control={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 shrink-0 cursor-pointer gap-1.5 px-2.5"
+                        onClick={() =>
+                          void unarchiveThread(scopeThreadRef(thread.environmentId, thread.id))
+                            .then(() => refreshArchivedThreads())
+                            .catch((error) => {
+                              toastManager.add(
+                                stackedThreadToast({
+                                  type: "error",
+                                  title: "Failed to unarchive thread",
+                                  description:
+                                    error instanceof Error ? error.message : "An error occurred.",
+                                }),
+                              );
+                            })
+                        }
+                      >
+                        <ArchiveX className="size-3.5" />
+                        <span>Unarchive</span>
+                      </Button>
+                    }
+                  />
+                );
+              })}
+            </SettingsSection>
+          );
+        })
       )}
     </SettingsPageContainer>
   );
