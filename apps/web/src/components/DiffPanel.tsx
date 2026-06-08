@@ -182,6 +182,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     submitting,
     submitError,
     submitReview,
+    runBackgroundAgent,
+    agentEvents,
+    agentRunning,
   } = useReviewComments({
     environmentId: activeThread?.environmentId ?? null,
     threadId: activeThreadId,
@@ -738,6 +741,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                     onDeleteComment={deleteComment}
                     savePending={savePending}
                     saveError={saveError}
+                    onRequestAgent={runBackgroundAgent}
+                    agentEvents={agentEvents}
+                    agentRunning={agentRunning}
                   />
                 </div>
               )}
@@ -871,6 +877,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                           onDeleteComment={deleteComment}
                           savePending={savePending}
                           saveError={saveError}
+                          onRequestAgent={runBackgroundAgent}
+                          agentEvents={agentEvents}
+                          agentRunning={agentRunning}
                         />
                       )}
                     </div>

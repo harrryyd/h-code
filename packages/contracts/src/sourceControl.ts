@@ -194,6 +194,10 @@ export const ReviewCommentAgentStatus = Schema.Literals([
   "pending",
   "resolved",
   "suggestion",
+  "idle",
+  "running",
+  "completed",
+  "failed",
 ]);
 export type ReviewCommentAgentStatus = typeof ReviewCommentAgentStatus.Type;
 

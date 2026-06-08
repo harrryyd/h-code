@@ -1,8 +1,9 @@
 import type { ReviewComment } from "@t3tools/contracts";
-import { PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { Loader2Icon, CheckIcon, XIcon, BotIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { cn } from "~/lib/utils";
 import { formatShortTimestamp } from "../timestampFormat";
+import type { BackgroundAgentEvent } from "../hooks/useReviewComments";
 
 interface InlineCommentInputProps {
   filePath: string;
@@ -93,13 +94,115 @@ function InlineCommentInput({
   );
 }
 
+function AgentResponseDisplay({
+  events,
+  isRunning,
+}: {
+  events: BackgroundAgentEvent[];
+  isRunning: boolean;
+}) {
+  const [showDetails, setShowDetails] = useState(false);
+
+  const textEvents = events.filter((e) => e.type === "text");
+  const detailEvents = events.filter((e) => e.type === "detail");
+  const hasError = events.some((e) => e.type === "error");
+  const isComplete = events.some((e) => e.type === "done");
+
+  if (events.length === 0 && !isRunning) return null;
+
+  return (
+    <div className="mx-3 mb-2 rounded-md border border-blue-500/30 bg-blue-500/5 p-2.5">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          {isRunning ? (
+            <Loader2Icon className="size-3 animate-spin text-blue-400" />
+          ) : hasError ? (
+            <XIcon className="size-3 text-red-400" />
+          ) : isComplete ? (
+            <CheckIcon className="size-3 text-green-400" />
+          ) : (
+            <BotIcon className="size-3 text-blue-400" />
+          )}
+          <span className="text-[10px] font-medium text-blue-400/80">AI Response</span>
+        </div>
+      </div>
+
+      {/* Visible text output */}
+      {textEvents.length > 0 && (
+        <div className="mb-1 whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/85">
+          {textEvents.map((e, i) => (
+            <span key={i}>{e.content}</span>
+          ))}
+        </div>
+      )}
+
+      {isRunning && textEvents.length === 0 && (
+        <p className="text-[10px] text-muted-foreground/50 animate-pulse">
+          Agent is working...
+        </p>
+      )}
+
+      {/* Error message */}
+      {hasError && (
+        <p className="text-[10px] text-red-400/80">
+          {events.find((e) => e.type === "error")?.message ?? "Agent encountered an error."}
+        </p>
+      )}
+
+      {/* Show details toggle */}
+      {detailEvents.length > 0 && (
+        <div className="mt-1">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-[9px] text-muted-foreground/50 hover:text-muted-foreground/70"
+            onClick={() => setShowDetails(!showDetails)}
+          >
+            {showDetails ? (
+              <ChevronDownIcon className="size-3" />
+            ) : (
+              <ChevronRightIcon className="size-3" />
+            )}
+            Show details ({detailEvents.length})
+          </button>
+          {showDetails && (
+            <div className="mt-1 space-y-1">
+              {detailEvents.map((e, i) => (
+                <details key={i} className="text-[10px]">
+                  <summary className="cursor-pointer text-muted-foreground/60 hover:text-muted-foreground/80">
+                    {e.title ?? "Detail"}
+                  </summary>
+                  <pre className="mt-0.5 max-h-32 overflow-auto rounded border border-border/30 bg-background/80 p-1.5 text-[9px] whitespace-pre-wrap text-muted-foreground/70">
+                    {e.content}
+                  </pre>
+                </details>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface InlineCommentProps {
   comment: ReviewComment;
   onDelete?: (commentId: string) => void;
+  onRequestAgent?: (commentId: string) => void;
+  agentEvents?: BackgroundAgentEvent[];
+  agentRunning?: boolean;
 }
 
-function InlineComment({ comment, onDelete }: InlineCommentProps) {
+function InlineComment({
+  comment,
+  onDelete,
+  onRequestAgent,
+  agentEvents,
+  agentRunning,
+}: InlineCommentProps) {
   const isGitHub = comment.author.login !== "local";
+  const agentStatus = comment.agentStatus;
+  const isAgentIdle = !agentStatus || agentStatus === "idle";
+  const isAgentRunning = agentRunning || agentStatus === "running";
 
   return (
     <div
@@ -128,17 +231,47 @@ function InlineComment({ comment, onDelete }: InlineCommentProps) {
           <span className="text-[9px] text-muted-foreground/50">
             {formatShortTimestamp(comment.createdAt, "iso")}
           </span>
+          {/* Agent status indicator */}
+          {agentStatus === "completed" && (
+            <span className="inline-flex items-center gap-0.5 text-[8px] text-green-400/70">
+              <CheckIcon className="size-2.5" />
+              Done
+            </span>
+          )}
+          {agentStatus === "failed" && (
+            <span className="inline-flex items-center gap-0.5 text-[8px] text-red-400/70">
+              <XIcon className="size-2.5" />
+              Failed
+            </span>
+          )}
+          {isAgentRunning && (
+            <Loader2Icon className="size-2.5 animate-spin text-blue-400" />
+          )}
         </div>
-        {onDelete && !isGitHub && (
-          <button
-            type="button"
-            className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground/40 hover:bg-foreground/8 hover:text-red-500/70"
-            onClick={() => onDelete(comment.id)}
-            title="Delete comment"
-          >
-            <Trash2Icon className="size-3" />
-          </button>
-        )}
+        <div className="flex items-center gap-0.5">
+          {/* Request AI response button */}
+          {onRequestAgent && isAgentIdle && (
+            <button
+              type="button"
+              className="inline-flex h-5 items-center gap-1 rounded-sm px-1.5 text-[9px] text-blue-400/60 hover:bg-blue-500/10 hover:text-blue-400/80"
+              onClick={() => onRequestAgent(comment.id)}
+              title="Request AI response"
+            >
+              <BotIcon className="size-2.5" />
+              Request AI
+            </button>
+          )}
+          {onDelete && !isGitHub && (
+            <button
+              type="button"
+              className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground/40 hover:bg-foreground/8 hover:text-red-500/70"
+              onClick={() => onDelete(comment.id)}
+              title="Delete comment"
+            >
+              <Trash2Icon className="size-3" />
+            </button>
+          )}
+        </div>
       </div>
       <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/85">
         {comment.body}
@@ -147,6 +280,14 @@ function InlineComment({ comment, onDelete }: InlineCommentProps) {
         <div className="mt-1 text-[9px] text-muted-foreground/40">
           Line {comment.line}
         </div>
+      )}
+
+      {/* Agent response events */}
+      {agentEvents && agentEvents.length > 0 && (
+        <AgentResponseDisplay events={agentEvents} isRunning={isAgentRunning} />
+      )}
+      {isAgentRunning && (!agentEvents || agentEvents.length === 0) && (
+        <AgentResponseDisplay events={[]} isRunning={true} />
       )}
     </div>
   );
@@ -162,6 +303,9 @@ interface DiffCommentPanelProps {
   onDeleteComment: (commentId: string) => void;
   savePending: boolean;
   saveError: string | null;
+  onRequestAgent?: (commentId: string) => void;
+  agentEvents?: Map<string, BackgroundAgentEvent[]>;
+  agentRunning?: Set<string>;
 }
 
 export function DiffCommentPanel({
@@ -174,6 +318,9 @@ export function DiffCommentPanel({
   onDeleteComment,
   savePending,
   saveError,
+  onRequestAgent,
+  agentEvents,
+  agentRunning,
 }: DiffCommentPanelProps) {
   const fileComments = comments.filter((c) => c.file === filePath);
   const isEditing = editingComment?.filePath === filePath;
@@ -211,6 +358,9 @@ export function DiffCommentPanel({
           key={comment.id}
           comment={comment}
           onDelete={onDeleteComment}
+          onRequestAgent={onRequestAgent}
+          agentEvents={agentEvents?.get(comment.id)}
+          agentRunning={agentRunning?.has(comment.id)}
         />
       ))}
       {isEditing && (

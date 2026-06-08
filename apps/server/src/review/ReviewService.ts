@@ -11,6 +11,7 @@ import {
   VcsRepositoryDetectionError,
   VcsUnsupportedOperationError,
   type ReviewComment,
+  type ReviewCommentAgentStatus,
   type ReviewDraft,
   type ReviewDiffPreviewError,
   type ReviewDiffPreviewInput,
@@ -48,6 +49,12 @@ export interface ReviewServiceShape {
     readonly prNumber: number;
     readonly cwd?: string | undefined;
   }) => Effect.Effect<ReviewDraft, ChangeRequestSubmitReviewError>;
+  readonly updateCommentAgentStatus: (input: {
+    readonly threadId: string;
+    readonly prNumber: number;
+    readonly commentId: string;
+    readonly agentStatus: ReviewCommentAgentStatus;
+  }) => Effect.Effect<ReviewDraft | null, never>;
 }
 
 export class ReviewService extends Context.Service<ReviewService, ReviewServiceShape>()(
@@ -338,12 +345,37 @@ export const make = Effect.fn("makeReviewService")(function* () {
     }),
   );
 
+  const updateCommentAgentStatus: ReviewServiceShape["updateCommentAgentStatus"] = Effect.fn(
+    "ReviewService.updateCommentAgentStatus",
+  )((input) =>
+    draftStore.get(input.threadId, input.prNumber).pipe(
+      Effect.flatMap((option) => {
+        const existingDraft = Option.getOrNull(option);
+        if (!existingDraft) {
+          return Effect.succeed<ReviewDraft | null>(null);
+        }
+
+        const updatedComments = existingDraft.comments.map((c) =>
+          c.id === input.commentId ? { ...c, agentStatus: input.agentStatus } : c,
+        );
+
+        const draft: ReviewDraft = {
+          ...existingDraft,
+          comments: updatedComments,
+        };
+
+        return draftStore.upsert(draft).pipe(Effect.as<ReviewDraft | null>(draft));
+      }),
+    ),
+  );
+
   return ReviewService.of({
     getDiffPreview,
     getReviewDraft,
     upsertReviewComment,
     deleteReviewComment,
     submitReview,
+    updateCommentAgentStatus,
   });
 });
 

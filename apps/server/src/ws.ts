@@ -42,6 +42,8 @@ import {
   FilesystemBrowseError,
   ChangeRequestGetPrDiffError,
   ChangeRequestSubmitReviewError,
+  ChangeRequestRunBackgroundAgentError,
+  type BackgroundAgentResponseEvent,
   ProviderInstanceId,
   EnvironmentAuthorizationError,
   ThreadId,
@@ -92,6 +94,7 @@ import { VcsStatusBroadcaster } from "./vcs/VcsStatusBroadcaster.ts";
 import { VcsProvisioningService } from "./vcs/VcsProvisioningService.ts";
 import { GitWorkflowService } from "./git/GitWorkflowService.ts";
 import { ReviewService } from "./review/ReviewService.ts";
+import { BackgroundAgentService } from "./review/BackgroundAgentService.ts";
 import { ProjectSetupScriptRunner } from "./project/Services/ProjectSetupScriptRunner.ts";
 import { RepositoryIdentityResolver } from "./project/Services/RepositoryIdentityResolver.ts";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment.ts";
@@ -195,6 +198,7 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.changeRequestDeleteReviewComment, AuthReviewWriteScope],
   [WS_METHODS.changeRequestGetPrDiff, AuthReviewWriteScope],
   [WS_METHODS.changeRequestSubmitReview, AuthReviewWriteScope],
+  [WS_METHODS.changeRequestRunBackgroundAgent, AuthReviewWriteScope],
   [WS_METHODS.terminalOpen, AuthTerminalOperateScope],
   [WS_METHODS.terminalAttach, AuthTerminalOperateScope],
   [WS_METHODS.terminalWrite, AuthTerminalOperateScope],
@@ -262,6 +266,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
       const gitWorkflow = yield* GitWorkflowService;
       const git = yield* GitVcsDriver.GitVcsDriver;
       const review = yield* ReviewService;
+      const backgroundAgent = yield* BackgroundAgentService;
       const vcsProvisioning = yield* VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster;
       const terminalManager = yield* TerminalManager;
@@ -1570,6 +1575,83 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
             }),
             { "rpc.aggregate": "change-request" },
           ),
+        [WS_METHODS.changeRequestRunBackgroundAgent]: (input) =>
+          observeRpcStreamEffect(
+            WS_METHODS.changeRequestRunBackgroundAgent,
+            Effect.gen(function* () {
+              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              if (Option.isNone(thread)) {
+                return yield* Effect.fail(
+                  new ChangeRequestRunBackgroundAgentError({
+                    kind: "thread-not-found",
+                    detail: `Thread ${input.threadId} not found.`,
+                  }),
+                );
+              }
+              const cwd = thread.value.worktreePath;
+              if (!cwd) {
+                return yield* Effect.fail(
+                  new ChangeRequestRunBackgroundAgentError({
+                    kind: "no-worktree",
+                    detail: `Thread ${input.threadId} has no worktree path.`,
+                  }),
+                );
+              }
+
+              // Fetch the PR head ref so getPrDiff can use it
+              yield* git
+                .execute({
+                  operation: "changeRequest.runBackgroundAgent.fetchHead",
+                  cwd,
+                  args: [
+                    "fetch",
+                    "origin",
+                    `+refs/pull/${input.prNumber}/head:refs/t3/pr/${input.prNumber}/head`,
+                  ],
+                })
+                .pipe(
+                  Effect.mapError(
+                    (cause) =>
+                      new ChangeRequestRunBackgroundAgentError({
+                        kind: "agent-failed",
+                        detail: `Failed to fetch PR head: ${cause.message}`,
+                        cause,
+                      }),
+                  ),
+                );
+
+              // Get the comment body
+              const draft = yield* review.getReviewDraft({
+                threadId: input.threadId,
+                prNumber: input.prNumber,
+                cwd,
+              });
+
+              const comment = draft?.comments.find((c) => c.id === input.commentId);
+              if (!comment) {
+                return yield* Effect.fail(
+                  new ChangeRequestRunBackgroundAgentError({
+                    kind: "agent-failed",
+                    detail: `Comment ${input.commentId} not found.`,
+                  }),
+                );
+              }
+
+              const prHeadRef = `refs/t3/pr/${input.prNumber}/head`;
+
+              return backgroundAgent.runBackgroundAgent({
+                threadId: input.threadId,
+                prNumber: input.prNumber,
+                commentId: input.commentId,
+                cwd,
+                prHeadRef,
+                commentFile: comment.file,
+                commentLine: comment.line,
+                commentBody: comment.body,
+              });
+            }),
+            { "rpc.aggregate": "change-request" },
+          ),
         [WS_METHODS.terminalOpen]: (input) =>
           observeRpcEffect(WS_METHODS.terminalOpen, terminalManager.open(input), {
             "rpc.aggregate": "terminal",
@@ -1748,9 +1830,10 @@ export const websocketRpcRouteLayer = Layer.unwrap(
           disableTracing: true,
         }).pipe(
           Effect.provide(
-            makeWsRpcLayer(session).pipe(
-              Layer.provideMerge(RpcSerialization.layerJson),
-              Layer.provide(ProviderMaintenanceRunner.layer),
+        makeWsRpcLayer(session).pipe(
+          Layer.provideMerge(RpcSerialization.layerJson),
+          Layer.provide(BackgroundAgentService.layer),
+          Layer.provide(ProviderMaintenanceRunner.layer),
               Layer.provide(
                 SourceControlDiscoveryLayer.layer.pipe(
                   Layer.provide(

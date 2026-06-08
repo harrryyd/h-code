@@ -1,5 +1,5 @@
 import type { ReviewComment, ReviewDraft } from "@t3tools/contracts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { readEnvironmentApi } from "../environmentApi";
 import type { EnvironmentId } from "@t3tools/contracts";
 
@@ -7,6 +7,15 @@ export interface EditingCommentState {
   filePath: string;
   lineNumber: number | null;
   prefillBody: string;
+}
+
+export interface BackgroundAgentEvent {
+  type: "text" | "detail" | "status" | "done" | "error";
+  commentId: string;
+  content?: string;
+  agentStatus?: string;
+  title?: string;
+  message?: string;
 }
 
 export interface UseReviewCommentsOptions {
@@ -32,6 +41,9 @@ export interface UseReviewCommentsResult {
   deleteComment: (commentId: string) => Promise<void>;
   refreshDraft: () => void;
   submitReview: () => Promise<ReviewDraft | null>;
+  runBackgroundAgent: (commentId: string) => void;
+  agentEvents: Map<string, BackgroundAgentEvent[]>;
+  agentRunning: Set<string>;
 }
 
 export function useReviewComments(
@@ -46,6 +58,9 @@ export function useReviewComments(
   const [saveError, setSaveError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [agentEvents, setAgentEvents] = useState<Map<string, BackgroundAgentEvent[]>>(new Map());
+  const [agentRunning, setAgentRunning] = useState<Set<string>>(new Set());
+  const agentUnsubRef = useRef<Map<string, () => void>>(new Map());
 
   const refreshDraft = useCallback(() => {
     if (!environmentId || !threadId || !prNumber) return;
@@ -163,6 +178,72 @@ export function useReviewComments(
     [environmentId, threadId, prNumber],
   );
 
+  const runBackgroundAgent = useCallback(
+    (commentId: string) => {
+      if (!environmentId || !threadId || !prNumber) return;
+      const api = readEnvironmentApi(environmentId);
+      if (!api) return;
+
+      // Clean up any existing subscription for this comment
+      const existingUnsub = agentUnsubRef.current.get(commentId);
+      if (existingUnsub) {
+        existingUnsub();
+      }
+
+      // Clear previous events for this comment
+      setAgentEvents((prev) => {
+        const next = new Map(prev);
+        next.set(commentId, []);
+        return next;
+      });
+
+      // Mark as running
+      setAgentRunning((prev) => new Set(prev).add(commentId));
+
+      const unsub = api.changeRequest.runBackgroundAgent(
+        { threadId, prNumber, commentId },
+        (event) => {
+          setAgentEvents((prev) => {
+            const next = new Map(prev);
+            const events = [...(next.get(commentId) ?? []), event];
+            next.set(commentId, events);
+            return next;
+          });
+
+          if (event.type === "status" && event.agentStatus) {
+            // Update comment agentStatus in the local draft
+            setReviewDraft((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                comments: prev.comments.map((c) =>
+                  c.id === commentId ? { ...c, agentStatus: event.agentStatus as ReviewComment["agentStatus"] } : c,
+                ),
+              };
+            });
+          }
+
+          if (event.type === "done" || event.type === "error") {
+            setAgentRunning((prev) => {
+              const next = new Set(prev);
+              next.delete(commentId);
+              return next;
+            });
+            agentUnsubRef.current.delete(commentId);
+          }
+        },
+        {
+          onResubscribe: () => {
+            setAgentRunning((prev) => new Set(prev).add(commentId));
+          },
+        },
+      );
+
+      agentUnsubRef.current.set(commentId, unsub);
+    },
+    [environmentId, threadId, prNumber],
+  );
+
   return {
     reviewDraft,
     comments: reviewDraft?.comments ?? [],
@@ -178,6 +259,9 @@ export function useReviewComments(
     saveComment,
     deleteComment,
     submitReview,
+    runBackgroundAgent,
+    agentEvents,
+    agentRunning,
     refreshDraft,
   };
 }
