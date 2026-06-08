@@ -98,6 +98,8 @@ interface TimelineRowSharedState {
   onRevertUserMessage: (messageId: MessageId) => void;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
+  onTrimToggle: (trimPointId: string) => void;
+  expandedTrimPointIds: Set<string>;
 }
 
 interface TimelineRowActivityState {
@@ -168,6 +170,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   skills = EMPTY_TIMELINE_SKILLS,
   onIsAtEndChange,
 }: MessagesTimelineProps) {
+  const [expandedTrimPointIds, setExpandedTrimPointIds] = useState<Set<string>>(new Set());
+
   const rawRows = useMemo(
     () =>
       deriveMessagesTimelineRows({
@@ -180,6 +184,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         activeTurnStartedAt,
         turnDiffSummaryByAssistantMessageId,
         revertTurnCountByUserMessageId,
+        expandedTrimPointIds,
       }),
     [
       timelineEntries,
@@ -191,6 +196,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       activeTurnStartedAt,
       turnDiffSummaryByAssistantMessageId,
       revertTurnCountByUserMessageId,
+      expandedTrimPointIds,
     ],
   );
   const rows = useStableRows(rawRows);
@@ -201,6 +207,18 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onIsAtEndChange(state.isAtEnd);
     }
   }, [listRef, onIsAtEndChange]);
+
+  const handleTrimToggle = useCallback((trimPointId: string) => {
+    setExpandedTrimPointIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(trimPointId)) {
+        next.delete(trimPointId);
+      } else {
+        next.add(trimPointId);
+      }
+      return next;
+    });
+  }, []);
 
   const previousRowCountRef = useRef(rows.length);
   useEffect(() => {
@@ -232,6 +250,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
+      onTrimToggle: handleTrimToggle,
+      expandedTrimPointIds,
     }),
     [
       timestampFormat,
@@ -244,6 +264,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
+      handleTrimToggle,
+      expandedTrimPointIds,
     ],
   );
   const activityState = useMemo<TimelineRowActivityState>(
@@ -312,16 +334,21 @@ type TimelineWorkEntry = Extract<MessagesTimelineRow, { kind: "work" }>["grouped
 type TimelineRow = MessagesTimelineRow;
 
 const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: TimelineRow }) {
+  const ctx = use(TimelineRowCtx);
+  const isHidden = row.kind !== "context-trim" && row.kind !== "working" && row.hidden === true;
+
   return (
     <div
       className={cn(
         "pb-4",
         row.kind === "message" && row.message.role === "assistant" ? "group/assistant" : null,
+        isHidden && "overflow-hidden opacity-30 transition-opacity duration-300",
       )}
       data-timeline-row-id={row.id}
       data-timeline-row-kind={row.kind}
       data-message-id={row.kind === "message" ? row.message.id : undefined}
       data-message-role={row.kind === "message" ? row.message.role : undefined}
+      data-timeline-hidden={isHidden ? "true" : undefined}
     >
       {row.kind === "work" ? <WorkGroupSection groupedEntries={row.groupedEntries} /> : null}
       {row.kind === "message" && row.message.role === "user" ? <UserTimelineRow row={row} /> : null}
@@ -332,7 +359,11 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
       {row.kind === "manager-instruction" ? <ManagerInstructionTimelineRow row={row} /> : null}
       {row.kind === "context-trim" ? (
-        <ContextTrimPointDivider trimPoint={row.trimPoint} />
+        <ContextTrimPointDivider
+          trimPoint={row.trimPoint}
+          expanded={ctx.expandedTrimPointIds.has(row.trimPoint.id)}
+          onToggle={() => ctx.onTrimToggle(row.trimPoint.id)}
+        />
       ) : null}
     </div>
   );

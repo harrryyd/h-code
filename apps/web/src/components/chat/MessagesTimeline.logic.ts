@@ -18,6 +18,7 @@ export type MessagesTimelineRow =
       id: string;
       createdAt: string;
       groupedEntries: WorkLogEntry[];
+      hidden?: true;
     }
   | {
       kind: "message";
@@ -31,12 +32,14 @@ export type MessagesTimelineRow =
       assistantCopyStreaming: boolean;
       assistantTurnDiffSummary?: TurnDiffSummary | undefined;
       revertTurnCount?: number | undefined;
+      hidden?: true;
     }
   | {
       kind: "proposed-plan";
       id: string;
       createdAt: string;
       proposedPlan: ProposedPlan;
+      hidden?: true;
     }
   | { kind: "working"; id: string; createdAt: string | null }
   | {
@@ -46,6 +49,7 @@ export type MessagesTimelineRow =
       refinedBrief: string;
       acceptanceCriteria: readonly string[];
       sourceBody: string;
+      hidden?: true;
     }
   | {
       kind: "context-trim";
@@ -134,6 +138,7 @@ export function deriveMessagesTimelineRows(input: {
   activeTurnStartedAt: string | null;
   turnDiffSummaryByAssistantMessageId: ReadonlyMap<MessageId, TurnDiffSummary>;
   revertTurnCountByUserMessageId: ReadonlyMap<MessageId, number>;
+  expandedTrimPointIds?: Set<string>;
 }): MessagesTimelineRow[] {
   const nextRows: MessagesTimelineRow[] = [];
   const durationStartByMessageId = computeMessageDurationStart(
@@ -240,6 +245,31 @@ export function deriveMessagesTimelineRows(input: {
     });
   }
 
+  if (input.expandedTrimPointIds) {
+    const allTrimIndices: number[] = [];
+    const collapsedSet = new Set<number>();
+    for (let i = 0; i < nextRows.length; i++) {
+      const row = nextRows[i];
+      if (row && row.kind === "context-trim") {
+        allTrimIndices.push(i);
+        if (!input.expandedTrimPointIds.has(row.trimPoint.id)) {
+          collapsedSet.add(i);
+        }
+      }
+    }
+
+    if (allTrimIndices.length > 0) {
+      for (let i = 0; i < nextRows.length; i++) {
+        const row = nextRows[i];
+        if (!row || row.kind === "context-trim" || row.kind === "working") continue;
+        const nearestTrim = allTrimIndices.find((ti) => ti > i);
+        if (nearestTrim !== undefined && collapsedSet.has(nearestTrim)) {
+          (row as { hidden?: true }).hidden = true;
+        }
+      }
+    }
+  }
+
   return nextRows;
 }
 
@@ -272,10 +302,15 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return a.createdAt === (b as typeof a).createdAt;
 
     case "proposed-plan":
-      return a.proposedPlan === (b as typeof a).proposedPlan;
+      return (
+        a.proposedPlan === (b as typeof a).proposedPlan && a.hidden === (b as typeof a).hidden
+      );
 
     case "work":
-      return Equal.equals(a.groupedEntries, (b as typeof a).groupedEntries);
+      return (
+        Equal.equals(a.groupedEntries, (b as typeof a).groupedEntries) &&
+        a.hidden === (b as typeof a).hidden
+      );
 
     case "message": {
       const bm = b as typeof a;
@@ -287,7 +322,8 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.showAssistantCopyButton === bm.showAssistantCopyButton &&
         a.assistantCopyStreaming === bm.assistantCopyStreaming &&
         a.assistantTurnDiffSummary === bm.assistantTurnDiffSummary &&
-        a.revertTurnCount === bm.revertTurnCount
+        a.revertTurnCount === bm.revertTurnCount &&
+        a.hidden === bm.hidden
       );
     }
 
@@ -297,7 +333,8 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bm.createdAt &&
         a.refinedBrief === bm.refinedBrief &&
         a.acceptanceCriteria === bm.acceptanceCriteria &&
-        a.sourceBody === bm.sourceBody
+        a.sourceBody === bm.sourceBody &&
+        a.hidden === bm.hidden
       );
     }
 

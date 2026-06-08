@@ -621,4 +621,360 @@ describe("deriveMessagesTimelineRows context-trim", () => {
 
     expect(repeated).toBe(initial);
   });
+
+  it("marks rows before a collapsed trim point as hidden", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "entry-user-1",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user-1" as never,
+            role: "user",
+            text: "First question",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "entry-trim-1",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:05Z",
+          trimPoint: {
+            id: "trim-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            beforeEntryId: "entry-user-1",
+            prunedMessageCount: 2,
+            prunedTurnIds: ["turn-1" as never],
+          },
+        },
+        {
+          id: "entry-user-2",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:10Z",
+          message: {
+            id: "user-2" as never,
+            role: "user",
+            text: "Second question",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:10Z",
+            streaming: false,
+          },
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+      expandedTrimPointIds: new Set(),
+    });
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.hidden).toBe(true);
+    expect(rows[1]?.kind).toBe("context-trim");
+    expect(rows[2]?.hidden).toBeUndefined();
+  });
+
+  it("does not mark rows as hidden when the trim point is expanded", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "entry-user-1",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user-1" as never,
+            role: "user",
+            text: "Hello",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "entry-trim-1",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:05Z",
+          trimPoint: {
+            id: "trim-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            beforeEntryId: "entry-user-1",
+            prunedMessageCount: 1,
+            prunedTurnIds: [],
+          },
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+      expandedTrimPointIds: new Set(["trim-1" as never]),
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.hidden).toBeUndefined();
+  });
+
+  it("supports multiple independent trim points", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "entry-user-1",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user-1" as never,
+            role: "user",
+            text: "First",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "entry-trim-1",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:05Z",
+          trimPoint: {
+            id: "trim-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            beforeEntryId: "entry-user-1",
+            prunedMessageCount: 1,
+            prunedTurnIds: [],
+          },
+        },
+        {
+          id: "entry-user-2",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:10Z",
+          message: {
+            id: "user-2" as never,
+            role: "user",
+            text: "Second",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:10Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "entry-trim-2",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:15Z",
+          trimPoint: {
+            id: "trim-2" as never,
+            createdAt: "2026-01-01T00:00:15Z",
+            beforeEntryId: "entry-user-2",
+            prunedMessageCount: 1,
+            prunedTurnIds: [],
+          },
+        },
+        {
+          id: "entry-user-3",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:20Z",
+          message: {
+            id: "user-3" as never,
+            role: "user",
+            text: "Third",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:20Z",
+            streaming: false,
+          },
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+      expandedTrimPointIds: new Set(["trim-2" as never]),
+    });
+
+    expect(rows).toHaveLength(5);
+    expect(rows[0]?.hidden).toBe(true);
+    expect(rows[1]?.kind).toBe("context-trim");
+    expect(rows[2]?.hidden).toBeUndefined();
+    expect(rows[3]?.kind).toBe("context-trim");
+    expect(rows[4]?.hidden).toBeUndefined();
+  });
+
+  it("hides rows at nearest collapsed trim when trim-1 is expanded and trim-2 is collapsed", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "entry-user-1",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user-1" as never,
+            role: "user",
+            text: "First",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "entry-trim-1",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:05Z",
+          trimPoint: {
+            id: "trim-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            beforeEntryId: "entry-user-1",
+            prunedMessageCount: 1,
+            prunedTurnIds: [],
+          },
+        },
+        {
+          id: "entry-user-2",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:10Z",
+          message: {
+            id: "user-2" as never,
+            role: "user",
+            text: "Second",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:10Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "entry-trim-2",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:15Z",
+          trimPoint: {
+            id: "trim-2" as never,
+            createdAt: "2026-01-01T00:00:15Z",
+            beforeEntryId: "entry-user-2",
+            prunedMessageCount: 1,
+            prunedTurnIds: [],
+          },
+        },
+        {
+          id: "entry-user-3",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:20Z",
+          message: {
+            id: "user-3" as never,
+            role: "user",
+            text: "Third",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:20Z",
+            streaming: false,
+          },
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+      expandedTrimPointIds: new Set(["trim-1" as never]),
+    });
+    expect(rows).toHaveLength(5);
+    expect(rows[0]?.hidden).toBeUndefined();
+    expect(rows[1]?.kind).toBe("context-trim");
+    expect(rows[2]?.hidden).toBe(true);
+    expect(rows[3]?.kind).toBe("context-trim");
+    expect(rows[4]?.hidden).toBeUndefined();
+  });
+
+  it("does not set hidden when expandedTrimPointIds is omitted", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "entry-user-1",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user-1" as never,
+            role: "user",
+            text: "Hello",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "entry-trim-1",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:05Z",
+          trimPoint: {
+            id: "trim-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            beforeEntryId: "entry-user-1",
+            prunedMessageCount: 1,
+            prunedTurnIds: [],
+          },
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.hidden).toBeUndefined();
+  });
+
+  it("also hides proposed-plan and manager-instruction rows before a collapsed trim", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "entry-plan-1",
+          kind: "proposed-plan",
+          createdAt: "2026-01-01T00:00:00Z",
+          proposedPlan: {
+            id: "plan-1" as never,
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+            planMarkdown: "A plan",
+            turnId: null as never,
+            implementedAt: null,
+            implementationThreadId: null,
+          },
+        },
+        {
+          id: "entry-trim-1",
+          kind: "context-trim",
+          createdAt: "2026-01-01T00:00:05Z",
+          trimPoint: {
+            id: "trim-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            beforeEntryId: "entry-plan-1",
+            prunedMessageCount: 1,
+            prunedTurnIds: [],
+          },
+        },
+        {
+          id: "entry-msg-1",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:10Z",
+          message: {
+            id: "msg-1" as never,
+            role: "user",
+            text: "Hi",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:10Z",
+            streaming: false,
+          },
+        },
+      ],
+      completionDividerBeforeEntryId: null,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+      expandedTrimPointIds: new Set(),
+    });
+
+    expect(rows[0]?.hidden).toBe(true);
+  });
 });
