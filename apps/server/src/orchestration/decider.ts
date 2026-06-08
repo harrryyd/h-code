@@ -1031,6 +1031,114 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.context.trim": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+
+      // Group messages into turns by turnId, preserving order
+      const messagesByTurn = new Map<
+        string,
+        { turnId: string; messages: typeof thread.messages }
+      >();
+      for (const msg of thread.messages) {
+        if (msg.turnId === null) continue;
+        const existing = messagesByTurn.get(msg.turnId);
+        if (existing) {
+          existing.messages.push(msg);
+        } else {
+          messagesByTurn.set(msg.turnId, { turnId: msg.turnId, messages: [msg] });
+        }
+      }
+
+      // Ordered list of turn IDs (by first message's createdAt)
+      const orderedTurns = [...messagesByTurn.values()].toSorted((a, b) => {
+        const aFirst = a.messages.reduce(
+          (earliest, m) => (m.createdAt < earliest ? m.createdAt : earliest),
+          a.messages[0]!.createdAt,
+        );
+        const bFirst = b.messages.reduce(
+          (earliest, m) => (m.createdAt < earliest ? m.createdAt : earliest),
+          b.messages[0]!.createdAt,
+        );
+        return aFirst.localeCompare(bFirst);
+      });
+
+      const totalTurns = orderedTurns.length;
+      const keepN = command.keepLastNTurns ?? 0;
+
+      // Determine which turns survive
+      const survivingTurnIds = new Set<string>();
+      if (keepN > 0 && totalTurns > 0) {
+        const keepCount = Math.min(keepN, totalTurns);
+        for (let i = totalTurns - keepCount; i < totalTurns; i++) {
+          survivingTurnIds.add(orderedTurns[i]!.turnId);
+        }
+      }
+
+      // Find the first surviving message (for beforeEntryId)
+      let beforeEntryId = "";
+      let prunedMessageCount = 0;
+      const prunedTurnIds: string[] = [];
+
+      for (const turn of orderedTurns) {
+        if (survivingTurnIds.has(turn.turnId)) {
+          // First surviving turn - use its first message as beforeEntryId
+          if (beforeEntryId === "") {
+            beforeEntryId = turn.messages[0]?.id ?? "";
+          }
+        } else {
+          prunedTurnIds.push(turn.turnId);
+          prunedMessageCount += turn.messages.length;
+        }
+      }
+
+      // Also count messages without a turnId as pruned
+      const unkeyedMessages = thread.messages.filter((m) => m.turnId === null);
+      prunedMessageCount += unkeyedMessages.length;
+
+      const occurredAt = yield* nowIso;
+      const trimPointId = EventId.make(crypto.randomUUID());
+      const trimPoint: import("@t3tools/contracts").ContextTrimPoint = {
+        id: trimPointId,
+        createdAt: occurredAt,
+        beforeEntryId,
+        prunedMessageCount,
+        prunedTurnIds,
+      };
+
+      return [
+        {
+          ...(yield* withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          })),
+          type: "thread.trim-point-created",
+          payload: {
+            threadId: command.threadId,
+            trimPoint,
+          },
+        },
+        {
+          ...(yield* withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          })),
+          type: "thread.session-stop-requested",
+          payload: {
+            threadId: command.threadId,
+            createdAt: occurredAt,
+          },
+        },
+      ];
+    }
+
     case "thread.session.set": {
       yield* requireThread({
         readModel,

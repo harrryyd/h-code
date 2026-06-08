@@ -3,6 +3,7 @@ import {
   MessageId,
   ThreadId,
   TurnId,
+  type ContextTrimPoint,
   type OrchestrationThreadActivity,
 } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
@@ -1619,5 +1620,104 @@ describe("deriveActiveWorkStartedAt", () => {
         "2026-02-27T21:11:00.000Z",
       ),
     ).toBe("2026-02-27T21:11:00.000Z");
+  });
+});
+
+describe("deriveTimelineEntries with context trim points", () => {
+  function makeTrimPoint(overrides: {
+    id?: string;
+    createdAt?: string;
+    beforeEntryId?: string;
+    prunedMessageCount?: number;
+    prunedTurnIds?: string[];
+  }): ContextTrimPoint {
+    return {
+      id: EventId.make(overrides.id ?? "trim-1"),
+      createdAt: overrides.createdAt ?? "2026-02-23T00:00:05.000Z",
+      beforeEntryId: overrides.beforeEntryId ?? "msg-surviving",
+      prunedMessageCount: overrides.prunedMessageCount ?? 5,
+      prunedTurnIds: (overrides.prunedTurnIds ?? ["turn-1", "turn-2"]).map((id) =>
+        TurnId.make(id),
+      ),
+    };
+  }
+
+  it("produces context-trim entries sorted inline with messages", () => {
+    const entries = deriveTimelineEntries(
+      [
+        {
+          id: MessageId.make("msg-1"),
+          role: "user",
+          text: "hello",
+          createdAt: "2026-02-23T00:00:01.000Z",
+          streaming: false,
+        },
+        {
+          id: MessageId.make("msg-2"),
+          role: "assistant",
+          text: "hi",
+          createdAt: "2026-02-23T00:00:10.000Z",
+          streaming: false,
+        },
+      ],
+      [],
+      [],
+      undefined,
+      undefined,
+      [
+        makeTrimPoint({
+          id: "trim-1",
+          createdAt: "2026-02-23T00:00:05.000Z",
+        }),
+      ],
+    );
+
+    expect(entries.map((e) => e.kind)).toEqual(["message", "context-trim", "message"]);
+    expect(entries[1]).toMatchObject({
+      kind: "context-trim",
+      id: "trim-1",
+    });
+  });
+
+  it("sorts multiple trim points chronologically", () => {
+    const entries = deriveTimelineEntries(
+      [],
+      [],
+      [],
+      undefined,
+      undefined,
+      [
+        makeTrimPoint({
+          id: "trim-2",
+          createdAt: "2026-02-23T00:00:10.000Z",
+        }),
+        makeTrimPoint({
+          id: "trim-1",
+          createdAt: "2026-02-23T00:00:05.000Z",
+        }),
+      ],
+    );
+
+    expect(entries.map((e) => e.id)).toEqual(["trim-1", "trim-2"]);
+  });
+
+  it("returns empty array when contextTrimPoints is undefined", () => {
+    const entries = deriveTimelineEntries([], [], []);
+    expect(entries).toEqual([]);
+  });
+
+  it("embeds trim point detail in the timeline entry", () => {
+    const trimPoint = makeTrimPoint({
+      prunedMessageCount: 47,
+      prunedTurnIds: ["turn-a", "turn-b"],
+      beforeEntryId: "msg-abc",
+    });
+    const entries = deriveTimelineEntries([], [], [], undefined, undefined, [trimPoint]);
+
+    expect(entries).toHaveLength(1);
+    if (entries[0]?.kind === "context-trim") {
+      expect(entries[0].trimPoint.prunedMessageCount).toBe(47);
+      expect(entries[0].trimPoint.beforeEntryId).toBe("msg-abc");
+    }
   });
 });

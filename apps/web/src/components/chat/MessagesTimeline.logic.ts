@@ -1,7 +1,7 @@
 import * as Equal from "effect/Equal";
 import { type TimelineEntry, type WorkLogEntry } from "../../session-logic";
 import { type ChatMessage, type ProposedPlan, type TurnDiffSummary } from "../../types";
-import { type MessageId, type TurnId } from "@t3tools/contracts";
+import { type ContextTrimPoint, type MessageId, type TurnId } from "@t3tools/contracts";
 
 export const MAX_VISIBLE_WORK_LOG_ENTRIES = 6;
 
@@ -46,6 +46,12 @@ export type MessagesTimelineRow =
       refinedBrief: string;
       acceptanceCriteria: readonly string[];
       sourceBody: string;
+    }
+  | {
+      kind: "context-trim";
+      id: string;
+      createdAt: string;
+      trimPoint: ContextTrimPoint;
     };
 
 export interface StableMessagesTimelineRowsState {
@@ -182,6 +188,16 @@ export function deriveMessagesTimelineRows(input: {
       continue;
     }
 
+    if (timelineEntry.kind === "context-trim") {
+      nextRows.push({
+        kind: "context-trim",
+        id: timelineEntry.id,
+        createdAt: timelineEntry.createdAt,
+        trimPoint: timelineEntry.trimPoint,
+      });
+      continue;
+    }
+
     const assistantTurnStillInProgress =
       timelineEntry.message.role === "assistant" &&
       input.activeTurnInProgress === true &&
@@ -283,6 +299,10 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.acceptanceCriteria === bm.acceptanceCriteria &&
         a.sourceBody === bm.sourceBody
       );
+    }
+
+    case "context-trim": {
+      return Equal.equals(a.trimPoint, (b as typeof a).trimPoint);
     }
   }
 }

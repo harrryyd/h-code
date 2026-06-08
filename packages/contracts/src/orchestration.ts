@@ -463,6 +463,15 @@ export const OrchestrationLatestTurn = Schema.Struct({
 });
 export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
 
+export const ContextTrimPoint = Schema.Struct({
+  id: EventId,
+  createdAt: IsoDateTime,
+  beforeEntryId: Schema.String,
+  prunedMessageCount: NonNegativeInt,
+  prunedTurnIds: Schema.Array(TurnId),
+});
+export type ContextTrimPoint = typeof ContextTrimPoint.Type;
+
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
   projectId: ProjectId,
@@ -492,6 +501,9 @@ export const OrchestrationThread = Schema.Struct({
   ),
   activities: Schema.Array(OrchestrationThreadActivity),
   checkpoints: Schema.Array(OrchestrationCheckpointSummary),
+  contextTrimPoints: Schema.Array(ContextTrimPoint).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   session: Schema.NullOr(OrchestrationSession),
 });
 export type OrchestrationThread = typeof OrchestrationThread.Type;
@@ -904,6 +916,15 @@ const ThreadSessionStopCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+export const ThreadContextTrimCommand = Schema.Struct({
+  type: Schema.Literal("thread.context.trim"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  keepLastNTurns: Schema.optional(NonNegativeInt),
+  createdAt: IsoDateTime,
+});
+export type ThreadContextTrimCommand = typeof ThreadContextTrimCommand.Type;
+
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ManagerBootstrapCommand,
@@ -930,6 +951,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadUserInputRespondCommand,
   ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
+  ThreadContextTrimCommand,
 ]);
 export type DispatchableClientOrchestrationCommand =
   typeof DispatchableClientOrchestrationCommand.Type;
@@ -960,6 +982,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadUserInputRespondCommand,
   ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
+  ThreadContextTrimCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
@@ -1071,6 +1094,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.turn-diff-completed",
   "thread.activity-appended",
   "thread.manager-queue-items-upserted",
+  "thread.trim-point-created",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
@@ -1270,6 +1294,11 @@ export const ThreadManagerQueueItemsUpsertedPayload = Schema.Struct({
   updatedAt: IsoDateTime,
 });
 
+export const ThreadTrimPointCreatedPayload = Schema.Struct({
+  threadId: ThreadId,
+  trimPoint: ContextTrimPoint,
+});
+
 export const OrchestrationEventMetadata = Schema.Struct({
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
   providerItemId: Schema.optional(ProviderItemId),
@@ -1416,6 +1445,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.manager-queue-items-upserted"),
     payload: ThreadManagerQueueItemsUpsertedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.trim-point-created"),
+    payload: ThreadTrimPointCreatedPayload,
   }),
 ]);
 export type OrchestrationEvent = typeof OrchestrationEvent.Type;

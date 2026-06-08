@@ -28,6 +28,7 @@ import {
   ThreadSessionSetPayload,
   ThreadTurnDiffCompletedPayload,
   ThreadManagerQueueItemsUpsertedPayload,
+  ThreadTrimPointCreatedPayload,
 } from "./Schemas.ts";
 
 type ThreadPatch = Partial<Omit<OrchestrationThread, "id" | "projectId">>;
@@ -689,6 +690,31 @@ export function projectEvent(
             updatedAt: payload.updatedAt,
           }),
         })),
+      );
+
+    case "thread.trim-point-created":
+      return decodeForEvent(
+        ThreadTrimPointCreatedPayload,
+        event.payload,
+        event.type,
+        "payload",
+      ).pipe(
+        Effect.map((payload) => {
+          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
+          if (!thread) {
+            return nextBase;
+          }
+          const contextTrimPoints = [...thread.contextTrimPoints, payload.trimPoint].toSorted(
+            (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+          );
+          return {
+            ...nextBase,
+            threads: updateThread(nextBase.threads, payload.threadId, {
+              contextTrimPoints,
+              updatedAt: event.occurredAt,
+            }),
+          };
+        }),
       );
 
     default:
