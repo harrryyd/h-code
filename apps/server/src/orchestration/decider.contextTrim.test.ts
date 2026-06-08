@@ -1,6 +1,8 @@
 import {
+  CheckpointRef,
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_RUNTIME_MODE,
   EventId,
   ProjectId,
   ProviderInstanceId,
@@ -11,10 +13,16 @@ import {
   type OrchestrationReadModel,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
+import { NodeCrypto } from "@effect/platform-node";
 import { describe, expect, it } from "vitest";
 
 import { decideOrchestrationCommand } from "./decider.ts";
 import { createEmptyReadModel, projectEvent } from "./projector.ts";
+
+const runDecide = (input: Parameters<typeof decideOrchestrationCommand>[0]) =>
+  Effect.runPromise(
+    decideOrchestrationCommand(input).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 
 const asCommandId = (value: string): CommandId => CommandId.make(value);
 const asEventId = (value: string): EventId => EventId.make(value);
@@ -234,8 +242,7 @@ describe("thread.context.trim decider", () => {
   it("emits trim-point-created and session-stop-requested events for a thread with messages", async () => {
     const readModel = await seedThreadWithMessages();
 
-    const result = await Effect.runPromise(
-      decideOrchestrationCommand({
+    const result = await runDecide({
         command: {
           type: "thread.context.trim",
           commandId: asCommandId("cmd-trim-all"),
@@ -243,8 +250,7 @@ describe("thread.context.trim decider", () => {
           createdAt: "2026-01-02T00:00:00.000Z",
         } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
         readModel,
-      }),
-    );
+      });
 
     const events = Array.isArray(result) ? result : [result];
     expect(events.map((e) => e.type)).toEqual([
@@ -314,8 +320,7 @@ describe("thread.context.trim decider", () => {
       }),
     );
 
-    const result = await Effect.runPromise(
-      decideOrchestrationCommand({
+    const result = await runDecide({
         command: {
           type: "thread.context.trim",
           commandId: asCommandId("cmd-trim-empty"),
@@ -323,8 +328,7 @@ describe("thread.context.trim decider", () => {
           createdAt: "2026-01-02T00:00:00.000Z",
         } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
         readModel: model,
-      }),
-    );
+      });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
@@ -335,8 +339,7 @@ describe("thread.context.trim decider", () => {
   it("keeps only the last N turns when keepLastNTurns is specified", async () => {
     const readModel = await seedThreadWithMessages();
 
-    const result = await Effect.runPromise(
-      decideOrchestrationCommand({
+    const result = await runDecide({
         command: {
           type: "thread.context.trim",
           commandId: asCommandId("cmd-trim-3"),
@@ -345,8 +348,7 @@ describe("thread.context.trim decider", () => {
           createdAt: "2026-01-02T00:00:00.000Z",
         } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
         readModel,
-      }),
-    );
+      });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
@@ -359,8 +361,7 @@ describe("thread.context.trim decider", () => {
   it("survives all turns when keepLastNTurns >= total turns", async () => {
     const readModel = await seedThreadWithMessages();
 
-    const result = await Effect.runPromise(
-      decideOrchestrationCommand({
+    const result = await runDecide({
         command: {
           type: "thread.context.trim",
           commandId: asCommandId("cmd-trim-99"),
@@ -369,8 +370,7 @@ describe("thread.context.trim decider", () => {
           createdAt: "2026-01-02T00:00:00.000Z",
         } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
         readModel,
-      }),
-    );
+      });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
@@ -381,25 +381,22 @@ describe("thread.context.trim decider", () => {
     const readModel = createEmptyReadModel("2026-01-01T00:00:00.000Z");
 
     await expect(
-      Effect.runPromise(
-        decideOrchestrationCommand({
-          command: {
-            type: "thread.context.trim",
-            commandId: asCommandId("cmd-trim-unknown"),
-            threadId: asThreadId("thread-unknown"),
-            createdAt: "2026-01-02T00:00:00.000Z",
-          } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-          readModel,
-        }),
-      ),
+      runDecide({
+        command: {
+          type: "thread.context.trim",
+          commandId: asCommandId("cmd-trim-unknown"),
+          threadId: asThreadId("thread-unknown"),
+          createdAt: "2026-01-02T00:00:00.000Z",
+        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+        readModel,
+      }),
     ).rejects.toBeDefined();
   });
 
   it("prunes all messages when keepLastNTurns is not specified (/clear without N)", async () => {
     const readModel = await seedThreadWithMessages();
 
-    const result = await Effect.runPromise(
-      decideOrchestrationCommand({
+    const result = await runDecide({
         command: {
           type: "thread.context.trim",
           commandId: asCommandId("cmd-trim-clear-all"),
@@ -407,8 +404,7 @@ describe("thread.context.trim decider", () => {
           createdAt: "2026-01-02T00:00:00.000Z",
         } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
         readModel,
-      }),
-    );
+      });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
@@ -417,6 +413,306 @@ describe("thread.context.trim decider", () => {
       asTurnId("turn-1"),
       asTurnId("turn-2"),
       asTurnId("turn-3"),
+    ]);
+  });
+
+  it("rejects trim when thread has an active turn (latestTurn.state = running)", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    let model = createEmptyReadModel(now);
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 1,
+        eventId: asEventId("evt-project-active"),
+        aggregateKind: "project",
+        aggregateId: asProjectId("project-active"),
+        type: "project.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-project-active"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-project-active"),
+        metadata: {},
+        payload: {
+          projectId: asProjectId("project-active"),
+          title: "Project Active",
+          workspaceRoot: "/tmp/project-active",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 2,
+        eventId: asEventId("evt-thread-active"),
+        aggregateKind: "thread",
+        aggregateId: asThreadId("thread-active"),
+        type: "thread.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-thread-active"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-thread-active"),
+        metadata: {},
+        payload: {
+          threadId: asThreadId("thread-active"),
+          projectId: asProjectId("project-active"),
+          title: "Active Thread",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          branch: null,
+          worktreePath: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 3,
+        eventId: asEventId("evt-session-active"),
+        aggregateKind: "thread",
+        aggregateId: asThreadId("thread-active"),
+        type: "thread.session-set",
+        occurredAt: "2026-01-01T00:05:00.000Z",
+        commandId: asCommandId("cmd-session-active"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-session-active"),
+        metadata: {},
+        payload: {
+          threadId: asThreadId("thread-active"),
+          session: {
+            threadId: asThreadId("thread-active"),
+            status: "running" as const,
+            providerName: "codex",
+            runtimeMode: DEFAULT_RUNTIME_MODE,
+            activeTurnId: asTurnId("turn-active"),
+            lastError: null,
+            updatedAt: "2026-01-01T00:05:00.000Z",
+          },
+        },
+      }),
+    );
+
+    await expect(
+      runDecide({
+          command: {
+            type: "thread.context.trim",
+            commandId: asCommandId("cmd-trim-active"),
+            threadId: asThreadId("thread-active"),
+            createdAt: "2026-01-02T00:00:00.000Z",
+          } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+          readModel: model,
+        }),
+    ).rejects.toBeDefined();
+  });
+
+  it("accepts trim when thread has no latestTurn (idle)", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    let model = createEmptyReadModel(now);
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 1,
+        eventId: asEventId("evt-project-idle"),
+        aggregateKind: "project",
+        aggregateId: asProjectId("project-idle"),
+        type: "project.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-project-idle"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-project-idle"),
+        metadata: {},
+        payload: {
+          projectId: asProjectId("project-idle"),
+          title: "Project Idle",
+          workspaceRoot: "/tmp/project-idle",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 2,
+        eventId: asEventId("evt-thread-idle"),
+        aggregateKind: "thread",
+        aggregateId: asThreadId("thread-idle"),
+        type: "thread.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-thread-idle"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-thread-idle"),
+        metadata: {},
+        payload: {
+          threadId: asThreadId("thread-idle"),
+          projectId: asProjectId("project-idle"),
+          title: "Idle Thread",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          branch: null,
+          worktreePath: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    const result = await runDecide({
+        command: {
+          type: "thread.context.trim",
+          commandId: asCommandId("cmd-trim-idle"),
+          threadId: asThreadId("thread-idle"),
+          createdAt: "2026-01-02T00:00:00.000Z",
+        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+        readModel: model,
+      });
+
+    const events = Array.isArray(result) ? result : [result];
+    expect(events.map((e) => e.type)).toEqual([
+      "thread.trim-point-created",
+      "thread.session-stop-requested",
+    ]);
+  });
+
+  it("accepts trim when thread has a completed turn", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    let model = createEmptyReadModel(now);
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 1,
+        eventId: asEventId("evt-project-done"),
+        aggregateKind: "project",
+        aggregateId: asProjectId("project-done"),
+        type: "project.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-project-done"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-project-done"),
+        metadata: {},
+        payload: {
+          projectId: asProjectId("project-done"),
+          title: "Project Done",
+          workspaceRoot: "/tmp/project-done",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 2,
+        eventId: asEventId("evt-thread-done"),
+        aggregateKind: "thread",
+        aggregateId: asThreadId("thread-done"),
+        type: "thread.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-thread-done"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-thread-done"),
+        metadata: {},
+        payload: {
+          threadId: asThreadId("thread-done"),
+          projectId: asProjectId("project-done"),
+          title: "Done Thread",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          branch: null,
+          worktreePath: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 3,
+        eventId: asEventId("evt-session-running"),
+        aggregateKind: "thread",
+        aggregateId: asThreadId("thread-done"),
+        type: "thread.session-set",
+        occurredAt: "2026-01-01T00:01:00.000Z",
+        commandId: asCommandId("cmd-session-running"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-session-running"),
+        metadata: {},
+        payload: {
+          threadId: asThreadId("thread-done"),
+          session: {
+            threadId: asThreadId("thread-done"),
+            status: "running" as const,
+            providerName: "codex",
+            runtimeMode: DEFAULT_RUNTIME_MODE,
+            activeTurnId: asTurnId("turn-done"),
+            lastError: null,
+            updatedAt: "2026-01-01T00:01:00.000Z",
+          },
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 4,
+        eventId: asEventId("evt-turn-diff-completed"),
+        aggregateKind: "thread",
+        aggregateId: asThreadId("thread-done"),
+        type: "thread.turn-diff-completed",
+        occurredAt: "2026-01-01T00:02:00.000Z",
+        commandId: asCommandId("cmd-turn-diff-completed"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-turn-diff-completed"),
+        metadata: {},
+        payload: {
+          threadId: asThreadId("thread-done"),
+          turnId: asTurnId("turn-done"),
+          checkpointTurnCount: 1,
+          checkpointRef: CheckpointRef.make("checkpoint-1"),
+          status: "ready" as const,
+          files: [],
+          assistantMessageId: null,
+          completedAt: "2026-01-01T00:02:00.000Z",
+        },
+      }),
+    );
+
+    const result = await runDecide({
+        command: {
+          type: "thread.context.trim",
+          commandId: asCommandId("cmd-trim-done"),
+          threadId: asThreadId("thread-done"),
+          createdAt: "2026-01-02T00:00:00.000Z",
+        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+        readModel: model,
+      });
+
+    const events = Array.isArray(result) ? result : [result];
+    expect(events.map((e) => e.type)).toEqual([
+      "thread.trim-point-created",
+      "thread.session-stop-requested",
     ]);
   });
 });

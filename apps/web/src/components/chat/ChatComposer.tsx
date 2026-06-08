@@ -485,6 +485,9 @@ export interface ChatComposerProps {
   scheduleComposerFocus: () => void;
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
   onExpandImage: (preview: ExpandedImagePreview) => void;
+
+  // Active turn guard
+  activeTurnInProgress: boolean;
 }
 
 // --------------------------------------------------------------------------
@@ -889,6 +892,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           command: "clear",
           label: "/clear",
           description: "Clear conversation context and restart session",
+          disabled: props.activeTurnInProgress,
         },
         {
           id: "slash:new",
@@ -896,6 +900,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           command: "new",
           label: "/new",
           description: "Archive this thread and start a new one inheriting worktree",
+          disabled: props.activeTurnInProgress,
         },
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
       const providerSlashCommandItems = (selectedProviderStatus?.slashCommands ?? []).map(
