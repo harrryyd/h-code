@@ -614,6 +614,73 @@ export interface EnvironmentApi {
     getPrDiff: (
       input: ChangeRequestGetPrDiffInput,
     ) => Promise<ChangeRequestGetPrDiffResult>;
+    getReviewDraft: (input: {
+      readonly threadId: string;
+      readonly prNumber: number;
+    }) => Promise<{
+      readonly threadId: string;
+      readonly prNumber: number;
+      readonly prHeadSHA: string;
+      readonly comments: ReadonlyArray<{
+        readonly id: string;
+        readonly file: string;
+        readonly line?: number;
+        readonly commitSHA: string;
+        readonly body: string;
+        readonly author: { readonly login: string };
+        readonly createdAt: string;
+      }>;
+      readonly state: "draft" | "published";
+    } | null>;
+    upsertReviewComment: (input: {
+      readonly threadId: string;
+      readonly prNumber: number;
+      readonly prHeadSHA: string;
+      readonly comment: {
+        readonly id: string;
+        readonly file: string;
+        readonly line?: number;
+        readonly commitSHA: string;
+        readonly body: string;
+        readonly replies?: ReadonlyArray<Record<string, unknown>>;
+        readonly agentStatus?: string;
+        readonly author: { readonly login: string };
+        readonly createdAt: string;
+      };
+    }) => Promise<{
+      readonly threadId: string;
+      readonly prNumber: number;
+      readonly prHeadSHA: string;
+      readonly comments: ReadonlyArray<{
+        readonly id: string;
+        readonly file: string;
+        readonly line?: number;
+        readonly commitSHA: string;
+        readonly body: string;
+        readonly author: { readonly login: string };
+        readonly createdAt: string;
+      }>;
+      readonly state: "draft" | "published";
+    }>;
+    deleteReviewComment: (input: {
+      readonly threadId: string;
+      readonly prNumber: number;
+      readonly commentId: string;
+    }) => Promise<{
+      readonly threadId: string;
+      readonly prNumber: number;
+      readonly prHeadSHA: string;
+      readonly comments: ReadonlyArray<{
+        readonly id: string;
+        readonly file: string;
+        readonly line?: number;
+        readonly commitSHA: string;
+        readonly body: string;
+        readonly author: { readonly login: string };
+        readonly createdAt: string;
+      }>;
+      readonly state: "draft" | "published";
+    } | null>;
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;

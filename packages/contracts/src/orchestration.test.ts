@@ -936,8 +936,10 @@ it.effect("changeRequest.getPrDiff result decodes diff string", () =>
   Effect.gen(function* () {
     const parsed = yield* decodePrDiffResult({
       diff: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new",
+      prHeadSHA: "abc123def4567890abcdef1234567890abcdef12",
     });
     assert.strictEqual(parsed.diff.startsWith("---"), true);
+    assert.strictEqual(parsed.prHeadSHA.startsWith("abc"), true);
   }),
 );
 

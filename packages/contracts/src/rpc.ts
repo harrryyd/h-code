@@ -551,6 +551,7 @@ export type ChangeRequestGetPrDiffInput = typeof ChangeRequestGetPrDiffInput.Typ
 
 export const ChangeRequestGetPrDiffResult = Schema.Struct({
   diff: Schema.String,
+  prHeadSHA: TrimmedNonEmptyString,
 });
 export type ChangeRequestGetPrDiffResult = typeof ChangeRequestGetPrDiffResult.Type;
 

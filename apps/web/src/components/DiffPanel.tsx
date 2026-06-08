@@ -44,6 +44,8 @@ import { useSettings } from "../hooks/useSettings";
 import { formatShortTimestamp } from "../timestampFormat";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
+import { DiffCommentPanel } from "./DiffCommentPanel";
+import { useReviewComments } from "../hooks/useReviewComments";
 
 type DiffRenderMode = "stacked" | "split";
 type DiffThemeType = "light" | "dark";
@@ -133,6 +135,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const [prDiffText, setPrDiffText] = useState<string | null>(null);
   const [prDiffPending, setPrDiffPending] = useState(false);
   const [prDiffError, setPrDiffError] = useState<string | null>(null);
+  const [prHeadSHA, setPrHeadSHA] = useState<string | null>(null);
   const patchViewportRef = useRef<HTMLDivElement>(null);
   const turnStripRef = useRef<HTMLDivElement>(null);
   const previousDiffOpenRef = useRef(false);
@@ -163,6 +166,24 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     cwd: activeCwd ?? null,
   });
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
+  const {
+    comments,
+    draftPending,
+    draftError,
+    editingComment,
+    savePending,
+    saveError,
+    startEditing,
+    cancelEditing,
+    saveComment,
+    deleteComment,
+    refreshDraft,
+  } = useReviewComments({
+    environmentId: activeThread?.environmentId ?? null,
+    threadId: activeThreadId,
+    prNumber: isReviewMode ? (Number(prNumberInput.trim()) || null) : null,
+    prHeadSHA,
+  });
   const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
     useTurnDiffSummaries(activeThread);
   const orderedTurnDiffSummaries = useMemo(
@@ -429,12 +450,12 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     setPrDiffPending(true);
     setPrDiffError(null);
     api.changeRequest
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .getPrDiff({ threadId: activeThread.id, prNumber } as any)
+      .getPrDiff({ threadId: activeThread.id, prNumber })
       .then(
         (result) => {
           if (!cancelled) {
             setPrDiffText(result.diff);
+            setPrHeadSHA(result.prHeadSHA);
             setPrDiffPending(false);
           }
         },
@@ -670,6 +691,21 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               >
                 {prDiffText}
               </pre>
+              {isReviewMode && (
+                <div className="mt-2">
+                  <DiffCommentPanel
+                    filePath="(PR diff)"
+                    comments={comments}
+                    editingComment={editingComment}
+                    onStartEditing={startEditing}
+                    onCancelEditing={cancelEditing}
+                    onSaveComment={saveComment}
+                    onDeleteComment={deleteComment}
+                    savePending={savePending}
+                    saveError={saveError}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -726,7 +762,11 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                           return node.hasAttribute("data-title");
                         });
                         if (!clickedHeader) return;
-                        openDiffFileInEditor(filePath);
+                        if (isReviewMode) {
+                          startEditing(filePath, null);
+                        } else {
+                          openDiffFileInEditor(filePath);
+                        }
                       }}
                     >
                       <FileDiff
@@ -753,6 +793,17 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                             )}
                           </button>
                         )}
+                        renderHeaderMetadata={() => {
+                          const fileCommentCount = comments.filter(
+                            (c) => c.file === filePath,
+                          ).length;
+                          if (fileCommentCount === 0) return null;
+                          return (
+                            <span className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-primary/15 text-[9px] font-medium text-primary/80 select-none">
+                              {fileCommentCount}
+                            </span>
+                          );
+                        }}
                         options={{
                           collapsed,
                           diffStyle: diffRenderMode === "split" ? "split" : "unified",
@@ -761,8 +812,32 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                           theme: resolveDiffThemeName(resolvedTheme),
                           themeType: resolvedTheme as DiffThemeType,
                           unsafeCSS: DIFF_PANEL_UNSAFE_CSS,
+                          ...(isReviewMode
+                            ? {
+                                onLineNumberClick: (props) => {
+                                  const lineNumber =
+                                    props.annotationSide === "additions"
+                                      ? props.lineNumber
+                                      : undefined;
+                                  startEditing(filePath, lineNumber ?? props.lineNumber);
+                                },
+                              }
+                            : {}),
                         }}
                       />
+                      {isReviewMode && (
+                        <DiffCommentPanel
+                          filePath={filePath}
+                          comments={comments}
+                          editingComment={editingComment}
+                          onStartEditing={startEditing}
+                          onCancelEditing={cancelEditing}
+                          onSaveComment={saveComment}
+                          onDeleteComment={deleteComment}
+                          savePending={savePending}
+                          saveError={saveError}
+                        />
+                      )}
                     </div>
                   );
                 })}

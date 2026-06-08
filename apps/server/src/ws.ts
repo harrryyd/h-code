@@ -1453,7 +1453,14 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
         [WS_METHODS.changeRequestGetReviewDraft]: (input) =>
           observeRpcEffect(
             WS_METHODS.changeRequestGetReviewDraft,
-            review.getReviewDraft(input),
+            Effect.gen(function* () {
+              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              const cwd = Option.match(thread, {
+                onNone: () => undefined,
+                onSome: (t) => t.worktreePath ?? undefined,
+              });
+              return yield* review.getReviewDraft({ ...input, cwd });
+            }),
             { "rpc.aggregate": "review" },
           ),
         [WS_METHODS.changeRequestUpsertReviewComment]: (input) =>
@@ -1507,19 +1514,35 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                       }),
                   ),
                 );
-              const diff = yield* git
-                .getPrDiff(cwd, "origin/HEAD", headRef)
-                .pipe(
+              const [resolveResult, diff] = yield* Effect.all([
+                git.execute({
+                  operation: "changeRequest.getPrDiff.resolveSha",
+                  cwd,
+                  args: ["rev-parse", headRef],
+                }).pipe(
                   Effect.mapError(
                     (cause) =>
                       new ChangeRequestGetPrDiffError({
-                        kind: "diff-failed",
-                        detail: `Failed to compute PR diff: ${cause.message}`,
+                        kind: "pr-not-found",
+                        detail: `Failed to resolve PR head SHA: ${cause.message}`,
                         cause,
                       }),
                   ),
-                );
-              return { diff };
+                ),
+                git
+                  .getPrDiff(cwd, "origin/HEAD", headRef)
+                  .pipe(
+                    Effect.mapError(
+                      (cause) =>
+                        new ChangeRequestGetPrDiffError({
+                          kind: "diff-failed",
+                          detail: `Failed to compute PR diff: ${cause.message}`,
+                          cause,
+                        }),
+                    ),
+                  ),
+              ]);
+              return { diff, prHeadSHA: resolveResult.stdout.trim() };
             }),
             { "rpc.aggregate": "change-request" },
           ),
