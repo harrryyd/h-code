@@ -15,6 +15,7 @@ import {
   ProjectDeletedPayload,
   ProjectMetaUpdatedPayload,
   ThreadActivityAppendedPayload,
+  ThreadArchivedAndNewCreatedPayload,
   ThreadArchivedPayload,
   ThreadCreatedPayload,
   ThreadDeletedPayload,
@@ -716,6 +717,65 @@ export function projectEvent(
           };
         }),
       );
+
+    case "thread.archived-and-new-created":
+      return Effect.gen(function* () {
+        const payload = yield* decodeForEvent(
+          ThreadArchivedAndNewCreatedPayload,
+          event.payload,
+          event.type,
+          "payload",
+        );
+        const oldThread = nextBase.threads.find(
+          (entry) => entry.id === payload.archivedThreadId,
+        );
+        if (!oldThread) {
+          return nextBase;
+        }
+
+        const newThread: OrchestrationThread = yield* decodeForEvent(
+          OrchestrationThread,
+          {
+            id: payload.newThreadId,
+            projectId: oldThread.projectId,
+            title: oldThread.title,
+            ...(oldThread.managerMetadata !== undefined
+              ? { managerMetadata: oldThread.managerMetadata }
+              : {}),
+            modelSelection: oldThread.modelSelection,
+            runtimeMode: oldThread.runtimeMode,
+            interactionMode: oldThread.interactionMode,
+            branch: oldThread.branch,
+            worktreePath: oldThread.worktreePath,
+            latestTurn: null,
+            createdAt: payload.createdAt,
+            updatedAt: payload.createdAt,
+            archivedAt: null,
+            deletedAt: null,
+            messages: [],
+            seededWorkItems: [],
+            managerQueueItems: [],
+            proposedPlans: [],
+            activities: [],
+            checkpoints: [],
+            session: null,
+          },
+          event.type,
+          "thread",
+        );
+
+        return {
+          ...nextBase,
+          threads: [
+            ...nextBase.threads.map((entry) =>
+              entry.id === payload.archivedThreadId
+                ? { ...entry, archivedAt: payload.createdAt, updatedAt: payload.createdAt }
+                : entry,
+            ),
+            newThread,
+          ],
+        };
+      });
 
     default:
       return Effect.succeed(nextBase);

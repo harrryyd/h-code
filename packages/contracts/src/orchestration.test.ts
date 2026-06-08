@@ -29,6 +29,7 @@ import {
   ContextTrimPoint,
   ThreadTrimPointCreatedPayload,
   OrchestrationThread,
+  ThreadArchivedAndNewCreatedPayload,
 } from "./orchestration.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 
@@ -1113,5 +1114,70 @@ it.effect("decodes thread.context.trim as part of OrchestrationCommand union", (
       createdAt: "2026-01-01T00:00:00.000Z",
     });
     assert.strictEqual(parsed.type, "thread.context.trim");
+  }),
+);
+
+// ── thread.archive-and-new command & event ─────────────────────────────
+
+const decodeThreadArchivedAndNewCreatedPayload = Schema.decodeUnknownEffect(
+  ThreadArchivedAndNewCreatedPayload,
+);
+
+it.effect("decodes thread.archive-and-new command", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.archive-and-new",
+      commandId: "cmd-archive-new-1",
+      threadId: "thread-1",
+      newThreadId: "thread-new",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    if (parsed.type !== "thread.archive-and-new") {
+      assert.fail("Expected thread.archive-and-new command");
+      return;
+    }
+    assert.strictEqual(parsed.type, "thread.archive-and-new");
+    assert.strictEqual(parsed.threadId, "thread-1");
+    assert.strictEqual(parsed.newThreadId, "thread-new");
+  }),
+);
+
+it.effect("decodes thread.archived-and-new-created payload", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadArchivedAndNewCreatedPayload({
+      archivedThreadId: "thread-1",
+      newThreadId: "thread-2",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.archivedThreadId, "thread-1");
+    assert.strictEqual(parsed.newThreadId, "thread-2");
+    assert.strictEqual(parsed.createdAt, "2026-01-01T00:00:00.000Z");
+  }),
+);
+
+it.effect("decodes thread.archived-and-new-created event", () =>
+  Effect.gen(function* () {
+    const event = yield* decodeOrchestrationEvent({
+      sequence: 10,
+      eventId: "event-archive-new-1",
+      aggregateKind: "thread",
+      aggregateId: "thread-1",
+      type: "thread.archived-and-new-created",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-archive-new-1",
+      causationEventId: null,
+      correlationId: "cmd-archive-new-1",
+      metadata: {},
+      payload: {
+        archivedThreadId: "thread-1",
+        newThreadId: "thread-2",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    assert.strictEqual(event.type, "thread.archived-and-new-created");
+    if (event.type === "thread.archived-and-new-created") {
+      assert.strictEqual(event.payload.archivedThreadId, "thread-1");
+      assert.strictEqual(event.payload.newThreadId, "thread-2");
+    }
   }),
 );

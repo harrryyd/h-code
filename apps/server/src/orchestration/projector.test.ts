@@ -1098,4 +1098,136 @@ describe("orchestration projector", () => {
     const trimPoints = state.threads[0]?.contextTrimPoints ?? [];
     expect(trimPoints.map((tp) => tp.id)).toEqual(["trim-1", "trim-2"]);
   });
+
+  it("applies thread.archived-and-new-created: archives old thread and creates new inheriting thread", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const later = "2026-01-01T00:01:00.000Z";
+    let state = createEmptyReadModel(now);
+
+    state = await Effect.runPromise(
+      projectEvent(
+        state,
+        makeEvent({
+          sequence: 1,
+          type: "thread.created",
+          aggregateKind: "thread",
+          aggregateId: "thread-old",
+          occurredAt: now,
+          commandId: "cmd-create",
+          payload: {
+            threadId: "thread-old",
+            projectId: "project-1",
+            title: "Old Thread",
+            modelSelection: {
+              provider: ProviderDriverKind.make("codex"),
+              model: "gpt-5-codex",
+            },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: "feat/my-branch",
+            worktreePath: "/tmp/worktree-1",
+            createdAt: now,
+            updatedAt: now,
+          },
+        }),
+      ),
+    );
+
+    // Add a message and a session to the old thread
+    state = await Effect.runPromise(
+      projectEvent(
+        state,
+        makeEvent({
+          sequence: 2,
+          type: "thread.message-sent",
+          aggregateKind: "thread",
+          aggregateId: "thread-old",
+          occurredAt: later,
+          commandId: "cmd-msg",
+          payload: {
+            threadId: "thread-old",
+            messageId: "msg-1",
+            role: "user",
+            text: "hello",
+            turnId: null,
+            streaming: false,
+            createdAt: later,
+            updatedAt: later,
+          },
+        }),
+      ),
+    );
+
+    state = await Effect.runPromise(
+      projectEvent(
+        state,
+        makeEvent({
+          sequence: 3,
+          type: "thread.session-set",
+          aggregateKind: "thread",
+          aggregateId: "thread-old",
+          occurredAt: later,
+          commandId: "cmd-session",
+          payload: {
+            threadId: "thread-old",
+            session: {
+              threadId: "thread-old",
+              status: "running",
+              providerName: "codex",
+              runtimeMode: "full-access",
+              activeTurnId: null,
+              lastError: null,
+              updatedAt: later,
+            },
+          },
+        }),
+      ),
+    );
+
+    state = await Effect.runPromise(
+      projectEvent(
+        state,
+        makeEvent({
+          sequence: 4,
+          type: "thread.archived-and-new-created",
+          aggregateKind: "thread",
+          aggregateId: "thread-old",
+          occurredAt: later,
+          commandId: "cmd-archive-new",
+          payload: {
+            archivedThreadId: "thread-old",
+            newThreadId: "thread-new",
+            createdAt: later,
+          },
+        }),
+      ),
+    );
+
+    expect(state.threads).toHaveLength(2);
+
+    const oldThread = state.threads.find((t) => t.id === "thread-old");
+    expect(oldThread).toBeDefined();
+    expect(oldThread?.archivedAt).toBe(later);
+    expect(oldThread?.messages).toHaveLength(1);
+    expect(oldThread?.session?.status).toBe("running");
+
+    const newThread = state.threads.find((t) => t.id === "thread-new");
+    expect(newThread).toBeDefined();
+    expect(newThread?.projectId).toBe("project-1");
+    expect(newThread?.title).toBe("Old Thread");
+    expect(newThread?.branch).toBe("feat/my-branch");
+    expect(newThread?.worktreePath).toBe("/tmp/worktree-1");
+    expect(newThread?.modelSelection.instanceId).toBe("codex");
+    expect(newThread?.modelSelection.model).toBe("gpt-5-codex");
+    expect(newThread?.runtimeMode).toBe("full-access");
+    expect(newThread?.interactionMode).toBe("default");
+    expect(newThread?.messages).toEqual([]);
+    expect(newThread?.session).toBeNull();
+    expect(newThread?.activities).toEqual([]);
+    expect(newThread?.latestTurn).toBeNull();
+    expect(newThread?.archivedAt).toBeNull();
+    expect(newThread?.deletedAt).toBeNull();
+    expect(newThread?.createdAt).toBe(later);
+    expect(newThread?.updatedAt).toBe(later);
+  });
 });

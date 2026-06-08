@@ -132,4 +132,21 @@ describe("deriveOrchestrationBatchEffects", () => {
     expect(effects.clearDeletedThreadIds).toEqual([]);
     expect(effects.removeTerminalUiStateThreadIds).toEqual([]);
   });
+
+  it("promotes new thread and cleans up archived thread on archived-and-new-created", () => {
+    const archivedThreadId = ThreadId.make("thread-old");
+    const newThreadId = ThreadId.make("thread-new");
+
+    const effects = deriveOrchestrationBatchEffects([
+      makeEvent("thread.archived-and-new-created", {
+        archivedThreadId,
+        newThreadId,
+        createdAt: "2026-02-27T00:00:00.000Z",
+      }),
+    ]);
+
+    expect(effects.promoteDraftThreadIds).toEqual([newThreadId]);
+    expect(effects.clearDeletedThreadIds).toEqual([]);
+    expect(effects.removeTerminalUiStateThreadIds).toEqual([archivedThreadId]);
+  });
 });
