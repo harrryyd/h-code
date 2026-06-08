@@ -503,7 +503,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                   repositoryIdentity,
                 },
               } satisfies OrchestrationEvent;
-            }).pipe(Effect.catch(() => Effect.succeed(event)));
+            }).pipe(Effect.orElseSucceed(() => event));
           default:
             return Effect.succeed(event);
         }
@@ -526,7 +526,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                   project: nextProject,
                 })),
               ),
-              Effect.catch(() => Effect.succeed(Option.none())),
+              Effect.orElseSucceed(() => Option.none()),
             );
           case "project.deleted":
             return Effect.succeed(
@@ -554,7 +554,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                   thread: nextThread,
                 })),
               ),
-              Effect.catch(() => Effect.succeed(Option.none())),
+              Effect.orElseSucceed(() => Option.none()),
             );
           default:
             if (event.aggregateKind !== "thread") {
@@ -570,7 +570,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                     thread: nextThread,
                   })),
                 ),
-                Effect.catch(() => Effect.succeed(Option.none())),
+                Effect.orElseSucceed(() => Option.none()),
               );
         }
       };
@@ -844,7 +844,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                               thread.session !== null && thread.session.status !== "stopped",
                           }),
                         ),
-                        Effect.catch(() => Effect.succeed(false)),
+                        Effect.orElseSucceed(() => false),
                       )
                   : false;
               const result = yield* dispatchNormalizedCommand(normalizedCommand);
