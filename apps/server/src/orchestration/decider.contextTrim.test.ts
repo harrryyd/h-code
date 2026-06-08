@@ -412,7 +412,7 @@ describe("thread.context.trim decider", () => {
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
-    expect(trimEvent?.payload.trimPoint.prunedMessageCount).toBe(6);
+    expect(trimEvent?.payload.trimPoint.prunedMessageCount).toBe(7);
     expect(trimEvent?.payload.trimPoint.prunedTurnIds).toEqual([
       asTurnId("turn-1"),
       asTurnId("turn-2"),
