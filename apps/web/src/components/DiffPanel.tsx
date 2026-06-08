@@ -9,6 +9,7 @@ import {
   Columns2Icon,
   GitBranchIcon,
   PilcrowIcon,
+  RefreshCwIcon,
   Rows3Icon,
   SendHorizontalIcon,
   TextWrapIcon,
@@ -46,6 +47,7 @@ import { formatShortTimestamp } from "../timestampFormat";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
 import { DiffCommentPanel } from "./DiffCommentPanel";
+import { StaleBanner } from "./StaleBanner";
 import { useReviewComments } from "../hooks/useReviewComments";
 
 type DiffRenderMode = "stacked" | "split";
@@ -169,6 +171,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
   const {
     comments,
+    reviewDraft,
     draftPending,
     draftError,
     editingComment,
@@ -191,6 +194,61 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     prNumber: isReviewMode ? (Number(prNumberInput.trim()) || null) : null,
     prHeadSHA,
   });
+  const [prDiffRefreshKey, setPrDiffRefreshKey] = useState(0);
+  const refreshRequestedRef = useRef(false);
+  const [storedPrHeadSHA, setStoredPrHeadSHA] = useState<string | null>(null);
+
+  // Initialize stored SHA from reviewDraft when loaded (existing comments carry SHA)
+  useEffect(() => {
+    if (reviewDraft?.prHeadSHA) {
+      setStoredPrHeadSHA(reviewDraft.prHeadSHA);
+    }
+  }, [reviewDraft?.prHeadSHA]);
+
+  // Initialize stored SHA from current prHeadSHA when no draft exists (review mode entry)
+  useEffect(() => {
+    if (prHeadSHA && !storedPrHeadSHA && !reviewDraft?.prHeadSHA) {
+      setStoredPrHeadSHA(prHeadSHA);
+    }
+  }, [prHeadSHA, storedPrHeadSHA, reviewDraft?.prHeadSHA]);
+
+  // After a user-requested refresh, update stored SHA to match newly-fetched head
+  useEffect(() => {
+    if (refreshRequestedRef.current && prHeadSHA) {
+      setStoredPrHeadSHA(prHeadSHA);
+      refreshRequestedRef.current = false;
+    }
+  }, [prHeadSHA]);
+
+  const refreshPrDiff = useCallback(() => {
+    setPrDiffRefreshKey((k) => k + 1);
+    refreshRequestedRef.current = true;
+  }, []);
+
+  const isStale = useMemo(
+    () => !!(storedPrHeadSHA && prHeadSHA && storedPrHeadSHA !== prHeadSHA),
+    [storedPrHeadSHA, prHeadSHA],
+  );
+
+  const modifiedFilesFromDiff = useMemo(() => {
+    if (!isStale || !prDiffText) return undefined;
+    const files = new Set<string>();
+    const matches = prDiffText.matchAll(/^\+\+\+ b\/(.+)$/gm);
+    for (const m of matches) {
+      if (m[1]) files.add(m[1]);
+    }
+    return files;
+  }, [isStale, prDiffText]);
+
+  const outdatedCommentCount = useMemo(() => {
+    if (!isStale || !prHeadSHA) return 0;
+    return comments.filter((c) => {
+      if (c.commitSHA === prHeadSHA) return false;
+      if (typeof c.line === "number") return true;
+      return modifiedFilesFromDiff?.has(c.file) ?? true;
+    }).length;
+  }, [isStale, prHeadSHA, comments, modifiedFilesFromDiff]);
+
   const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
     useTurnDiffSummaries(activeThread);
   const orderedTurnDiffSummaries = useMemo(
@@ -479,7 +537,25 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [shouldFetchPrDiff, activeThread?.id, prNumberInput, activeThread?.environmentId]);
+  }, [shouldFetchPrDiff, activeThread?.id, prNumberInput, activeThread?.environmentId, prDiffRefreshKey]);
+
+  // Poll for PR head SHA changes every 30 seconds to detect push-based staleness
+  useEffect(() => {
+    if (!shouldFetchPrDiff || !activeThread) return;
+    const prNumber = Number(prNumberInput.trim());
+    if (!Number.isInteger(prNumber) || prNumber < 1) return;
+    const interval = setInterval(() => {
+      const api = readEnvironmentApi(activeThread.environmentId);
+      if (!api) return;
+      api.changeRequest
+        .getPrDiff({ threadId: activeThread.id, prNumber })
+        .then((result) => {
+          setPrHeadSHA(result.prHeadSHA);
+        })
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [shouldFetchPrDiff, activeThread?.id, activeThread?.environmentId, prNumberInput]);
 
   const headerRow = (
     <>
@@ -719,6 +795,12 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             </div>
           ) : (
             <div className="h-full overflow-auto p-2">
+              {isStale && (
+                <StaleBanner
+                  outdatedCommentCount={outdatedCommentCount}
+                  onRefresh={refreshPrDiff}
+                />
+              )}
               <pre
                 className={cn(
                   "max-h-[72vh] rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90",
@@ -744,6 +826,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                     onRequestAgent={runBackgroundAgent}
                     agentEvents={agentEvents}
                     agentRunning={agentRunning}
+                    currentPrHeadSHA={prHeadSHA}
+                    storedPrHeadSHA={storedPrHeadSHA}
+                    modifiedFiles={modifiedFilesFromDiff}
                   />
                 </div>
               )}
@@ -880,6 +965,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                           onRequestAgent={runBackgroundAgent}
                           agentEvents={agentEvents}
                           agentRunning={agentRunning}
+                          currentPrHeadSHA={prHeadSHA}
+                          storedPrHeadSHA={storedPrHeadSHA}
+                          modifiedFiles={modifiedFilesFromDiff}
                         />
                       )}
                     </div>

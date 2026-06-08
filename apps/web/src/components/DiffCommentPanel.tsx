@@ -198,7 +198,8 @@ function InlineComment({
   onRequestAgent,
   agentEvents,
   agentRunning,
-}: InlineCommentProps) {
+  outdated,
+}: InlineCommentProps & { outdated?: boolean }) {
   const isGitHub = comment.author.login !== "local";
   const agentStatus = comment.agentStatus;
   const isAgentIdle = !agentStatus || agentStatus === "idle";
@@ -208,9 +209,11 @@ function InlineComment({
     <div
       className={cn(
         "mx-3 mb-1 rounded-md border p-2.5",
-        isGitHub
-          ? "border-border/50 bg-amber-500/5"
-          : "border-border/70 bg-background/60",
+        outdated
+          ? "border-border/30 bg-foreground/3 opacity-60"
+          : isGitHub
+            ? "border-border/50 bg-amber-500/5"
+            : "border-border/70 bg-background/60",
       )}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -218,12 +221,21 @@ function InlineComment({
           <span
             className={cn(
               "text-[10px] font-medium",
-              isGitHub ? "text-amber-400/80" : "text-primary/80",
+              outdated
+                ? "text-muted-foreground/50"
+                : isGitHub
+                  ? "text-amber-400/80"
+                  : "text-primary/80",
             )}
           >
             {comment.author.login}
           </span>
-          {isGitHub && (
+          {outdated && (
+            <span className="rounded-full border border-muted-foreground/30 px-1 py-px text-[8px] text-muted-foreground/50">
+              Outdated
+            </span>
+          )}
+          {isGitHub && !outdated && (
             <span className="rounded-full border border-amber-500/30 px-1 py-px text-[8px] text-amber-400/60">
               GitHub
             </span>
@@ -306,6 +318,25 @@ interface DiffCommentPanelProps {
   onRequestAgent?: (commentId: string) => void;
   agentEvents?: Map<string, BackgroundAgentEvent[]>;
   agentRunning?: Set<string>;
+  currentPrHeadSHA?: string | null;
+  storedPrHeadSHA?: string | null;
+  modifiedFiles?: ReadonlySet<string>;
+}
+
+function isCommentOutdated(
+  comment: ReviewComment,
+  currentPrHeadSHA: string | null | undefined,
+  storedPrHeadSHA: string | null | undefined,
+  filePath: string,
+  modifiedFiles: ReadonlySet<string> | undefined,
+): boolean {
+  if (!currentPrHeadSHA || !storedPrHeadSHA) return false;
+  if (currentPrHeadSHA === storedPrHeadSHA) return false;
+  if (comment.commitSHA === currentPrHeadSHA) return false;
+  if (typeof comment.line !== "number") {
+    return modifiedFiles?.has(filePath) ?? false;
+  }
+  return true;
 }
 
 export function DiffCommentPanel({
@@ -321,11 +352,22 @@ export function DiffCommentPanel({
   onRequestAgent,
   agentEvents,
   agentRunning,
+  currentPrHeadSHA,
+  storedPrHeadSHA,
+  modifiedFiles,
 }: DiffCommentPanelProps) {
+  const [showOutdated, setShowOutdated] = useState(false);
   const fileComments = comments.filter((c) => c.file === filePath);
   const isEditing = editingComment?.filePath === filePath;
 
-  const commentedLines = fileComments
+  const outdatedComments = fileComments.filter((c) =>
+    isCommentOutdated(c, currentPrHeadSHA, storedPrHeadSHA, filePath, modifiedFiles),
+  );
+  const currentComments = fileComments.filter(
+    (c) => !isCommentOutdated(c, currentPrHeadSHA, storedPrHeadSHA, filePath, modifiedFiles),
+  );
+
+  const commentedLines = currentComments
     .filter((c) => typeof c.line === "number")
     .map((c) => c.line as number);
   const uniqueCommentedLines = [...new Set(commentedLines)].sort((a, b) => a - b);
@@ -334,7 +376,12 @@ export function DiffCommentPanel({
     <div className="diff-comment-panel py-1">
       {fileComments.length > 0 && (
         <div className="mx-3 mb-1 flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
-          <span>{fileComments.length} comment{fileComments.length !== 1 ? "s" : ""}</span>
+          <span>{currentComments.length} comment{currentComments.length !== 1 ? "s" : ""}</span>
+          {outdatedComments.length > 0 && (
+            <span className="text-muted-foreground/40">
+              ({outdatedComments.length} outdated)
+            </span>
+          )}
           {uniqueCommentedLines.length > 0 && (
             <span>
               on line{uniqueCommentedLines.length !== 1 ? "s" : ""}{" "}
@@ -353,7 +400,36 @@ export function DiffCommentPanel({
           )}
         </div>
       )}
-      {fileComments.map((comment) => (
+      {outdatedComments.length > 0 && (
+        <div className="mx-3 mb-1">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-[9px] text-muted-foreground/50 hover:text-muted-foreground/70"
+            onClick={() => setShowOutdated(!showOutdated)}
+          >
+            {showOutdated ? (
+              <ChevronDownIcon className="size-3" />
+            ) : (
+              <ChevronRightIcon className="size-3" />
+            )}
+            Show {outdatedComments.length} outdated
+          </button>
+          <div className="mt-1" hidden={!showOutdated}>
+            {outdatedComments.map((comment) => (
+              <InlineComment
+                key={comment.id}
+                comment={comment}
+                onDelete={onDeleteComment}
+                onRequestAgent={undefined}
+                agentEvents={agentEvents?.get(comment.id)}
+                agentRunning={agentRunning?.has(comment.id)}
+                outdated
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {currentComments.map((comment) => (
         <InlineComment
           key={comment.id}
           comment={comment}
