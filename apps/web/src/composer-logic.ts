@@ -3,7 +3,12 @@ import { splitPromptIntoComposerSegments } from "./composer-editor-mentions";
 import { INLINE_TERMINAL_CONTEXT_PLACEHOLDER } from "./lib/terminalContext";
 
 export type ComposerTriggerKind = "path" | "slash-command" | "skill";
-export type ComposerSlashCommand = "model" | "plan" | "default";
+export type ComposerSlashCommand = "model" | "plan" | "default" | "clear";
+
+export interface ComposerClearSlashCommand {
+  command: "clear";
+  keepLastNTurns?: number;
+}
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -258,8 +263,17 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
 
 export function parseStandaloneComposerSlashCommand(
   text: string,
-): Exclude<ComposerSlashCommand, "model"> | null {
-  const match = /^\/(plan|default)\s*$/i.exec(text.trim());
+): "plan" | "default" | ComposerClearSlashCommand | null {
+  const trimmed = text.trim();
+  const clearMatch = /^\/clear(?:\s+(\d+))?\s*$/i.exec(trimmed);
+  if (clearMatch) {
+    const n = clearMatch[1];
+    return {
+      command: "clear",
+      ...(n !== undefined ? { keepLastNTurns: parseInt(n, 10) } : {}),
+    };
+  }
+  const match = /^\/(plan|default)\s*$/i.exec(trimmed);
   if (!match) {
     return null;
   }

@@ -3,6 +3,7 @@ import * as Arr from "effect/Array";
 import {
   ApprovalRequestId,
   isToolLifecycleItemType,
+  type ContextTrimPoint,
   type ManagerThreadMetadata,
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
@@ -127,6 +128,12 @@ export type TimelineEntry =
       refinedBrief: string;
       acceptanceCriteria: readonly string[];
       sourceBody: string;
+    }
+  | {
+      id: string;
+      kind: "context-trim";
+      createdAt: string;
+      trimPoint: ContextTrimPoint;
     };
 
 export function formatDuration(durationMs: number): string {
@@ -1177,6 +1184,7 @@ export function deriveTimelineEntries(
   workEntries: WorkLogEntry[],
   managerMetadata?: ManagerThreadMetadata,
   threadCreatedAt?: string,
+  contextTrimPoints?: ReadonlyArray<ContextTrimPoint>,
 ): TimelineEntry[] {
   const messageRows: TimelineEntry[] = messages.map((message) => ({
     id: message.id,
@@ -1196,8 +1204,15 @@ export function deriveTimelineEntries(
     createdAt: entry.createdAt,
     entry,
   }));
-  const sorted = [...messageRows, ...proposedPlanRows, ...workRows].toSorted((a, b) =>
-    a.createdAt.localeCompare(b.createdAt),
+  const trimPointRows: TimelineEntry[] =
+    contextTrimPoints?.map((trimPoint) => ({
+      id: trimPoint.id,
+      kind: "context-trim",
+      createdAt: trimPoint.createdAt,
+      trimPoint,
+    })) ?? [];
+  const sorted = [...messageRows, ...proposedPlanRows, ...workRows, ...trimPointRows].toSorted(
+    (a, b) => a.createdAt.localeCompare(b.createdAt),
   );
 
   if (managerMetadata?.role === "worker") {

@@ -25,6 +25,10 @@ import {
   ThreadCreatedPayload,
   ThreadTurnDiff,
   ThreadTurnStartRequestedPayload,
+  ThreadContextTrimCommand,
+  ContextTrimPoint,
+  ThreadTrimPointCreatedPayload,
+  OrchestrationThread,
 } from "./orchestration.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 
@@ -934,5 +938,178 @@ it.effect("changeRequest.getPrDiff result decodes diff string", () =>
       diff: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new",
     });
     assert.strictEqual(parsed.diff.startsWith("---"), true);
+  }),
+);
+
+// ── Context trim command & event ─────────────────────────────────────
+
+const decodeThreadContextTrimCommand = Schema.decodeUnknownEffect(ThreadContextTrimCommand);
+const decodeContextTrimPoint = Schema.decodeUnknownEffect(ContextTrimPoint);
+const decodeThreadTrimPointCreatedPayload = Schema.decodeUnknownEffect(ThreadTrimPointCreatedPayload);
+const decodeOrchestrationThread = Schema.decodeUnknownEffect(OrchestrationThread);
+
+it.effect("decodes thread.context.trim command", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextTrimCommand({
+      type: "thread.context.trim",
+      commandId: "cmd-trim-1",
+      threadId: "thread-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.context.trim");
+    assert.strictEqual(parsed.keepLastNTurns, undefined);
+  }),
+);
+
+it.effect("decodes thread.context.trim command with keepLastNTurns", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextTrimCommand({
+      type: "thread.context.trim",
+      commandId: "cmd-trim-3",
+      threadId: "thread-1",
+      keepLastNTurns: 3,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.keepLastNTurns, 3);
+  }),
+);
+
+it.effect("decodes ContextTrimPoint", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeContextTrimPoint({
+      id: "trim-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      beforeEntryId: "msg-5",
+      prunedMessageCount: 10,
+      prunedTurnIds: ["turn-1", "turn-2"],
+    });
+    assert.strictEqual(parsed.id, "trim-1");
+    assert.strictEqual(parsed.beforeEntryId, "msg-5");
+    assert.strictEqual(parsed.prunedMessageCount, 10);
+    assert.deepStrictEqual(parsed.prunedTurnIds, ["turn-1", "turn-2"]);
+  }),
+);
+
+it.effect("decodes thread.trim-point-created payload", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadTrimPointCreatedPayload({
+      threadId: "thread-1",
+      trimPoint: {
+        id: "trim-1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        beforeEntryId: "msg-5",
+        prunedMessageCount: 10,
+        prunedTurnIds: ["turn-1", "turn-2"],
+      },
+    });
+    assert.strictEqual(parsed.threadId, "thread-1");
+    assert.strictEqual(parsed.trimPoint.prunedMessageCount, 10);
+  }),
+);
+
+it.effect("decodes thread.trim-point-created event", () =>
+  Effect.gen(function* () {
+    const event = yield* decodeOrchestrationEvent({
+      sequence: 100,
+      eventId: "event-trim-1",
+      aggregateKind: "thread",
+      aggregateId: "thread-1",
+      type: "thread.trim-point-created",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-trim-1",
+      causationEventId: null,
+      correlationId: "cmd-trim-1",
+      metadata: {},
+      payload: {
+        threadId: "thread-1",
+        trimPoint: {
+          id: "trim-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          beforeEntryId: "msg-5",
+          prunedMessageCount: 10,
+          prunedTurnIds: ["turn-1", "turn-2"],
+        },
+      },
+    });
+    assert.strictEqual(event.type, "thread.trim-point-created");
+    if (event.type === "thread.trim-point-created") {
+      assert.strictEqual(event.payload.trimPoint.beforeEntryId, "msg-5");
+      assert.strictEqual(event.payload.trimPoint.prunedMessageCount, 10);
+    }
+  }),
+);
+
+it.effect("OrchestrationThread defaults contextTrimPoints to empty array", () =>
+  Effect.gen(function* () {
+    const thread = yield* decodeOrchestrationThread({
+      id: "thread-1",
+      projectId: "project-1",
+      title: "Test Thread",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      runtimeMode: "full-access",
+      branch: null,
+      worktreePath: null,
+      latestTurn: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      deletedAt: null,
+      messages: [],
+      activities: [],
+      checkpoints: [],
+      session: null,
+    });
+    assert.deepStrictEqual(thread.contextTrimPoints, []);
+  }),
+);
+
+it.effect("OrchestrationThread decodes explicit contextTrimPoints", () =>
+  Effect.gen(function* () {
+    const thread = yield* decodeOrchestrationThread({
+      id: "thread-1",
+      projectId: "project-1",
+      title: "Test Thread",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
+      runtimeMode: "full-access",
+      branch: null,
+      worktreePath: null,
+      latestTurn: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      deletedAt: null,
+      messages: [],
+      activities: [],
+      checkpoints: [],
+      contextTrimPoints: [
+        {
+          id: "trim-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          beforeEntryId: "msg-5",
+          prunedMessageCount: 10,
+          prunedTurnIds: ["turn-1", "turn-2"],
+        },
+      ],
+      session: null,
+    });
+    assert.strictEqual(thread.contextTrimPoints.length, 1);
+    assert.strictEqual(thread.contextTrimPoints[0]?.prunedMessageCount, 10);
+  }),
+);
+
+it.effect("decodes thread.context.trim as part of OrchestrationCommand union", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.context.trim",
+      commandId: "cmd-trim-1",
+      threadId: "thread-1",
+      keepLastNTurns: 5,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.context.trim");
   }),
 );

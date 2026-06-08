@@ -1774,11 +1774,13 @@ export default function ChatView(props: ChatViewProps) {
         workLogEntries,
         activeThread?.managerMetadata,
         activeThread?.createdAt,
+        activeThread?.contextTrimPoints,
       ),
     [
       activeThread?.managerMetadata,
       activeThread?.createdAt,
       activeThread?.proposedPlans,
+      activeThread?.contextTrimPoints,
       timelineMessages,
       workLogEntries,
     ],
@@ -2928,7 +2930,19 @@ export default function ChatView(props: ChatViewProps) {
         ? parseStandaloneComposerSlashCommand(trimmed)
         : null;
     if (standaloneSlashCommand) {
-      handleInteractionModeChange(standaloneSlashCommand);
+      if (typeof standaloneSlashCommand === "object" && standaloneSlashCommand.command === "clear") {
+        void api.orchestration.dispatchCommand({
+          type: "thread.context.trim",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          ...(standaloneSlashCommand.keepLastNTurns !== undefined
+            ? { keepLastNTurns: standaloneSlashCommand.keepLastNTurns }
+            : {}),
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        handleInteractionModeChange(standaloneSlashCommand);
+      }
       promptRef.current = "";
       clearComposerDraftContent(composerDraftTarget);
       composerRef.current?.resetCursorState();

@@ -46,6 +46,7 @@ import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { ContextTrimPointDivider } from "./ContextTrimPointDivider";
 import {
   computeStableMessagesTimelineRows,
   MAX_VISIBLE_WORK_LOG_ENTRIES,
@@ -330,6 +331,9 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "proposed-plan" ? <ProposedPlanTimelineRow row={row} /> : null}
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
       {row.kind === "manager-instruction" ? <ManagerInstructionTimelineRow row={row} /> : null}
+      {row.kind === "context-trim" ? (
+        <ContextTrimPointDivider trimPoint={row.trimPoint} />
+      ) : null}
     </div>
   );
 });
