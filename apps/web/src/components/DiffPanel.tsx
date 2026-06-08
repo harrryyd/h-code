@@ -7,6 +7,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   Columns2Icon,
+  GitBranchIcon,
   PilcrowIcon,
   Rows3Icon,
   TextWrapIcon,
@@ -24,6 +25,7 @@ import { useCheckpointDiff } from "~/lib/checkpointDiffState";
 import { useVcsStatus } from "~/lib/vcsStatusState";
 import { cn } from "~/lib/utils";
 import { readLocalApi } from "../localApi";
+import { readEnvironmentApi } from "../environmentApi";
 import { resolvePathLinkTarget } from "../terminal-links";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
 import { useTheme } from "../hooks/useTheme";
@@ -126,6 +128,11 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const [collapsedDiffFileKeys, setCollapsedDiffFileKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [diffSourceMode, setDiffSourceMode] = useState<"checkpoint" | "pr">("checkpoint");
+  const [prNumberInput, setPrNumberInput] = useState("1");
+  const [prDiffText, setPrDiffText] = useState<string | null>(null);
+  const [prDiffPending, setPrDiffPending] = useState(false);
+  const [prDiffError, setPrDiffError] = useState<string | null>(null);
   const patchViewportRef = useRef<HTMLDivElement>(null);
   const turnStripRef = useRef<HTMLDivElement>(null);
   const previousDiffOpenRef = useRef(false);
@@ -399,6 +406,50 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     selectedChip?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [selectedTurn?.turnId, selectedTurnId]);
 
+  const runtimeMode = activeThread?.runtimeMode;
+  const isReviewMode = runtimeMode === "review";
+  const shouldFetchPrDiff =
+    isReviewMode && diffSourceMode === "pr" && prNumberInput.trim().length > 0;
+
+  useEffect(() => {
+    if (isReviewMode && diffSourceMode !== "checkpoint") {
+      setDiffSourceMode("pr");
+    }
+  }, [isReviewMode]);
+
+  useEffect(() => {
+    if (!shouldFetchPrDiff || !activeThread) {
+      return;
+    }
+    const api = readEnvironmentApi(activeThread.environmentId);
+    if (!api) return;
+    const prNumber = Number(prNumberInput.trim());
+    if (!Number.isInteger(prNumber) || prNumber < 1) return;
+    let cancelled = false;
+    setPrDiffPending(true);
+    setPrDiffError(null);
+    api.changeRequest
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .getPrDiff({ threadId: activeThread.id, prNumber } as any)
+      .then(
+        (result) => {
+          if (!cancelled) {
+            setPrDiffText(result.diff);
+            setPrDiffPending(false);
+          }
+        },
+        (error) => {
+          if (!cancelled) {
+            setPrDiffError(error instanceof Error ? error.message : "Failed to load PR diff");
+            setPrDiffPending(false);
+          }
+        },
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldFetchPrDiff, activeThread?.id, prNumberInput, activeThread?.environmentId]);
+
   const headerRow = (
     <>
       <div className="relative min-w-0 flex-1 [-webkit-app-region:no-drag]">
@@ -493,6 +544,41 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1 [-webkit-app-region:no-drag]">
+        {isReviewMode && (
+          <>
+            <ToggleGroup
+              className="shrink-0"
+              variant="outline"
+              size="xs"
+              value={[diffSourceMode]}
+              onValueChange={(value) => {
+                const next = value[0];
+                if (next === "checkpoint" || next === "pr") {
+                  setDiffSourceMode(next);
+                }
+              }}
+            >
+              <Toggle aria-label="Checkpoint diff" value="checkpoint">
+                <Rows3Icon className="size-3" />
+              </Toggle>
+              <Toggle aria-label="PR diff" value="pr">
+                <GitBranchIcon className="size-3" />
+              </Toggle>
+            </ToggleGroup>
+            {diffSourceMode === "pr" && (
+              <input
+                type="number"
+                min="1"
+                step="1"
+                className="h-7 w-16 rounded-md border border-border/70 bg-background/70 px-1.5 text-[11px] text-foreground/80 [-webkit-app-region:no-drag]"
+                value={prNumberInput}
+                onChange={(e) => setPrNumberInput(e.target.value)}
+                placeholder="PR #"
+                aria-label="PR number"
+              />
+            )}
+          </>
+        )}
         <ToggleGroup
           className="shrink-0"
           variant="outline"
@@ -549,6 +635,43 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       ) : !isGitRepo ? (
         <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
           Turn diffs are unavailable because this project is not a git repository.
+        </div>
+      ) : shouldFetchPrDiff ? (
+        <div
+          ref={patchViewportRef}
+          className="diff-panel-viewport min-h-0 min-w-0 flex-1 overflow-hidden"
+        >
+          {prDiffError ? (
+            <div className="px-3">
+              <p className="mb-2 text-[11px] text-red-500/80">{prDiffError}</p>
+            </div>
+          ) : null}
+          {prDiffText === null ? (
+            prDiffPending ? (
+              <DiffPanelLoadingState label="Loading PR diff..." />
+            ) : (
+              <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
+                <p>Enter a PR number and press Enter to load the diff.</p>
+              </div>
+            )
+          ) : prDiffText.trim().length === 0 ? (
+            <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
+              <p>No changes in this PR.</p>
+            </div>
+          ) : (
+            <div className="h-full overflow-auto p-2">
+              <pre
+                className={cn(
+                  "max-h-[72vh] rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90",
+                  diffWordWrap
+                    ? "overflow-auto whitespace-pre-wrap wrap-break-word"
+                    : "overflow-auto",
+                )}
+              >
+                {prDiffText}
+              </pre>
+            </div>
+          )}
         </div>
       ) : orderedTurnDiffSummaries.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">

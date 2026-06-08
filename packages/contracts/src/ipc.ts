@@ -19,6 +19,10 @@ import type {
   VcsStatusResult,
 } from "./git.ts";
 import type { ReviewDiffPreviewInput, ReviewDiffPreviewResult } from "./review.ts";
+import type {
+  ChangeRequestGetPrDiffInput,
+  ChangeRequestGetPrDiffResult,
+} from "./rpc.ts";
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem.ts";
 import type {
   ProjectSearchEntriesInput,
@@ -606,6 +610,10 @@ export interface EnvironmentApi {
   review: {
     getDiffPreview: (input: ReviewDiffPreviewInput) => Promise<ReviewDiffPreviewResult>;
   };
+  changeRequest: {
+    getPrDiff: (
+      input: ChangeRequestGetPrDiffInput,
+    ) => Promise<ChangeRequestGetPrDiffResult>;
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;

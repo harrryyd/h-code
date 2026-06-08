@@ -132,6 +132,11 @@ const runtimeModeConfig: Record<
     description: "Allow commands and edits without prompts.",
     icon: LockOpenIcon,
   },
+  review: {
+    label: "Review",
+    description: "Review PR changes with diff panel.",
+    icon: LockOpenIcon,
+  },
 };
 
 const runtimeModeOptions = Object.keys(runtimeModeConfig) as RuntimeMode[];
