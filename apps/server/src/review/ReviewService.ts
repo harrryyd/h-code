@@ -258,8 +258,19 @@ export const make = Effect.fn("makeReviewService")(function* () {
 
       const cli = githubCliOption.value;
 
+      const localComments = draft.comments.filter(
+        (c) => c.author.login === "local",
+      );
+
+      if (localComments.length === 0) {
+        return yield* new ChangeRequestSubmitReviewError({
+          kind: "no-draft",
+          detail: "No local draft review comments to submit.",
+        });
+      }
+
       // Format comments into markdown body
-      const body = draft.comments
+      const body = localComments
         .map((c) => {
           const fileLine = typeof c.line === "number" ? `:${c.line}` : "";
           return `**${c.file}${fileLine}**\n\n${c.body}`;
@@ -267,13 +278,13 @@ export const make = Effect.fn("makeReviewService")(function* () {
         .join("\n\n---\n\n");
 
       // Write body to a temporary file
-      const tempDir = yield* fileSystem.makeDirectory(path.join(config.stateDir, "tmp"), {
+      yield* fileSystem.makeDirectory(path.join(config.stateDir, "tmp"), {
         recursive: true,
       });
       const bodyFile = path.join(config.stateDir, "tmp", `review-body-${input.threadId}-${input.prNumber}.md`);
       yield* fileSystem.writeFileString(bodyFile, body);
 
-      // Submit the review
+      // Submit the review and clean up temp file
       yield* cli.createPullRequestReview({
         cwd: input.cwd,
         reference: String(input.prNumber),
@@ -287,24 +298,17 @@ export const make = Effect.fn("makeReviewService")(function* () {
               cause,
             }),
         ),
+        Effect.ensuring(
+          fileSystem.remove(bodyFile).pipe(Effect.catch(() => Effect.void)),
+        ),
       );
 
-      // Fetch fresh GitHub comments
-      const reviews = yield* cli.getPullRequestReviews({
-        cwd: input.cwd,
-        reference: String(input.prNumber),
-      }).pipe(
-        Effect.orElseSucceed(() => ({ comments: [] })),
-      );
-
-      const githubComments = reviews.comments.map(mapGitHubCommentToReviewComment);
-
-      // Build the published draft with GitHub comments
+      // Mark the local comments as published
       const publishedDraft: ReviewDraft = {
         threadId: input.threadId,
         prNumber: input.prNumber,
         prHeadSHA: draft.prHeadSHA,
-        comments: githubComments,
+        comments: localComments,
         state: "published",
       };
 

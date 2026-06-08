@@ -201,6 +201,35 @@ function makeSubmitReviewLayer(input: {
   );
 }
 
+const testLocalComment: ReviewComment = {
+  id: "local-1",
+  file: "src/app.ts",
+  line: 42,
+  commitSHA: "abc123",
+  body: "Consider renaming this variable.",
+  author: { login: "local" },
+  createdAt: "2025-06-01T12:00:00Z",
+};
+
+const testLocalComment2: ReviewComment = {
+  id: "local-2",
+  file: "src/utils.ts",
+  commitSHA: "abc123",
+  body: "Extract this into a helper function.",
+  author: { login: "local" },
+  createdAt: "2025-06-01T12:05:00Z",
+};
+
+const testLocalComment3: ReviewComment = {
+  id: "local-3",
+  file: "src/index.ts",
+  line: 10,
+  commitSHA: "abc123",
+  body: "Use a named export here.",
+  author: { login: "local" },
+  createdAt: "2025-06-01T12:10:00Z",
+};
+
 describe("ReviewService submitReview", () => {
   it("submitReview fails with no-draft when no draft comments exist", () =>
     Effect.gen(function* () {
@@ -227,7 +256,7 @@ describe("ReviewService submitReview", () => {
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it("submitReview calls gh pr review with formatted body and replaces draft with GitHub comments", () =>
+  it("submitReview posts local comments and marks them as published", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "t3-submit-review-" });
@@ -244,27 +273,19 @@ describe("ReviewService submitReview", () => {
           threadId: "thread-submit",
           prNumber: 99,
           prHeadSHA: "sha1",
-          comment: testComment,
+          comment: testLocalComment,
         });
         yield* review.upsertReviewComment({
           threadId: "thread-submit",
           prNumber: 99,
           prHeadSHA: "sha1",
-          comment: testComment2,
+          comment: testLocalComment2,
         });
         yield* review.upsertReviewComment({
           threadId: "thread-submit",
           prNumber: 99,
           prHeadSHA: "sha1",
-          comment: {
-            id: "comment-3",
-            file: "src/index.ts",
-            line: 10,
-            commitSHA: "sha1",
-            body: "Use a named export here.",
-            author: { login: "codex-bot" },
-            createdAt: "2025-06-01T12:10:00Z",
-          },
+          comment: testLocalComment3,
         });
 
         const result = yield* review.submitReview({
@@ -280,15 +301,11 @@ describe("ReviewService submitReview", () => {
         ghCreateReview: ({ bodyFile }) =>
           Effect.gen(function* () {
             createReviewCalls.push({ bodyFile });
-            // Read the body file to verify content
             bodyFileContent = yield* fs.readFileString(bodyFile).pipe(
               Effect.orElseSucceed(() => "file-read-error"),
             );
           }),
-        ghGetReviews: () =>
-          Effect.succeed({
-            comments: [testGhComment, testGhComment2, testGhComment3],
-          }),
+        ghGetReviews: () => Effect.die("should not be called"),
       })));
 
       // Verify gh pr review was called
@@ -302,14 +319,14 @@ describe("ReviewService submitReview", () => {
       expect(bodyFileContent).toContain("src/index.ts:10");
       expect(bodyFileContent).toContain("Use a named export here.");
 
-      // Verify returned draft has GitHub-sourced comments (published state)
+      // Verify returned draft has local comments marked as published
       expect(outcome.state).toBe("published");
       expect(outcome.comments).toHaveLength(3);
-      expect(outcome.comments[0]?.id).toBe("gh-123");
-      expect(outcome.comments[1]?.id).toBe("gh-124");
-      expect(outcome.comments[2]?.id).toBe("gh-125");
+      expect(outcome.comments[0]?.id).toBe("local-1");
+      expect(outcome.comments[1]?.id).toBe("local-2");
+      expect(outcome.comments[2]?.id).toBe("local-3");
 
-      // Verify local draft is gone (should get published comments from GitHub)
+      // Verify getReviewDraft returns the published draft
       const freshDraft = yield* Effect.gen(function* () {
         const review = yield* ReviewService.ReviewService;
         return yield* review.getReviewDraft({
@@ -321,15 +338,12 @@ describe("ReviewService submitReview", () => {
         cwd,
         baseDir,
         ghCreateReview: () => Effect.die("should not be called again"),
-        ghGetReviews: () =>
-          Effect.succeed({
-            comments: [testGhComment, testGhComment2, testGhComment3],
-          }),
+        ghGetReviews: () => Effect.succeed({ comments: [] }),
       })));
 
       expect(freshDraft?.state).toBe("published");
       expect(freshDraft?.comments).toHaveLength(3);
-      expect(freshDraft?.comments[0]?.id).toBe("gh-123");
+      expect(freshDraft?.comments[0]?.id).toBe("local-1");
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
@@ -347,7 +361,7 @@ describe("ReviewService submitReview", () => {
           threadId: "thread-fail",
           prNumber: 7,
           prHeadSHA: "sha1",
-          comment: testComment,
+          comment: testLocalComment,
         });
 
         // Attempt to submit (will fail because gh pr review fails)
