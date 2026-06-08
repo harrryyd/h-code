@@ -309,12 +309,25 @@ export const make = Effect.fn("makeReviewService")(function* () {
         ),
       );
 
-      // Mark the local comments as published
+      // Fetch fresh GitHub comments to merge with published local comments
+      const reviews = yield* cli.getPullRequestReviews({
+        cwd: input.cwd,
+        reference: String(input.prNumber),
+      }).pipe(Effect.orElseSucceed(() => ({ comments: [] })));
+      const githubComments = reviews.comments.map(mapGitHubCommentToReviewComment);
+
+      // Merge: local comments take precedence, GitHub comments fill in any extras
+      const localIds = new Set(localComments.map((c) => c.id));
+      const mergedComments = [
+        ...localComments.map((c) => ({ ...c, state: "published" as const })),
+        ...githubComments.filter((c) => !localIds.has(c.id)),
+      ];
+
       const publishedDraft: ReviewDraft = {
         threadId: input.threadId,
         prNumber: input.prNumber,
         prHeadSHA: draft.prHeadSHA,
-        comments: localComments,
+        comments: mergedComments,
         state: "published",
       };
 
