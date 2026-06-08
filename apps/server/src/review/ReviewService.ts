@@ -242,6 +242,12 @@ export const make = Effect.fn("makeReviewService")(function* () {
       }
 
       const draft = localDraftOption.value;
+      if (draft.state === "published") {
+        return yield* new ChangeRequestSubmitReviewError({
+          kind: "no-draft",
+          detail: "Review has already been submitted.",
+        });
+      }
       if (draft.comments.length === 0) {
         return yield* new ChangeRequestSubmitReviewError({
           kind: "no-draft",
