@@ -9,6 +9,7 @@ import {
   Columns2Icon,
   GitBranchIcon,
   PilcrowIcon,
+  RefreshCwIcon,
   Rows3Icon,
   SendHorizontalIcon,
   TextWrapIcon,
@@ -46,6 +47,7 @@ import { formatShortTimestamp } from "../timestampFormat";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
 import { DiffCommentPanel } from "./DiffCommentPanel";
+import { StaleBanner } from "./StaleBanner";
 import { useReviewComments } from "../hooks/useReviewComments";
 
 type DiffRenderMode = "stacked" | "split";
@@ -169,6 +171,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
   const {
     comments,
+    reviewDraft,
     draftPending,
     draftError,
     editingComment,
@@ -191,6 +194,34 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     prNumber: isReviewMode ? (Number(prNumberInput.trim()) || null) : null,
     prHeadSHA,
   });
+  const [prDiffRefreshKey, setPrDiffRefreshKey] = useState(0);
+  const refreshPrDiff = useCallback(() => {
+    setPrDiffRefreshKey((k) => k + 1);
+  }, []);
+
+  const storedPrHeadSHA = reviewDraft?.prHeadSHA ?? null;
+  const isStale = useMemo(
+    () => !!(storedPrHeadSHA && prHeadSHA && storedPrHeadSHA !== prHeadSHA),
+    [storedPrHeadSHA, prHeadSHA],
+  );
+
+  const modifiedFilesFromDiff = useMemo(() => {
+    if (!isStale || !prDiffText) return undefined;
+    const files = new Set<string>();
+    const matches = prDiffText.matchAll(/^\+\+\+ b\/(.+)$/gm);
+    for (const m of matches) {
+      if (m[1]) files.add(m[1]);
+    }
+    return files;
+  }, [isStale, prDiffText]);
+
+  const outdatedCommentCount = useMemo(() => {
+    if (!isStale || !prHeadSHA) return 0;
+    return comments.filter(
+      (c) => c.commitSHA !== prHeadSHA && typeof c.line === "number",
+    ).length;
+  }, [isStale, prHeadSHA, comments]);
+
   const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
     useTurnDiffSummaries(activeThread);
   const orderedTurnDiffSummaries = useMemo(
@@ -479,7 +510,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [shouldFetchPrDiff, activeThread?.id, prNumberInput, activeThread?.environmentId]);
+  }, [shouldFetchPrDiff, activeThread?.id, prNumberInput, activeThread?.environmentId, prDiffRefreshKey]);
 
   const headerRow = (
     <>
@@ -719,6 +750,12 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             </div>
           ) : (
             <div className="h-full overflow-auto p-2">
+              {isStale && (
+                <StaleBanner
+                  outdatedCommentCount={outdatedCommentCount}
+                  onRefresh={refreshPrDiff}
+                />
+              )}
               <pre
                 className={cn(
                   "max-h-[72vh] rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90",
@@ -744,6 +781,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                     onRequestAgent={runBackgroundAgent}
                     agentEvents={agentEvents}
                     agentRunning={agentRunning}
+                    currentPrHeadSHA={prHeadSHA}
+                    storedPrHeadSHA={storedPrHeadSHA}
+                    modifiedFiles={modifiedFilesFromDiff}
                   />
                 </div>
               )}
@@ -880,6 +920,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                           onRequestAgent={runBackgroundAgent}
                           agentEvents={agentEvents}
                           agentRunning={agentRunning}
+                          currentPrHeadSHA={prHeadSHA}
+                          storedPrHeadSHA={storedPrHeadSHA}
+                          modifiedFiles={modifiedFilesFromDiff}
                         />
                       )}
                     </div>
