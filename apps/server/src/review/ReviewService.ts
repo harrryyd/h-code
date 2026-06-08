@@ -111,13 +111,18 @@ export const make = Effect.fn("makeReviewService")(function* () {
     return yield* getDriverDiffPreview(input);
   });
 
-  const getReviewDraft: ReviewServiceShape["getReviewDraft"] = (input) =>
-    draftStore.get(input.threadId, input.prNumber).pipe(Effect.map(Option.getOrNull));
+  const getReviewDraft: ReviewServiceShape["getReviewDraft"] = Effect.fn(
+    "ReviewService.getReviewDraft",
+  )((input) =>
+    draftStore.get(input.threadId, input.prNumber).pipe(Effect.map(Option.getOrNull)),
+  );
 
-  const upsertReviewComment: ReviewServiceShape["upsertReviewComment"] = (input) =>
+  const upsertReviewComment: ReviewServiceShape["upsertReviewComment"] = Effect.fn(
+    "ReviewService.upsertReviewComment",
+  )((input) =>
     draftStore.get(input.threadId, input.prNumber).pipe(
-      Effect.map(Option.getOrNull as (o: Option.Option<ReviewDraft>) => ReviewDraft | null),
-      Effect.flatMap((existingDraft) => {
+      Effect.flatMap((option) => {
+        const existingDraft = Option.getOrNull(option);
         const draft: ReviewDraft = existingDraft
           ? {
               ...existingDraft,
@@ -137,12 +142,15 @@ export const make = Effect.fn("makeReviewService")(function* () {
 
         return draftStore.upsert(draft).pipe(Effect.as(draft));
       }),
-    );
+    ),
+  );
 
-  const deleteReviewComment: ReviewServiceShape["deleteReviewComment"] = (input) =>
+  const deleteReviewComment: ReviewServiceShape["deleteReviewComment"] = Effect.fn(
+    "ReviewService.deleteReviewComment",
+  )((input) =>
     draftStore.get(input.threadId, input.prNumber).pipe(
-      Effect.map(Option.getOrNull as (o: Option.Option<ReviewDraft>) => ReviewDraft | null),
-      Effect.flatMap((existingDraft) => {
+      Effect.flatMap((option) => {
+        const existingDraft = Option.getOrNull(option);
         if (!existingDraft) {
           return Effect.succeed<ReviewDraft | null>(null);
         }
@@ -164,7 +172,8 @@ export const make = Effect.fn("makeReviewService")(function* () {
 
         return draftStore.upsert(draft).pipe(Effect.as<ReviewDraft | null>(draft));
       }),
-    );
+    ),
+  );
 
   return ReviewService.of({
     getDiffPreview,
