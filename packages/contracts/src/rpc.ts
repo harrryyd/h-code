@@ -115,6 +115,7 @@ import {
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
   ReviewComment,
+  ReviewCommentAgentStatus,
   ReviewDraft,
 } from "./sourceControl.ts";
 import { TodoCategory, TodoItem, TodoItemPriority } from "./todos.ts";
@@ -162,6 +163,7 @@ export const WS_METHODS = {
   changeRequestDeleteReviewComment: "changeRequest.deleteReviewComment",
   changeRequestGetPrDiff: "changeRequest.getPrDiff",
   changeRequestSubmitReview: "changeRequest.submitReview",
+  changeRequestRunBackgroundAgent: "changeRequest.runBackgroundAgent",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -562,6 +564,46 @@ export const WsChangeRequestGetPrDiffRpc = Rpc.make(WS_METHODS.changeRequestGetP
   error: Schema.Union([ChangeRequestGetPrDiffError, EnvironmentAuthorizationError]),
 });
 
+export class ChangeRequestRunBackgroundAgentError extends Schema.TaggedErrorClass<ChangeRequestRunBackgroundAgentError>()(
+  "ChangeRequestRunBackgroundAgentError",
+  {
+    kind: Schema.Literals(["thread-not-found", "no-worktree", "agent-failed"]),
+    detail: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `Background agent error (${this.kind}): ${this.detail}`;
+  }
+}
+
+export const ChangeRequestRunBackgroundAgentInput = Schema.Struct({
+  threadId: ThreadId,
+  prNumber: PositiveInt,
+  commentId: TrimmedNonEmptyString,
+});
+export type ChangeRequestRunBackgroundAgentInput = typeof ChangeRequestRunBackgroundAgentInput.Type;
+
+export const BackgroundAgentResponseEvent = Schema.Struct({
+  type: Schema.Literals(["text", "detail", "status", "done", "error"]),
+  commentId: TrimmedNonEmptyString,
+  content: Schema.optional(Schema.String),
+  agentStatus: Schema.optional(ReviewCommentAgentStatus),
+  title: Schema.optional(Schema.String),
+  message: Schema.optional(Schema.String),
+});
+export type BackgroundAgentResponseEvent = typeof BackgroundAgentResponseEvent.Type;
+
+export const WsChangeRequestRunBackgroundAgentRpc = Rpc.make(
+  WS_METHODS.changeRequestRunBackgroundAgent,
+  {
+    payload: ChangeRequestRunBackgroundAgentInput,
+    success: BackgroundAgentResponseEvent,
+    error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
+    stream: true,
+  },
+);
+
 export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<ChangeRequestSubmitReviewError>()(
   "ChangeRequestSubmitReviewError",
   {
@@ -942,6 +984,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsChangeRequestDeleteReviewCommentRpc,
   WsChangeRequestGetPrDiffRpc,
   WsChangeRequestSubmitReviewRpc,
+  WsChangeRequestRunBackgroundAgentRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,

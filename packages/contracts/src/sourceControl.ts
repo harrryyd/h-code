@@ -191,9 +191,10 @@ export const ReviewCommentAuthor = Schema.Struct({
 export type ReviewCommentAuthor = typeof ReviewCommentAuthor.Type;
 
 export const ReviewCommentAgentStatus = Schema.Literals([
-  "pending",
-  "resolved",
-  "suggestion",
+  "idle",
+  "running",
+  "completed",
+  "failed",
 ]);
 export type ReviewCommentAgentStatus = typeof ReviewCommentAgentStatus.Type;
 

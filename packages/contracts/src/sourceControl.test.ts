@@ -47,12 +47,12 @@ describe("ReviewComment", () => {
       file: "src/utils.ts",
       commitSHA: "def456",
       body: "Refactor to reduce complexity.",
-      agentStatus: "suggestion",
+      agentStatus: "running",
       author: { login: "codex-bot" },
       createdAt: "2025-06-02T08:30:00Z",
     });
 
-    expect(parsed.agentStatus).toBe("suggestion");
+    expect(parsed.agentStatus).toBe("running");
   });
 
   it("decodes a review comment with nested replies", () => {
@@ -160,7 +160,7 @@ describe("ReviewDraft", () => {
           line: 33,
           commitSHA: "abc",
           body: "Second comment",
-          agentStatus: "resolved",
+          agentStatus: "completed",
           author: { login: "bot" },
           createdAt: "2025-06-01T12:01:00Z",
         },
@@ -170,7 +170,7 @@ describe("ReviewDraft", () => {
     expect(parsed.comments).toHaveLength(2);
     expect(parsed.comments[0]?.id).toBe("c1");
     expect(parsed.comments[1]?.id).toBe("c2");
-    expect(parsed.comments[1]?.agentStatus).toBe("resolved");
+    expect(parsed.comments[1]?.agentStatus).toBe("completed");
   });
 
   it("rejects a review draft with prNumber of 0", () => {

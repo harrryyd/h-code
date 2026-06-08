@@ -32,7 +32,7 @@ const testComment2: ReviewComment = {
   file: "src/utils.ts",
   commitSHA: "abc123",
   body: "Extract this into a helper function.",
-  agentStatus: "suggestion",
+  agentStatus: "running",
   author: { login: "codex-bot" },
   createdAt: "2025-06-01T12:05:00Z",
 };
@@ -114,7 +114,7 @@ describe("ReviewService review drafts", () => {
       const updatedComment: ReviewComment = {
         ...testComment,
         body: "Updated body text.",
-        agentStatus: "resolved",
+        agentStatus: "completed",
       };
 
       const upserted = yield* review.upsertReviewComment({
@@ -126,7 +126,7 @@ describe("ReviewService review drafts", () => {
 
       expect(upserted.comments).toHaveLength(1);
       expect(upserted.comments[0]?.body).toBe("Updated body text.");
-      expect(upserted.comments[0]?.agentStatus).toBe("resolved");
+      expect(upserted.comments[0]?.agentStatus).toBe("completed");
       expect(upserted.prHeadSHA).toBe("sha2");
     }).pipe(Effect.provide(makeLayer())),
   );

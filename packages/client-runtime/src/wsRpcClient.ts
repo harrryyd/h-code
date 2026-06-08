@@ -143,6 +143,9 @@ export interface WsRpcClient {
       typeof WS_METHODS.changeRequestDeleteReviewComment
     >;
     readonly submitReview: RpcUnaryMethod<typeof WS_METHODS.changeRequestSubmitReview>;
+    readonly runBackgroundAgent: RpcInputStreamMethod<
+      typeof WS_METHODS.changeRequestRunBackgroundAgent
+    >;
   };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
@@ -331,6 +334,12 @@ export function createWsRpcClient(
       submitReview: (input) =>
         transport.request((client) =>
           client[WS_METHODS.changeRequestSubmitReview](input),
+        ),
+      runBackgroundAgent: (input, listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.changeRequestRunBackgroundAgent](input),
+          listener,
+          subscriptionOptions(options, WS_METHODS.changeRequestRunBackgroundAgent),
         ),
     },
     server: {
