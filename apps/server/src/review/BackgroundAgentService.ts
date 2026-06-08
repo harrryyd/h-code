@@ -258,6 +258,7 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
 
             const runAgentProcess = Effect.async<number, ChangeRequestRunBackgroundAgentError>(
               (resume) => {
+                let resolved = false;
                 const child = child_process.spawn("opencode", [
                   "--cwd",
                   worktreePath,
@@ -301,11 +302,17 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 });
 
                 child.on("close", (code: number | null) => {
-                  resume(Effect.succeed(code ?? 0));
+                  if (!resolved) {
+                    resolved = true;
+                    resume(Effect.succeed(code ?? 0));
+                  }
                 });
 
                 child.on("error", () => {
-                  resume(Effect.succeed(127));
+                  if (!resolved) {
+                    resolved = true;
+                    resume(Effect.succeed(127));
+                  }
                 });
               },
             );
@@ -370,12 +377,13 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 })
                 .pipe(Effect.ignore);
 
-              // Push directly to the PR head branch
+              // Push to a new branch on origin (agent response branch)
+              const remoteBranch = `refs/heads/${tempBranch}`;
               yield* git
                 .execute({
                   operation: "backgroundAgent.push",
                   cwd: worktreePath,
-                  args: ["push", "origin", `${tempBranch}:${input.prHeadRef}`],
+                  args: ["push", "origin", `${tempBranch}:${remoteBranch}`],
                 })
                 .pipe(Effect.ignore);
 
@@ -383,7 +391,7 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 type: "detail",
                 commentId: input.commentId,
                 title: "Pushed",
-                content: `Pushed changes to ${input.prHeadRef}`,
+                content: `Pushed changes to branch ${tempBranch}`,
               });
             } else {
               yield* offer({
