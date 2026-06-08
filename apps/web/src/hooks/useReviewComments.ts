@@ -41,6 +41,7 @@ export interface UseReviewCommentsResult {
   deleteComment: (commentId: string) => Promise<void>;
   refreshDraft: () => void;
   submitReview: () => Promise<ReviewDraft | null>;
+  submitReviewWithBatchAgents: () => void;
   runBackgroundAgent: (commentId: string) => void;
   agentEvents: Map<string, BackgroundAgentEvent[]>;
   agentRunning: Set<string>;
@@ -178,6 +179,79 @@ export function useReviewComments(
     [environmentId, threadId, prNumber],
   );
 
+  const submitReviewWithBatchAgents = useCallback(() => {
+    if (!environmentId || !threadId || !prNumber) return;
+    const api = readEnvironmentApi(environmentId);
+    if (!api) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    api.changeRequest
+      .submitReview({ threadId, prNumber, runBatchAgents: true })
+      .then((updatedDraft) => {
+        setReviewDraft(updatedDraft);
+        setSubmitting(false);
+
+        if (updatedDraft) {
+          const commentIds = updatedDraft.comments.map((c) => c.id);
+
+          if (commentIds.length > 0) {
+            const unsub = api.changeRequest.runBatchAgents(
+              { threadId, prNumber, commentIds },
+              (event) => {
+                setAgentEvents((prev) => {
+                  const next = new Map(prev);
+                  const events = [...(next.get(event.commentId) ?? []), event];
+                  next.set(event.commentId, events);
+                  return next;
+                });
+
+                if (event.type === "status" && event.agentStatus) {
+                  setReviewDraft((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      comments: prev.comments.map((c) =>
+                        c.id === event.commentId
+                          ? { ...c, agentStatus: event.agentStatus as ReviewComment["agentStatus"] }
+                          : c,
+                      ),
+                    };
+                  });
+
+                  if (event.agentStatus === "running") {
+                    setAgentRunning((prev) => new Set(prev).add(event.commentId));
+                  } else if (event.agentStatus === "completed" || event.agentStatus === "failed") {
+                    setAgentRunning((prev) => {
+                      const next = new Set(prev);
+                      next.delete(event.commentId);
+                      return next;
+                    });
+                  }
+                }
+
+                if (event.type === "done" || event.type === "error") {
+                  setAgentRunning((prev) => {
+                    const next = new Set(prev);
+                    next.delete(event.commentId);
+                    return next;
+                  });
+                }
+              },
+              {
+                onResubscribe: () => {},
+              },
+            );
+
+            agentUnsubRef.current.set("__batch__", unsub);
+          }
+        }
+      })
+      .catch((error) => {
+        setSubmitError(error instanceof Error ? error.message : "Failed to submit review");
+        setSubmitting(false);
+      });
+  }, [environmentId, threadId, prNumber]);
+
   const runBackgroundAgent = useCallback(
     (commentId: string) => {
       if (!environmentId || !threadId || !prNumber) return;
@@ -259,6 +333,7 @@ export function useReviewComments(
     saveComment,
     deleteComment,
     submitReview,
+    submitReviewWithBatchAgents,
     runBackgroundAgent,
     agentEvents,
     agentRunning,

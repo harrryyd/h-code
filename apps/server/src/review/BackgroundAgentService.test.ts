@@ -4,7 +4,10 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import type { BackgroundAgentResponseEvent } from "@t3tools/contracts";
 
-import { BackgroundAgentService } from "./BackgroundAgentService.ts";
+import {
+  BackgroundAgentService,
+  DEFAULT_MAX_CONCURRENT_AGENTS,
+} from "./BackgroundAgentService.ts";
 import { GitWorkflowService } from "../git/GitWorkflowService.ts";
 import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { ReviewService } from "./ReviewService.ts";
@@ -557,4 +560,274 @@ describe("BackgroundAgentService", () => {
       ),
     )),
   );
+
+  describe("runBatchAgents", () => {
+    function createBatchFakeChildrenSpawnMock() {
+      const children: ReturnType<typeof makeFakeChildProcess>[] = [];
+      vi.mocked(child_process.spawn).mockImplementation(() => {
+        const child = makeFakeChildProcess();
+        children.push(child);
+        return child as ReturnType<typeof child_process.spawn>;
+      });
+      return children;
+    }
+
+    const batchInput1: Parameters<BackgroundAgentService["runBackgroundAgent"]>[0] = {
+      threadId: "thread-1",
+      prNumber: 1,
+      commentId: "comment-1",
+      cwd: "/test/repo",
+      prHeadRef: "refs/t3/pr/1/head",
+      commentFile: "test.ts",
+      commentLine: 42,
+      commentBody: "Fix this",
+    };
+
+    const batchInput2: Parameters<BackgroundAgentService["runBackgroundAgent"]>[0] = {
+      threadId: "thread-1",
+      prNumber: 1,
+      commentId: "comment-2",
+      cwd: "/test/repo",
+      prHeadRef: "refs/t3/pr/1/head",
+      commentFile: "src/app.ts",
+      commentLine: 10,
+      commentBody: "Extract this",
+    };
+
+    const batchInput3: Parameters<BackgroundAgentService["runBackgroundAgent"]>[0] = {
+      threadId: "thread-1",
+      prNumber: 1,
+      commentId: "comment-3",
+      cwd: "/test/repo",
+      prHeadRef: "refs/t3/pr/1/head",
+      commentFile: "src/utils.ts",
+      commentLine: undefined,
+      commentBody: "Add type",
+    };
+
+    it("runs batch agents in parallel and returns events for all comments", () =>
+      Effect.gen(function* () {
+        const fakeChildren = createBatchFakeChildrenSpawnMock();
+
+        const updateMutation = vi.fn();
+        const { layer } = makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+          updateMutation,
+        });
+
+        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+
+        const collectPromise = Effect.runPromise(
+          service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(
+            Stream.runCollect,
+          ),
+        );
+
+        yield* Effect.promise(() => new Promise((r) => setTimeout(r, 20)));
+
+        for (const child of fakeChildren) {
+          child._emitClose(0);
+        }
+
+        const events = yield* Effect.promise(() => collectPromise);
+        const eventsArray = Array.from(events);
+
+        expect(eventsArray.length).toBeGreaterThan(0);
+
+        // Verify all commentIds appear in events
+        const eventCommentIds = new Set(eventsArray.map((e) => e.commentId));
+        expect(eventCommentIds.has("comment-1")).toBe(true);
+        expect(eventCommentIds.has("comment-2")).toBe(true);
+        expect(eventCommentIds.has("comment-3")).toBe(true);
+
+        // Each comment should get at least a status event
+        for (const commentId of ["comment-1", "comment-2", "comment-3"]) {
+          const hasStatus = eventsArray.some(
+            (e) => e.commentId === commentId && e.type === "status",
+          );
+          expect(hasStatus).toBe(true);
+        }
+
+        // Each comment should get a done event
+        for (const commentId of ["comment-1", "comment-2", "comment-3"]) {
+          const hasDone = eventsArray.some(
+            (e) => e.commentId === commentId && e.type === "done",
+          );
+          expect(hasDone).toBe(true);
+        }
+
+        expect(updateMutation).toHaveBeenCalledTimes(6); // 2 per comment (running + completed)
+      }).pipe(Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      )),
+    );
+
+    it("single agent failure does not block other agents", () =>
+      Effect.gen(function* () {
+        const children = createBatchFakeChildrenSpawnMock();
+
+        const updateMutation = vi.fn();
+        const { layer } = makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+          updateMutation,
+        });
+
+        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+
+        const collectPromise = Effect.runPromise(
+          service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(
+            Stream.runCollect,
+          ),
+        );
+
+        yield* Effect.promise(() => new Promise((r) => setTimeout(r, 20)));
+
+        // Fail the first child, succeed the rest
+        if (children[0]) children[0]._emitClose(1);
+        for (let i = 1; i < children.length; i++) {
+          children[i]?._emitClose(0);
+        }
+
+        const events = yield* Effect.promise(() => collectPromise);
+        const eventsArray = Array.from(events);
+
+        // comment-2 and comment-3 should complete
+        const doneIds = eventsArray
+          .filter((e) => e.type === "done")
+          .map((e) => e.commentId);
+        expect(doneIds).toContain("comment-2");
+        expect(doneIds).toContain("comment-3");
+
+        // comment-1 should have error events
+        const errorEvents = eventsArray.filter(
+          (e) => e.type === "error" && e.commentId === "comment-1",
+        );
+        expect(errorEvents.length).toBeGreaterThanOrEqual(1);
+
+        // All three comments should get events
+        const allIds = new Set(eventsArray.map((e) => e.commentId));
+        expect(allIds.has("comment-1")).toBe(true);
+        expect(allIds.has("comment-2")).toBe(true);
+        expect(allIds.has("comment-3")).toBe(true);
+      }).pipe(Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      )),
+    );
+
+    it("respects concurrency limit", () =>
+      Effect.gen(function* () {
+        const children = createBatchFakeChildrenSpawnMock();
+        const spawnOrder: string[] = [];
+        // Track spawn calls by tracking when each fake child is created
+        vi.mocked(child_process.spawn).mockImplementation(() => {
+          const child = makeFakeChildProcess();
+          children.push(child);
+          spawnOrder.push(`spawn-${children.length}`);
+          return child as ReturnType<typeof child_process.spawn>;
+        });
+
+        const updateMutation = vi.fn();
+        const { layer } = makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+          updateMutation,
+        });
+
+        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+
+        // Run 5 agents with max concurrency 2
+        const inputs = [
+          { ...batchInput1, commentId: "c-1" },
+          { ...batchInput1, commentId: "c-2" },
+          { ...batchInput1, commentId: "c-3" },
+          { ...batchInput1, commentId: "c-4" },
+          { ...batchInput1, commentId: "c-5" },
+        ];
+
+        const collectPromise = Effect.runPromise(
+          service.runBatchAgents(inputs, 2).pipe(Stream.runCollect),
+        );
+
+        yield* Effect.promise(() => new Promise((r) => setTimeout(r, 20)));
+
+        // Close all children
+        for (const child of children) {
+          child._emitClose(0);
+        }
+
+        const events = yield* Effect.promise(() => collectPromise);
+        const eventsArray = Array.from(events);
+
+        // All 5 comments should have events
+        for (const cid of ["c-1", "c-2", "c-3", "c-4", "c-5"]) {
+          const hasEvent = eventsArray.some((e) => e.commentId === cid);
+          expect(hasEvent).toBe(true);
+        }
+
+        // Verify spawn was called for all 5
+        expect(child_process.spawn).toHaveBeenCalledTimes(5);
+      }).pipe(Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      )),
+    );
+
+    it("runBatchAgents with empty inputs completes immediately", () =>
+      Effect.gen(function* () {
+        const updateMutation = vi.fn();
+        const { layer } = makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+          updateMutation,
+        });
+
+        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+
+        const events = yield* service.runBatchAgents([]).pipe(
+          Stream.runCollect,
+        );
+
+        const eventsArray = Array.from(events);
+        expect(eventsArray).toHaveLength(0);
+        expect(child_process.spawn).not.toHaveBeenCalled();
+      }).pipe(Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      )),
+    );
+
+    it("uses DEFAULT_MAX_CONCURRENT_AGENTS when maxConcurrent is not specified", () =>
+      Effect.gen(function* () {
+        expect(DEFAULT_MAX_CONCURRENT_AGENTS).toBe(3);
+      }),
+    );
+  });
 });

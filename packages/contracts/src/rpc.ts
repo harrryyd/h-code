@@ -164,6 +164,7 @@ export const WS_METHODS = {
   changeRequestGetPrDiff: "changeRequest.getPrDiff",
   changeRequestSubmitReview: "changeRequest.submitReview",
   changeRequestRunBackgroundAgent: "changeRequest.runBackgroundAgent",
+  changeRequestRunBatchAgents: "changeRequest.runBatchAgents",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -604,6 +605,23 @@ export const WsChangeRequestRunBackgroundAgentRpc = Rpc.make(
   },
 );
 
+export const WsChangeRequestRunBatchAgentsInput = Schema.Struct({
+  threadId: ThreadId,
+  prNumber: PositiveInt,
+  commentIds: Schema.Array(TrimmedNonEmptyString),
+});
+export type WsChangeRequestRunBatchAgentsInput = typeof WsChangeRequestRunBatchAgentsInput.Type;
+
+export const WsChangeRequestRunBatchAgentsRpc = Rpc.make(
+  WS_METHODS.changeRequestRunBatchAgents,
+  {
+    payload: WsChangeRequestRunBatchAgentsInput,
+    success: BackgroundAgentResponseEvent,
+    error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
+    stream: true,
+  },
+);
+
 export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<ChangeRequestSubmitReviewError>()(
   "ChangeRequestSubmitReviewError",
   {
@@ -620,6 +638,7 @@ export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<Chan
 export const WsChangeRequestSubmitReviewInput = Schema.Struct({
   threadId: ThreadId,
   prNumber: PositiveInt,
+  runBatchAgents: Schema.optional(Schema.Boolean),
 });
 export type WsChangeRequestSubmitReviewInput = typeof WsChangeRequestSubmitReviewInput.Type;
 
@@ -985,6 +1004,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsChangeRequestGetPrDiffRpc,
   WsChangeRequestSubmitReviewRpc,
   WsChangeRequestRunBackgroundAgentRpc,
+  WsChangeRequestRunBatchAgentsRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,

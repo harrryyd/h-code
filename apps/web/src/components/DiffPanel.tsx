@@ -185,6 +185,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     submitting,
     submitError,
     submitReview,
+    submitReviewWithBatchAgents,
     runBackgroundAgent,
     agentEvents,
     agentRunning,
@@ -197,6 +198,8 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const [prDiffRefreshKey, setPrDiffRefreshKey] = useState(0);
   const refreshRequestedRef = useRef(false);
   const [storedPrHeadSHA, setStoredPrHeadSHA] = useState<string | null>(null);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [batchAgentsEnabled, setBatchAgentsEnabled] = useState(false);
 
   // Initialize stored SHA from reviewDraft when loaded (existing comments carry SHA)
   useEffect(() => {
@@ -694,13 +697,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               )}
               disabled={draftCommentCount === 0 || submitting}
               onClick={() => {
-                if (
-                  draftCommentCount > 0 &&
-                  window.confirm(
-                    `Post ${draftCommentCount} comment${draftCommentCount !== 1 ? "s" : ""} as a GitHub review?`,
-                  )
-                ) {
-                  void submitReview();
+                if (draftCommentCount > 0) {
+                  setShowSubmitConfirm(true);
+                  setBatchAgentsEnabled(false);
                 }
               }}
             >
@@ -711,6 +710,47 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             </button>
             {submitError && (
               <span className="text-[10px] text-red-500/80">{submitError}</span>
+            )}
+            {showSubmitConfirm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60">
+                <div className="w-80 rounded-lg border border-border bg-card p-4 shadow-lg">
+                  <p className="mb-3 text-[12px] font-medium text-foreground/90">
+                    Post {draftCommentCount} comment{draftCommentCount !== 1 ? "s" : ""} as a GitHub review?
+                  </p>
+                  <label className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground/80 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={batchAgentsEnabled}
+                      onChange={(e) => setBatchAgentsEnabled(e.target.checked)}
+                      className="size-3.5 rounded border-border/70"
+                    />
+                    Also request AI responses for all {draftCommentCount} comments
+                  </label>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex h-7 items-center rounded-md border border-border/70 px-3 text-[11px] text-muted-foreground/70 hover:bg-foreground/6"
+                      onClick={() => setShowSubmitConfirm(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex h-7 items-center rounded-md bg-primary/15 px-3 text-[11px] font-medium text-primary hover:bg-primary/20"
+                      onClick={() => {
+                        setShowSubmitConfirm(false);
+                        if (batchAgentsEnabled) {
+                          submitReviewWithBatchAgents();
+                        } else {
+                          void submitReview();
+                        }
+                      }}
+                    >
+                      Submit
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </>
         )}

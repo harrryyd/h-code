@@ -146,6 +146,9 @@ export interface WsRpcClient {
     readonly runBackgroundAgent: RpcInputStreamMethod<
       typeof WS_METHODS.changeRequestRunBackgroundAgent
     >;
+    readonly runBatchAgents: RpcInputStreamMethod<
+      typeof WS_METHODS.changeRequestRunBatchAgents
+    >;
   };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
@@ -340,6 +343,12 @@ export function createWsRpcClient(
           (client) => client[WS_METHODS.changeRequestRunBackgroundAgent](input),
           listener,
           subscriptionOptions(options, WS_METHODS.changeRequestRunBackgroundAgent),
+        ),
+      runBatchAgents: (input, listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.changeRequestRunBatchAgents](input),
+          listener,
+          subscriptionOptions(options, WS_METHODS.changeRequestRunBatchAgents),
         ),
     },
     server: {
