@@ -158,6 +158,7 @@ describe("GitHubCli.layer", () => {
           baseRefName: "main",
           headRefName: "feature/pr-list",
           state: "open",
+          isCrossRepository: false,
         },
       ]);
       expect(mockRun).toHaveBeenNthCalledWith(1, {

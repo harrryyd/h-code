@@ -125,7 +125,6 @@ function isUnsupportedLabelsJsonFieldError(error: GitHubCliError): boolean {
   const lower = error.detail.toLowerCase();
   return (
     lower.includes("labels") &&
-    lower.includes("json") &&
     (lower.includes("unknown field") ||
       lower.includes("unknown json field") ||
       lower.includes("invalid field"))
