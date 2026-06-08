@@ -3,10 +3,15 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { ReviewComment } from "@t3tools/contracts";
 
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as ReviewService from "./ReviewService.ts";
+import { ServerConfig } from "../config.ts";
 
 function makeLayer() {
-  return ReviewService.layer;
+  return ReviewService.layer.pipe(
+    Layer.provide(ServerConfig.layerTest("test-cwd", { prefix: "t3-review-draft-service-" })),
+    Layer.provideMerge(NodeServices.layer),
+  );
 }
 
 const testComment: ReviewComment = {

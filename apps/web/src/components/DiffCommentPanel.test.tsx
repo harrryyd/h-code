@@ -184,7 +184,7 @@ describe("DiffCommentPanel", () => {
     expect(markup).toContain("Failed to save comment");
   });
 
-  it("shows comment-on-file and comment-on-line buttons when not editing", () => {
+  it("shows comment-on-file button when not editing", () => {
     const markup = renderToStaticMarkup(
       <DiffCommentPanel
         filePath="src/app.ts"
@@ -200,7 +200,6 @@ describe("DiffCommentPanel", () => {
     );
 
     expect(markup).toContain("Comment on file");
-    expect(markup).toContain("Comment on line");
   });
 
   it("hides add comment buttons while editing", () => {

@@ -1,5 +1,5 @@
 import type { ReviewComment } from "@t3tools/contracts";
-import { MessageCircleIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { cn } from "~/lib/utils";
 import { formatShortTimestamp } from "../timestampFormat";
@@ -178,8 +178,34 @@ export function DiffCommentPanel({
   const fileComments = comments.filter((c) => c.file === filePath);
   const isEditing = editingComment?.filePath === filePath;
 
+  const commentedLines = fileComments
+    .filter((c) => typeof c.line === "number")
+    .map((c) => c.line as number);
+  const uniqueCommentedLines = [...new Set(commentedLines)].sort((a, b) => a - b);
+
   return (
     <div className="diff-comment-panel py-1">
+      {fileComments.length > 0 && (
+        <div className="mx-3 mb-1 flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
+          <span>{fileComments.length} comment{fileComments.length !== 1 ? "s" : ""}</span>
+          {uniqueCommentedLines.length > 0 && (
+            <span>
+              on line{uniqueCommentedLines.length !== 1 ? "s" : ""}{" "}
+              {uniqueCommentedLines.map((line) => (
+                <button
+                  key={line}
+                  type="button"
+                  className="inline-flex size-4 items-center justify-center rounded-sm bg-foreground/6 text-[8px] font-medium text-muted-foreground/70 hover:bg-foreground/12 hover:text-foreground/70"
+                  onClick={() => onStartEditing(filePath, line)}
+                  title={`Comment on line ${line}`}
+                >
+                  {line}
+                </button>
+              )).reduce((prev, curr) => <>{prev} {curr}</> as never)}
+            </span>
+          )}
+        </div>
+      )}
       {fileComments.map((comment) => (
         <InlineComment
           key={comment.id}
@@ -207,15 +233,6 @@ export function DiffCommentPanel({
           >
             <PlusIcon className="size-3" />
             <span>Comment on file</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-6 items-center gap-1 rounded-sm px-2 text-[10px] text-muted-foreground/50 hover:bg-foreground/6 hover:text-muted-foreground/70"
-            onClick={() => onStartEditing(filePath, null)}
-            title="Add line comment"
-          >
-            <MessageCircleIcon className="size-3" />
-            <span>Comment on line</span>
           </button>
         </div>
       )}

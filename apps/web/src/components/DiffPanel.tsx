@@ -762,7 +762,11 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                           return node.hasAttribute("data-title");
                         });
                         if (!clickedHeader) return;
-                        openDiffFileInEditor(filePath);
+                        if (isReviewMode) {
+                          startEditing(filePath, null);
+                        } else {
+                          openDiffFileInEditor(filePath);
+                        }
                       }}
                     >
                       <FileDiff
@@ -789,6 +793,17 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                             )}
                           </button>
                         )}
+                        renderHeaderMetadata={() => {
+                          const fileCommentCount = comments.filter(
+                            (c) => c.file === filePath,
+                          ).length;
+                          if (fileCommentCount === 0) return null;
+                          return (
+                            <span className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-primary/15 text-[9px] font-medium text-primary/80 select-none">
+                              {fileCommentCount}
+                            </span>
+                          );
+                        }}
                         options={{
                           collapsed,
                           diffStyle: diffRenderMode === "split" ? "split" : "unified",

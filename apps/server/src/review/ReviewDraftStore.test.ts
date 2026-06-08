@@ -4,10 +4,15 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import type { ReviewComment, ReviewDraft } from "@t3tools/contracts";
 
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as ReviewDraftStore from "./ReviewDraftStore.ts";
+import { ServerConfig } from "../config.ts";
 
 function makeLayer() {
-  return ReviewDraftStore.layer;
+  return ReviewDraftStore.layer.pipe(
+    Layer.provide(ServerConfig.layerTest("test-cwd", { prefix: "t3-review-draft-store-" })),
+    Layer.provideMerge(NodeServices.layer),
+  );
 }
 
 const testComment: ReviewComment = {

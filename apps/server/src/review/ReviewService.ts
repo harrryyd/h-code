@@ -20,6 +20,7 @@ import { ServerConfig } from "../config.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
 import * as ReviewDraftStore from "./ReviewDraftStore.ts";
+import * as GitHubCli from "../sourceControl/GitHubCli.ts";
 
 export interface ReviewServiceShape {
   readonly getDiffPreview: (
@@ -28,6 +29,7 @@ export interface ReviewServiceShape {
   readonly getReviewDraft: (input: {
     readonly threadId: string;
     readonly prNumber: number;
+    readonly cwd?: string | undefined;
   }) => Effect.Effect<ReviewDraft | null, never>;
   readonly upsertReviewComment: (input: {
     readonly threadId: string;
@@ -53,6 +55,22 @@ export const make = Effect.fn("makeReviewService")(function* () {
   const vcsRegistry = yield* VcsDriverRegistry.VcsDriverRegistry;
   const git = yield* GitVcsDriver.GitVcsDriver;
   const draftStore = yield* ReviewDraftStore.ReviewDraftStore;
+  const githubCliOption = yield* Effect.serviceOption(GitHubCli.GitHubCli);
+
+  function mapGitHubCommentToReviewComment(
+    comment: GitHubCli.GitHubPullRequestReviewComment,
+  ): ReviewComment {
+    return {
+      id: `gh-${comment.id}`,
+      file: comment.path,
+      line: comment.line,
+      commitSHA: comment.commitSHA,
+      body: comment.body,
+      author: comment.author,
+      createdAt: comment.createdAt,
+      replies: comment.replies?.map(mapGitHubCommentToReviewComment),
+    };
+  }
 
   const canonicalizePath = (value: string) =>
     fileSystem.realPath(path.resolve(value)).pipe(Effect.orElseSucceed(() => path.resolve(value)));
@@ -114,7 +132,37 @@ export const make = Effect.fn("makeReviewService")(function* () {
   const getReviewDraft: ReviewServiceShape["getReviewDraft"] = Effect.fn(
     "ReviewService.getReviewDraft",
   )((input) =>
-    draftStore.get(input.threadId, input.prNumber).pipe(Effect.map(Option.getOrNull)),
+    Effect.gen(function* () {
+      const localDraftOption = yield* draftStore.get(input.threadId, input.prNumber);
+
+      let githubComments: ReviewComment[] = [];
+      if (input.cwd && Option.isSome(githubCliOption)) {
+        const cli = githubCliOption.value;
+        const reviews = yield* cli.getPullRequestReviews({
+          cwd: input.cwd,
+          reference: String(input.prNumber),
+        }).pipe(Effect.orElseSucceed(() => ({ comments: [] })));
+        githubComments = reviews.comments.map(mapGitHubCommentToReviewComment);
+      }
+
+      const existingDraft = Option.getOrNull(localDraftOption);
+
+      if (!existingDraft && githubComments.length === 0) return null;
+
+      const localCommentIds = new Set(existingDraft?.comments.map((c) => c.id) ?? []);
+      const mergedComments = [
+        ...githubComments.filter((c) => !localCommentIds.has(c.id)),
+        ...(existingDraft?.comments ?? []),
+      ];
+
+      return {
+        threadId: input.threadId,
+        prNumber: input.prNumber,
+        prHeadSHA: existingDraft?.prHeadSHA ?? "",
+        comments: mergedComments,
+        state: existingDraft?.state ?? ("draft" as const),
+      } satisfies ReviewDraft;
+    }),
   );
 
   const upsertReviewComment: ReviewServiceShape["upsertReviewComment"] = Effect.fn(

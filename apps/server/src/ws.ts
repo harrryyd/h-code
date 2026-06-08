@@ -1453,7 +1453,14 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
         [WS_METHODS.changeRequestGetReviewDraft]: (input) =>
           observeRpcEffect(
             WS_METHODS.changeRequestGetReviewDraft,
-            review.getReviewDraft(input),
+            Effect.gen(function* () {
+              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              const cwd = Option.match(thread, {
+                onNone: () => undefined,
+                onSome: (t) => t.worktreePath ?? undefined,
+              });
+              return yield* review.getReviewDraft({ ...input, cwd });
+            }),
             { "rpc.aggregate": "review" },
           ),
         [WS_METHODS.changeRequestUpsertReviewComment]: (input) =>
