@@ -188,6 +188,9 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.vcsSwitchRef, AuthOrchestrationOperateScope],
   [WS_METHODS.vcsInit, AuthOrchestrationOperateScope],
   [WS_METHODS.reviewGetDiffPreview, AuthReviewWriteScope],
+  [WS_METHODS.changeRequestGetReviewDraft, AuthReviewWriteScope],
+  [WS_METHODS.changeRequestUpsertReviewComment, AuthReviewWriteScope],
+  [WS_METHODS.changeRequestDeleteReviewComment, AuthReviewWriteScope],
   [WS_METHODS.terminalOpen, AuthTerminalOperateScope],
   [WS_METHODS.terminalAttach, AuthTerminalOperateScope],
   [WS_METHODS.terminalWrite, AuthTerminalOperateScope],
@@ -1444,6 +1447,24 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(WS_METHODS.reviewGetDiffPreview, review.getDiffPreview(input), {
             "rpc.aggregate": "review",
           }),
+        [WS_METHODS.changeRequestGetReviewDraft]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.changeRequestGetReviewDraft,
+            review.getReviewDraft(input),
+            { "rpc.aggregate": "review" },
+          ),
+        [WS_METHODS.changeRequestUpsertReviewComment]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.changeRequestUpsertReviewComment,
+            review.upsertReviewComment(input),
+            { "rpc.aggregate": "review" },
+          ),
+        [WS_METHODS.changeRequestDeleteReviewComment]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.changeRequestDeleteReviewComment,
+            review.deleteReviewComment(input),
+            { "rpc.aggregate": "review" },
+          ),
         [WS_METHODS.terminalOpen]: (input) =>
           observeRpcEffect(WS_METHODS.terminalOpen, terminalManager.open(input), {
             "rpc.aggregate": "terminal",

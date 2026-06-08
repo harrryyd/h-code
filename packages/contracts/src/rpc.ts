@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
-import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString, PositiveInt } from "./baseSchemas.ts";
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
   AuthAccessStreamError,
@@ -114,6 +114,8 @@ import {
   SourceControlRepositoryError,
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
+  ReviewComment,
+  ReviewDraft,
 } from "./sourceControl.ts";
 import { TodoCategory, TodoItem, TodoItemPriority } from "./todos.ts";
 import { VcsError } from "./vcs.ts";
@@ -153,6 +155,11 @@ export const WS_METHODS = {
 
   // Review methods
   reviewGetDiffPreview: "review.getDiffPreview",
+
+  // Change request review methods
+  changeRequestGetReviewDraft: "changeRequest.getReviewDraft",
+  changeRequestUpsertReviewComment: "changeRequest.upsertReviewComment",
+  changeRequestDeleteReviewComment: "changeRequest.deleteReviewComment",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -472,6 +479,56 @@ export const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPrevie
   success: ReviewDiffPreviewResult,
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
 });
+
+export const WsChangeRequestGetReviewDraftInput = Schema.Struct({
+  threadId: ThreadId,
+  prNumber: PositiveInt,
+});
+export type WsChangeRequestGetReviewDraftInput = typeof WsChangeRequestGetReviewDraftInput.Type;
+
+export const WsChangeRequestGetReviewDraftRpc = Rpc.make(
+  WS_METHODS.changeRequestGetReviewDraft,
+  {
+    payload: WsChangeRequestGetReviewDraftInput,
+    success: Schema.NullOr(ReviewDraft),
+    error: EnvironmentAuthorizationError,
+  },
+);
+
+export const WsChangeRequestUpsertReviewCommentInput = Schema.Struct({
+  threadId: ThreadId,
+  prNumber: PositiveInt,
+  prHeadSHA: TrimmedNonEmptyString,
+  comment: ReviewComment,
+});
+export type WsChangeRequestUpsertReviewCommentInput =
+  typeof WsChangeRequestUpsertReviewCommentInput.Type;
+
+export const WsChangeRequestUpsertReviewCommentRpc = Rpc.make(
+  WS_METHODS.changeRequestUpsertReviewComment,
+  {
+    payload: WsChangeRequestUpsertReviewCommentInput,
+    success: ReviewDraft,
+    error: EnvironmentAuthorizationError,
+  },
+);
+
+export const WsChangeRequestDeleteReviewCommentInput = Schema.Struct({
+  threadId: ThreadId,
+  prNumber: PositiveInt,
+  commentId: TrimmedNonEmptyString,
+});
+export type WsChangeRequestDeleteReviewCommentInput =
+  typeof WsChangeRequestDeleteReviewCommentInput.Type;
+
+export const WsChangeRequestDeleteReviewCommentRpc = Rpc.make(
+  WS_METHODS.changeRequestDeleteReviewComment,
+  {
+    payload: WsChangeRequestDeleteReviewCommentInput,
+    success: Schema.NullOr(ReviewDraft),
+    error: EnvironmentAuthorizationError,
+  },
+);
 
 export const TodosLoadResult = Schema.Struct({
   categories: Schema.Array(TodoCategory),
@@ -820,6 +877,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsTodosLoadRpc,
   WsTodosMutateRpc,
   WsReviewGetDiffPreviewRpc,
+  WsChangeRequestGetReviewDraftRpc,
+  WsChangeRequestUpsertReviewCommentRpc,
+  WsChangeRequestDeleteReviewCommentRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,

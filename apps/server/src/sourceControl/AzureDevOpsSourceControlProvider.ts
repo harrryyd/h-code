@@ -139,6 +139,22 @@ export const make = Effect.fn("makeAzureDevOpsSourceControlProvider")(function* 
           ...(input.context !== undefined ? { remoteName: input.context.remoteName } : {}),
         })
         .pipe(Effect.mapError((error) => providerError("checkoutChangeRequest", error))),
+    getPullRequestReviews: (_input) =>
+      Effect.fail(
+        new SourceControlProviderError({
+          provider: "azure-devops",
+          operation: "getPullRequestReviews",
+          detail: "Not implemented for this provider.",
+        }),
+      ),
+    createPullRequestReview: (_input) =>
+      Effect.fail(
+        new SourceControlProviderError({
+          provider: "azure-devops",
+          operation: "createPullRequestReview",
+          detail: "Not implemented for this provider.",
+        }),
+      ),
   });
 });
 

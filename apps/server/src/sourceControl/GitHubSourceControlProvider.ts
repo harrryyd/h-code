@@ -7,6 +7,7 @@ import {
   SourceControlProviderError,
   type ChangeRequest,
   type ChangeRequestState,
+  type ReviewComment,
 } from "@t3tools/contracts";
 
 import * as GitHubCli from "./GitHubCli.ts";
@@ -48,6 +49,21 @@ function toChangeRequest(summary: GitHubCli.GitHubPullRequestSummary): ChangeReq
     ...(summary.headRepositoryOwnerLogin !== undefined
       ? { headRepositoryOwnerLogin: summary.headRepositoryOwnerLogin }
       : {}),
+  };
+}
+
+function toReviewComment(
+  comment: GitHubCli.GitHubPullRequestReviewComment,
+): ReviewComment {
+  return {
+    id: comment.id,
+    file: comment.path,
+    ...(comment.line !== undefined ? { line: comment.line } : {}),
+    commitSHA: comment.commitSHA,
+    body: comment.body,
+    replies: comment.replies?.map(toReviewComment),
+    author: { login: comment.author.login },
+    createdAt: comment.createdAt,
   };
 }
 
@@ -206,6 +222,17 @@ export const make = Effect.fn("makeGitHubSourceControlProvider")(function* () {
       github
         .checkoutPullRequest(input)
         .pipe(Effect.mapError((error) => providerError("checkoutChangeRequest", error))),
+    getPullRequestReviews: (input) =>
+      github
+        .getPullRequestReviews(input)
+        .pipe(
+          Effect.map((review) => review.comments.map(toReviewComment)),
+          Effect.mapError((error) => providerError("getPullRequestReviews", error)),
+        ),
+    createPullRequestReview: (input) =>
+      github
+        .createPullRequestReview(input)
+        .pipe(Effect.mapError((error) => providerError("createPullRequestReview", error))),
   });
 });
 
