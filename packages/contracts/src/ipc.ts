@@ -681,6 +681,24 @@ export interface EnvironmentApi {
       }>;
       readonly state: "draft" | "published";
     } | null>;
+    submitReview: (input: {
+      readonly threadId: string;
+      readonly prNumber: number;
+    }) => Promise<{
+      readonly threadId: string;
+      readonly prNumber: number;
+      readonly prHeadSHA: string;
+      readonly comments: ReadonlyArray<{
+        readonly id: string;
+        readonly file: string;
+        readonly line?: number;
+        readonly commitSHA: string;
+        readonly body: string;
+        readonly author: { readonly login: string };
+        readonly createdAt: string;
+      }>;
+      readonly state: "draft" | "published";
+    }>;
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;

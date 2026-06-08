@@ -10,6 +10,7 @@ import {
   GitBranchIcon,
   PilcrowIcon,
   Rows3Icon,
+  SendHorizontalIcon,
   TextWrapIcon,
 } from "lucide-react";
 import {
@@ -178,6 +179,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     saveComment,
     deleteComment,
     refreshDraft,
+    submitting,
+    submitError,
+    submitReview,
   } = useReviewComments({
     environmentId: activeThread?.environmentId ?? null,
     threadId: activeThreadId,
@@ -429,6 +433,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
 
   const runtimeMode = activeThread?.runtimeMode;
   const isReviewMode = runtimeMode === "review";
+  const draftCommentCount = isReviewMode
+    ? comments.filter((c) => c.author.login === "local").length
+    : 0;
   const shouldFetchPrDiff =
     isReviewMode && diffSourceMode === "pr" && prNumberInput.trim().length > 0;
 
@@ -597,6 +604,34 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                 placeholder="PR #"
                 aria-label="PR number"
               />
+            )}
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[10px] font-medium transition-colors [-webkit-app-region:no-drag]",
+                draftCommentCount === 0 || submitting
+                  ? "cursor-not-allowed border-border/40 bg-background/70 text-muted-foreground/40"
+                  : "border-primary/40 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/15",
+              )}
+              disabled={draftCommentCount === 0 || submitting}
+              onClick={() => {
+                if (
+                  draftCommentCount > 0 &&
+                  window.confirm(
+                    `Post ${draftCommentCount} comment${draftCommentCount !== 1 ? "s" : ""} as a GitHub review?`,
+                  )
+                ) {
+                  void submitReview();
+                }
+              }}
+            >
+              <SendHorizontalIcon className="size-3" />
+              {submitting
+                ? "Posting..."
+                : `Post ${draftCommentCount} comment${draftCommentCount !== 1 ? "s" : ""}`}
+            </button>
+            {submitError && (
+              <span className="text-[10px] text-red-500/80">{submitError}</span>
             )}
           </>
         )}

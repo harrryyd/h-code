@@ -41,6 +41,7 @@ import {
   OrchestrationReplayEventsError,
   FilesystemBrowseError,
   ChangeRequestGetPrDiffError,
+  ChangeRequestSubmitReviewError,
   ProviderInstanceId,
   EnvironmentAuthorizationError,
   ThreadId,
@@ -193,6 +194,7 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.changeRequestUpsertReviewComment, AuthReviewWriteScope],
   [WS_METHODS.changeRequestDeleteReviewComment, AuthReviewWriteScope],
   [WS_METHODS.changeRequestGetPrDiff, AuthReviewWriteScope],
+  [WS_METHODS.changeRequestSubmitReview, AuthReviewWriteScope],
   [WS_METHODS.terminalOpen, AuthTerminalOperateScope],
   [WS_METHODS.terminalAttach, AuthTerminalOperateScope],
   [WS_METHODS.terminalWrite, AuthTerminalOperateScope],
@@ -1543,6 +1545,28 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                   ),
               ]);
               return { diff, prHeadSHA: resolveResult.stdout.trim() };
+            }),
+            { "rpc.aggregate": "change-request" },
+          ),
+        [WS_METHODS.changeRequestSubmitReview]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.changeRequestSubmitReview,
+            Effect.gen(function* () {
+              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              if (Option.isNone(thread)) {
+                return yield* new ChangeRequestSubmitReviewError({
+                  kind: "not-a-repo",
+                  detail: `Thread ${input.threadId} not found.`,
+                });
+              }
+              const cwd = thread.value.worktreePath;
+              if (!cwd) {
+                return yield* new ChangeRequestSubmitReviewError({
+                  kind: "not-a-repo",
+                  detail: `Thread ${input.threadId} has no worktree path.`,
+                });
+              }
+              return yield* review.submitReview({ ...input, cwd });
             }),
             { "rpc.aggregate": "change-request" },
           ),
