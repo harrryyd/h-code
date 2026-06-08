@@ -1408,6 +1408,15 @@ export function makeOpenCodeAdapter(
       },
     );
 
+    const compactThread: OpenCodeAdapterShape["compactThread"] = (_threadId) =>
+      Effect.fail(
+        new ProviderAdapterRequestError({
+          provider: PROVIDER,
+          method: "thread/compact/start",
+          detail: "Compaction is not supported by this provider.",
+        }),
+      );
+
     const stopAll: OpenCodeAdapterShape["stopAll"] = () =>
       Effect.gen(function* () {
         const contexts = [...sessions.values()];
@@ -1439,6 +1448,7 @@ export function makeOpenCodeAdapter(
       hasSession,
       readThread,
       rollbackThread,
+      compactThread,
       stopAll,
       get streamEvents() {
         return Stream.fromQueue(runtimeEvents);

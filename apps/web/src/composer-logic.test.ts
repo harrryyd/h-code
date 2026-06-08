@@ -365,4 +365,16 @@ describe("parseStandaloneComposerSlashCommand", () => {
   it("ignores /new with extra message text", () => {
     expect(parseStandaloneComposerSlashCommand("/new start fresh")).toBeNull();
   });
+
+  it("parses standalone /compact command", () => {
+    expect(parseStandaloneComposerSlashCommand("/compact")).toBe("compact");
+  });
+
+  it("parses /compact with surrounding whitespace", () => {
+    expect(parseStandaloneComposerSlashCommand(" /compact ")).toBe("compact");
+  });
+
+  it("ignores /compact with extra message text", () => {
+    expect(parseStandaloneComposerSlashCommand("/compact start fresh")).toBeNull();
+  });
 });

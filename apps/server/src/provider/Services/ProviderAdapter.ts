@@ -119,6 +119,16 @@ export interface ProviderAdapterShape<TError> {
   ) => Effect.Effect<ProviderThreadSnapshot, TError>;
 
   /**
+   * Compact a provider thread context into a summary.
+   * Returns the compaction summary text and the duration the compaction took.
+   * Providers that don't support compaction should fail with an error
+   * (callers fall back to a trim-only flow).
+   */
+  readonly compactThread: (
+    threadId: ThreadId,
+  ) => Effect.Effect<{ summary: string; durationMs: number }, TError>;
+
+  /**
    * Stop all sessions owned by this adapter.
    */
   readonly stopAll: () => Effect.Effect<void, TError>;

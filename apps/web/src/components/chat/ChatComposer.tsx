@@ -882,6 +882,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           description: "Switch this thread back to normal build mode",
         },
         {
+          id: "slash:compact",
+          type: "slash-command",
+          command: "compact",
+          label: "/compact",
+          description: "Compact conversation context with provider-summarize",
+          disabled: props.activeTurnInProgress,
+        },
+        {
           id: "slash:clear",
           type: "slash-command",
           command: "clear",

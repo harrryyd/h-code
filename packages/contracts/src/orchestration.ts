@@ -469,6 +469,7 @@ export const ContextTrimPoint = Schema.Struct({
   beforeEntryId: Schema.String,
   prunedMessageCount: NonNegativeInt,
   prunedTurnIds: Schema.Array(TurnId),
+  summary: Schema.optional(Schema.String),
 });
 export type ContextTrimPoint = typeof ContextTrimPoint.Type;
 
@@ -929,9 +930,28 @@ export const ThreadContextTrimCommand = Schema.Struct({
   commandId: CommandId,
   threadId: ThreadId,
   keepLastNTurns: Schema.optional(NonNegativeInt),
+  summary: Schema.optional(Schema.String),
   createdAt: IsoDateTime,
 });
 export type ThreadContextTrimCommand = typeof ThreadContextTrimCommand.Type;
+
+export const ThreadContextSummarizeCommand = Schema.Struct({
+  type: Schema.Literal("thread.context.summarize"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  summary: Schema.String,
+  compactDurationMs: Schema.optional(NonNegativeInt),
+  createdAt: IsoDateTime,
+});
+export type ThreadContextSummarizeCommand = typeof ThreadContextSummarizeCommand.Type;
+
+export const ThreadContextCompactCommand = Schema.Struct({
+  type: Schema.Literal("thread.context.compact"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  createdAt: IsoDateTime,
+});
+export type ThreadContextCompactCommand = typeof ThreadContextCompactCommand.Type;
 
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
@@ -961,6 +981,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
   ThreadContextTrimCommand,
+  ThreadContextCompactCommand,
 ]);
 export type DispatchableClientOrchestrationCommand =
   typeof DispatchableClientOrchestrationCommand.Type;
@@ -993,6 +1014,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
   ThreadContextTrimCommand,
+  ThreadContextCompactCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
@@ -1069,6 +1091,7 @@ const InternalOrchestrationCommand = Schema.Union([
   ThreadTurnDiffCompleteCommand,
   ThreadActivityAppendCommand,
   ThreadRevertCompleteCommand,
+  ThreadContextSummarizeCommand,
 ]);
 export type InternalOrchestrationCommand = typeof InternalOrchestrationCommand.Type;
 
@@ -1105,6 +1128,8 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.activity-appended",
   "thread.manager-queue-items-upserted",
   "thread.trim-point-created",
+  "thread.context-summarized",
+  "thread.context-compacted",
   "thread.archived-and-new-created",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
@@ -1316,6 +1341,19 @@ export const ThreadTrimPointCreatedPayload = Schema.Struct({
   trimPoint: ContextTrimPoint,
 });
 
+export const ThreadContextSummarizedPayload = Schema.Struct({
+  threadId: ThreadId,
+  trimPointId: Schema.String,
+  summary: Schema.String,
+  compactDurationMs: Schema.optional(NonNegativeInt),
+});
+
+export const ThreadContextCompactedPayload = Schema.Struct({
+  threadId: ThreadId,
+  summary: Schema.String,
+  compactDurationMs: Schema.optional(NonNegativeInt),
+});
+
 export const OrchestrationEventMetadata = Schema.Struct({
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
   providerItemId: Schema.optional(ProviderItemId),
@@ -1467,6 +1505,16 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.trim-point-created"),
     payload: ThreadTrimPointCreatedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.context-summarized"),
+    payload: ThreadContextSummarizedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.context-compacted"),
+    payload: ThreadContextCompactedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,

@@ -3371,6 +3371,15 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     },
   );
 
+  const compactThread: ClaudeAdapterShape["compactThread"] = (_threadId) =>
+    Effect.fail(
+      new ProviderAdapterRequestError({
+        provider: PROVIDER,
+        method: "thread/compact/start",
+        detail: "Compaction is not supported by this provider.",
+      }),
+    );
+
   const respondToRequest: ClaudeAdapterShape["respondToRequest"] = Effect.fn("respondToRequest")(
     function* (threadId, requestId, decision) {
       const context = yield* requireSession(threadId);
@@ -3514,6 +3523,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     interruptTurn,
     readThread,
     rollbackThread,
+    compactThread,
     respondToRequest,
     respondToUserInput,
     stopSession,

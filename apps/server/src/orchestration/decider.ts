@@ -693,6 +693,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         beforeEntryId,
         prunedMessageCount,
         prunedTurnIds,
+        ...("summary" in command && command.summary !== undefined
+          ? { summary: command.summary }
+          : {}),
       };
 
       return [
@@ -720,6 +723,62 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           payload: {
             threadId: command.threadId,
             createdAt: occurredAt,
+          },
+        },
+      ];
+    }
+
+    case "thread.context.compact": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      yield* requireTurnNotActive({ thread, command });
+      const occurredAt = yield* nowIso;
+      return [
+        {
+          ...(yield* withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          })),
+          type: "thread.context-compacted",
+          payload: {
+            threadId: command.threadId,
+            summary: "",
+            compactDurationMs: undefined,
+          },
+        },
+      ];
+    }
+
+    case "thread.context.summarize": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      yield* requireTurnNotActive({ thread, command });
+      const occurredAt = yield* nowIso;
+      const trimPointId = EventId.make(crypto.randomUUID());
+      return [
+        {
+          ...(yield* withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          })),
+          type: "thread.context-summarized",
+          payload: {
+            threadId: command.threadId,
+            trimPointId,
+            summary: command.summary,
+            ...("compactDurationMs" in command && command.compactDurationMs !== undefined
+              ? { compactDurationMs: command.compactDurationMs }
+              : {}),
           },
         },
       ];

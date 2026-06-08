@@ -1070,6 +1070,15 @@ export function makeCursorAdapter(
         return { threadId, turns: ctx.turns };
       });
 
+    const compactThread: CursorAdapterShape["compactThread"] = (_threadId) =>
+      Effect.fail(
+        new ProviderAdapterRequestError({
+          provider: PROVIDER,
+          method: "thread/compact/start",
+          detail: "Compaction is not supported by this provider.",
+        }),
+      );
+
     const stopSession: CursorAdapterShape["stopSession"] = (threadId) =>
       withThreadLock(
         threadId,
@@ -1111,6 +1120,7 @@ export function makeCursorAdapter(
       interruptTurn,
       readThread,
       rollbackThread,
+      compactThread,
       respondToRequest,
       respondToUserInput,
       stopSession,
