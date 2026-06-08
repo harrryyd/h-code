@@ -195,11 +195,36 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     prHeadSHA,
   });
   const [prDiffRefreshKey, setPrDiffRefreshKey] = useState(0);
+  const refreshRequestedRef = useRef(false);
+  const [storedPrHeadSHA, setStoredPrHeadSHA] = useState<string | null>(null);
+
+  // Initialize stored SHA from reviewDraft when loaded (existing comments carry SHA)
+  useEffect(() => {
+    if (reviewDraft?.prHeadSHA) {
+      setStoredPrHeadSHA(reviewDraft.prHeadSHA);
+    }
+  }, [reviewDraft?.prHeadSHA]);
+
+  // Initialize stored SHA from current prHeadSHA when no draft exists (review mode entry)
+  useEffect(() => {
+    if (prHeadSHA && !storedPrHeadSHA && !reviewDraft?.prHeadSHA) {
+      setStoredPrHeadSHA(prHeadSHA);
+    }
+  }, [prHeadSHA, storedPrHeadSHA, reviewDraft?.prHeadSHA]);
+
+  // After a user-requested refresh, update stored SHA to match newly-fetched head
+  useEffect(() => {
+    if (refreshRequestedRef.current && prHeadSHA) {
+      setStoredPrHeadSHA(prHeadSHA);
+      refreshRequestedRef.current = false;
+    }
+  }, [prHeadSHA]);
+
   const refreshPrDiff = useCallback(() => {
     setPrDiffRefreshKey((k) => k + 1);
+    refreshRequestedRef.current = true;
   }, []);
 
-  const storedPrHeadSHA = reviewDraft?.prHeadSHA ?? null;
   const isStale = useMemo(
     () => !!(storedPrHeadSHA && prHeadSHA && storedPrHeadSHA !== prHeadSHA),
     [storedPrHeadSHA, prHeadSHA],
@@ -217,10 +242,12 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
 
   const outdatedCommentCount = useMemo(() => {
     if (!isStale || !prHeadSHA) return 0;
-    return comments.filter(
-      (c) => c.commitSHA !== prHeadSHA && typeof c.line === "number",
-    ).length;
-  }, [isStale, prHeadSHA, comments]);
+    return comments.filter((c) => {
+      if (c.commitSHA === prHeadSHA) return false;
+      if (typeof c.line === "number") return true;
+      return modifiedFilesFromDiff?.has(c.file) ?? true;
+    }).length;
+  }, [isStale, prHeadSHA, comments, modifiedFilesFromDiff]);
 
   const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
     useTurnDiffSummaries(activeThread);
@@ -511,6 +538,24 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       cancelled = true;
     };
   }, [shouldFetchPrDiff, activeThread?.id, prNumberInput, activeThread?.environmentId, prDiffRefreshKey]);
+
+  // Poll for PR head SHA changes every 30 seconds to detect push-based staleness
+  useEffect(() => {
+    if (!shouldFetchPrDiff || !activeThread) return;
+    const prNumber = Number(prNumberInput.trim());
+    if (!Number.isInteger(prNumber) || prNumber < 1) return;
+    const interval = setInterval(() => {
+      const api = readEnvironmentApi(activeThread.environmentId);
+      if (!api) return;
+      api.changeRequest
+        .getPrDiff({ threadId: activeThread.id, prNumber })
+        .then((result) => {
+          setPrHeadSHA(result.prHeadSHA);
+        })
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [shouldFetchPrDiff, activeThread?.id, activeThread?.environmentId, prNumberInput]);
 
   const headerRow = (
     <>
