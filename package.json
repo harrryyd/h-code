@@ -39,7 +39,6 @@
     "sync:repos": "node scripts/sync-reference-repos.ts"
   },
   "dependencies": {
-    "@t3tools/monorepo": "."
   },
   "devDependencies": {
     "@babel/plugin-transform-react-jsx": "7.28.6",
