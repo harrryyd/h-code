@@ -41,8 +41,40 @@ describe("ReviewComment", () => {
     expect(parsed.line).toBe(42);
   });
 
-  it("decodes a review comment with agent status", () => {
-    const parsed = decodeReviewComment({
+  it("decodes a review comment with agent status (legacy values)", () => {
+    expect(decodeReviewComment({
+      id: "comment-legacy-1",
+      file: "src/old.ts",
+      commitSHA: "abc123",
+      body: "Legacy pending comment",
+      agentStatus: "pending",
+      author: { login: "bot" },
+      createdAt: "2025-01-01T00:00:00Z",
+    }).agentStatus).toBe("pending");
+
+    expect(decodeReviewComment({
+      id: "comment-legacy-2",
+      file: "src/old.ts",
+      commitSHA: "abc123",
+      body: "Legacy resolved comment",
+      agentStatus: "resolved",
+      author: { login: "bot" },
+      createdAt: "2025-01-01T00:00:00Z",
+    }).agentStatus).toBe("resolved");
+
+    expect(decodeReviewComment({
+      id: "comment-legacy-3",
+      file: "src/old.ts",
+      commitSHA: "abc123",
+      body: "Legacy suggestion comment",
+      agentStatus: "suggestion",
+      author: { login: "bot" },
+      createdAt: "2025-01-01T00:00:00Z",
+    }).agentStatus).toBe("suggestion");
+  });
+
+  it("decodes a review comment with agent status (new values)", () => {
+    expect(decodeReviewComment({
       id: "comment-3",
       file: "src/utils.ts",
       commitSHA: "def456",
@@ -50,9 +82,37 @@ describe("ReviewComment", () => {
       agentStatus: "running",
       author: { login: "codex-bot" },
       createdAt: "2025-06-02T08:30:00Z",
-    });
+    }).agentStatus).toBe("running");
 
-    expect(parsed.agentStatus).toBe("running");
+    expect(decodeReviewComment({
+      id: "comment-idle",
+      file: "src/idle.ts",
+      commitSHA: "def456",
+      body: "Idle agent",
+      agentStatus: "idle",
+      author: { login: "bot" },
+      createdAt: "2025-01-01T00:00:00Z",
+    }).agentStatus).toBe("idle");
+
+    expect(decodeReviewComment({
+      id: "comment-failed",
+      file: "src/failed.ts",
+      commitSHA: "def456",
+      body: "Failed agent",
+      agentStatus: "failed",
+      author: { login: "bot" },
+      createdAt: "2025-01-01T00:00:00Z",
+    }).agentStatus).toBe("failed");
+
+    expect(decodeReviewComment({
+      id: "comment-completed",
+      file: "src/done.ts",
+      commitSHA: "def456",
+      body: "Completed agent",
+      agentStatus: "completed",
+      author: { login: "bot" },
+      createdAt: "2025-01-01T00:00:00Z",
+    }).agentStatus).toBe("completed");
   });
 
   it("decodes a review comment with nested replies", () => {

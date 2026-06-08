@@ -1598,8 +1598,8 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                 );
               }
 
-              // Fetch the PR diff to get the head ref
-              const diffResult = yield* git
+              // Fetch the PR head ref so getPrDiff can use it
+              yield* git
                 .execute({
                   operation: "changeRequest.runBackgroundAgent.fetchHead",
                   cwd,

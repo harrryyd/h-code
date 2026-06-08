@@ -1,4 +1,9 @@
+import * as child_process from "node:child_process";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+
 import * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
@@ -75,12 +80,11 @@ function fail(
   detail: string,
   cause?: unknown,
 ): ChangeRequestRunBackgroundAgentError {
-  return {
-    _tag: "ChangeRequestRunBackgroundAgentError",
+  return new ChangeRequestRunBackgroundAgentError({
     kind,
     detail,
     cause,
-  } as ChangeRequestRunBackgroundAgentError;
+  });
 }
 
 export const make = Effect.fn("makeBackgroundAgentService")(function* () {
@@ -169,7 +173,7 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
 
             // Get PR diff
             const diffResult = yield* git
-              .getPrDiff(input.cwd, input.prHeadRef, input.prHeadRef)
+              .getPrDiff(input.cwd, "origin/HEAD", input.prHeadRef)
               .pipe(
                 Effect.mapError((cause) =>
                   fail("agent-failed", `Failed to get PR diff: ${cause.message}`, cause),
@@ -221,12 +225,19 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
               content: `Created worktree at ${worktreePath} on branch ${tempBranch}`,
             });
 
-            // Write prompt to a temp file
-            yield* Effect.tryPromise({
-              try: () =>
-                import("node:fs/promises").then((fs) =>
-                  fs.writeFile(`${worktreePath}/.t3-agent-prompt.txt`, prompt, "utf-8"),
-                ),
+            // TODO: Replace raw child_process.spawn with ProviderService/agent session
+            // infrastructure (see OpenCodeAdapter for reference). The current approach
+            // spawns opencode directly instead of routing through the established provider
+            // session lifecycle (startSession → sendTurn → streamEvents). This means
+            // there is no turn timeout, no structured turn/event model, and no shared
+            // concurrency control with other agent actions.
+
+            // Write prompt to a temp file outside the worktree so it is not committed
+            const promptFile = yield* Effect.tryPromise({
+              try: () => {
+                const filePath = `${os.tmpdir()}/t3-agent-prompt-${input.commentId.slice(0, 8)}.txt`;
+                return fs.writeFile(filePath, prompt, "utf-8").then(() => filePath);
+              },
               catch: (cause) =>
                 fail("agent-failed", `Failed to write prompt file: ${String(cause)}`, cause),
             });
@@ -238,74 +249,76 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
               content: `Executing agent in ${worktreePath}...`,
             });
 
-            // Run opencode using child_process
+            // Run opencode using child_process with a timeout
             const combinedOutputRef = yield* Ref.make("");
-            const exitCode = yield* Effect.async<number, ChangeRequestRunBackgroundAgentError>(
+            const AGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+            const safeOffer = (event: BackgroundAgentResponseEvent) =>
+              Effect.runFork(Queue.offer(queue, event).pipe(Effect.catchAll(() => Effect.void)));
+
+            const runAgentProcess = Effect.async<number, ChangeRequestRunBackgroundAgentError>(
               (resume) => {
-                import("node:child_process")
-                  .then(({ spawn }) => {
-                    const child = spawn("opencode", [
-                      "--cwd",
-                      worktreePath,
-                      "exec",
-                      "--yes",
-                      "--approval-mode",
-                      "auto",
-                      `${worktreePath}/.t3-agent-prompt.txt`,
-                    ], {
-                      shell: true,
-                      cwd: worktreePath,
-                      env: { ...process.env },
-                    });
+                const child = child_process.spawn("opencode", [
+                  "--cwd",
+                  worktreePath,
+                  "exec",
+                  "--yes",
+                  "--approval-mode",
+                  "auto",
+                  promptFile,
+                ], {
+                  cwd: worktreePath,
+                  env: { ...process.env },
+                });
 
-                    child.stdout?.on("data", (chunk: Buffer) => {
-                      const text = chunk.toString("utf-8");
-                      Effect.runSync(Ref.update(combinedOutputRef, (prev) => prev + text));
-                      Effect.runSync(
-                        Queue.offer(queue, {
-                          type: "text",
-                          commentId: input.commentId,
-                          content: text,
-                        }),
-                      );
-                    });
-
-                    child.stderr?.on("data", (chunk: Buffer) => {
-                      const text = chunk.toString("utf-8");
-                      Effect.runSync(Ref.update(combinedOutputRef, (prev) => prev + text));
-                      Effect.runSync(
-                        Queue.offer(queue, {
-                          type: "detail",
-                          commentId: input.commentId,
-                          title: "Agent stderr",
-                          content: text,
-                        }),
-                      );
-                    });
-
-                    child.on("close", (code: number | null) => {
-                      resume(Effect.succeed(code ?? 0));
-                    });
-
-                    child.on("error", () => {
-                      resume(Effect.succeed(127));
-                    });
-                  })
-                  .catch((error) =>
-                    resume(
-                      Effect.fail(
-                        fail("agent-failed", `Failed to spawn agent: ${String(error)}`, error),
-                      ),
+                child.stdout?.on("data", (chunk: Buffer) => {
+                  const text = chunk.toString("utf-8");
+                  Effect.runFork(
+                    Ref.update(combinedOutputRef, (prev) => prev + text).pipe(
+                      Effect.catchAll(() => Effect.void),
                     ),
                   );
+                  safeOffer({
+                    type: "text",
+                    commentId: input.commentId,
+                    content: text,
+                  });
+                });
+
+                child.stderr?.on("data", (chunk: Buffer) => {
+                  const text = chunk.toString("utf-8");
+                  Effect.runFork(
+                    Ref.update(combinedOutputRef, (prev) => prev + text).pipe(
+                      Effect.catchAll(() => Effect.void),
+                    ),
+                  );
+                  safeOffer({
+                    type: "detail",
+                    commentId: input.commentId,
+                    title: "Agent stderr",
+                    content: text,
+                  });
+                });
+
+                child.on("close", (code: number | null) => {
+                  resume(Effect.succeed(code ?? 0));
+                });
+
+                child.on("error", () => {
+                  resume(Effect.succeed(127));
+                });
               },
-            ).pipe(
-              Effect.mapError((cause) =>
-                fail(
-                  "agent-failed",
-                  `Agent process failed: ${cause instanceof Error ? cause.message : String(cause)}`,
-                  cause,
-                ),
+            );
+
+            const exitCode = yield* runAgentProcess.pipe(
+              Effect.timeout(Duration.millis(AGENT_TIMEOUT_MS)),
+              Effect.mapError(
+                (cause) =>
+                  fail(
+                    "agent-failed",
+                    `Agent process failed or timed out: ${cause instanceof Error ? cause.message : String(cause)}`,
+                    cause,
+                  ),
               ),
             );
 
@@ -336,7 +349,7 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 content: statusResult.stdout,
               });
 
-              // Commit and push changes
+              // Commit changes
               yield* git
                 .execute({
                   operation: "backgroundAgent.commit",
@@ -357,11 +370,12 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 })
                 .pipe(Effect.ignore);
 
+              // Push directly to the PR head branch
               yield* git
                 .execute({
                   operation: "backgroundAgent.push",
                   cwd: worktreePath,
-                  args: ["push", "origin", tempBranch, "--force"],
+                  args: ["push", "origin", `${tempBranch}:${input.prHeadRef}`],
                 })
                 .pipe(Effect.ignore);
 
@@ -369,7 +383,7 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 type: "detail",
                 commentId: input.commentId,
                 title: "Pushed",
-                content: `Pushed changes to branch ${tempBranch}`,
+                content: `Pushed changes to ${input.prHeadRef}`,
               });
             } else {
               yield* offer({
