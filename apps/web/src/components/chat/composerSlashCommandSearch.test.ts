@@ -125,4 +125,29 @@ describe("searchSlashCommandItems", () => {
       "provider-slash-command:claudeAgent:gh-fix-ci",
     ]);
   });
+
+  it("finds /new slash command when searching new", () => {
+    const items = [
+      {
+        id: "slash:new",
+        type: "slash-command",
+        command: "new",
+        label: "/new",
+        description: "Archive this thread and start a fresh one on the same branch",
+      },
+      {
+        id: "slash:clear",
+        type: "slash-command",
+        command: "clear",
+        label: "/clear",
+        description: "Clear conversation context and restart session",
+      },
+    ] satisfies Array<
+      Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" }>
+    >;
+
+    expect(searchSlashCommandItems(items, "new").map((item) => item.id)).toEqual([
+      "slash:new",
+    ]);
+  });
 });

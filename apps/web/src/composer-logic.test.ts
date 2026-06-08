@@ -353,4 +353,16 @@ describe("parseStandaloneComposerSlashCommand", () => {
   it("ignores slash commands with extra message text", () => {
     expect(parseStandaloneComposerSlashCommand("/plan explain this")).toBeNull();
   });
+
+  it("parses standalone /new command", () => {
+    expect(parseStandaloneComposerSlashCommand("/new")).toBe("new");
+  });
+
+  it("parses /new with surrounding whitespace", () => {
+    expect(parseStandaloneComposerSlashCommand(" /new ")).toBe("new");
+  });
+
+  it("ignores /new with extra message text", () => {
+    expect(parseStandaloneComposerSlashCommand("/new start fresh")).toBeNull();
+  });
 });

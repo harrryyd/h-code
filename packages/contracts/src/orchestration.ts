@@ -778,6 +778,14 @@ const ThreadArchiveCommand = Schema.Struct({
   threadId: ThreadId,
 });
 
+const ThreadArchiveAndNewCommand = Schema.Struct({
+  type: Schema.Literal("thread.archive-and-new"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  newThreadId: ThreadId,
+  createdAt: IsoDateTime,
+});
+
 const ThreadUnarchiveCommand = Schema.Struct({
   type: Schema.Literal("thread.unarchive"),
   commandId: CommandId,
@@ -938,6 +946,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadCreateCommand,
   ThreadDeleteCommand,
   ThreadArchiveCommand,
+  ThreadArchiveAndNewCommand,
   ThreadUnarchiveCommand,
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
@@ -969,6 +978,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadCreateCommand,
   ThreadDeleteCommand,
   ThreadArchiveCommand,
+  ThreadArchiveAndNewCommand,
   ThreadUnarchiveCommand,
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
@@ -1095,6 +1105,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.activity-appended",
   "thread.manager-queue-items-upserted",
   "thread.trim-point-created",
+  "thread.archived-and-new-created",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
@@ -1171,6 +1182,12 @@ export const ThreadArchivedPayload = Schema.Struct({
   threadId: ThreadId,
   archivedAt: IsoDateTime,
   updatedAt: IsoDateTime,
+});
+
+export const ThreadArchivedAndNewCreatedPayload = Schema.Struct({
+  archivedThreadId: ThreadId,
+  newThreadId: ThreadId,
+  createdAt: IsoDateTime,
 });
 
 export const ThreadUnarchivedPayload = Schema.Struct({
@@ -1450,6 +1467,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.trim-point-created"),
     payload: ThreadTrimPointCreatedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.archived-and-new-created"),
+    payload: ThreadArchivedAndNewCreatedPayload,
   }),
 ]);
 export type OrchestrationEvent = typeof OrchestrationEvent.Type;
