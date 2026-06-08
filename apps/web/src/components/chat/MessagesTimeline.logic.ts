@@ -246,20 +246,24 @@ export function deriveMessagesTimelineRows(input: {
   }
 
   if (input.expandedTrimPointIds) {
-    const collapsedTrimIndices: number[] = [];
+    const allTrimIndices: number[] = [];
+    const collapsedSet = new Set<number>();
     for (let i = 0; i < nextRows.length; i++) {
       const row = nextRows[i];
-      if (row && row.kind === "context-trim" && !input.expandedTrimPointIds.has(row.trimPoint.id)) {
-        collapsedTrimIndices.push(i);
+      if (row && row.kind === "context-trim") {
+        allTrimIndices.push(i);
+        if (!input.expandedTrimPointIds.has(row.trimPoint.id)) {
+          collapsedSet.add(i);
+        }
       }
     }
 
-    if (collapsedTrimIndices.length > 0) {
+    if (allTrimIndices.length > 0) {
       for (let i = 0; i < nextRows.length; i++) {
         const row = nextRows[i];
         if (!row || row.kind === "context-trim" || row.kind === "working") continue;
-        const nextTrim = collapsedTrimIndices.find((ti) => ti > i);
-        if (nextTrim !== undefined) {
+        const nearestTrim = allTrimIndices.find((ti) => ti > i);
+        if (nearestTrim !== undefined && collapsedSet.has(nearestTrim)) {
           (row as { hidden?: true }).hidden = true;
         }
       }
