@@ -151,7 +151,6 @@
       "types": "./src/relayClient.ts",
       "import": "./src/relayClient.ts"
     }
-    }
   },
   "scripts": {
     "typecheck": "tsgo --noEmit",
