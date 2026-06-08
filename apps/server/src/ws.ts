@@ -1450,7 +1450,6 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(WS_METHODS.reviewGetDiffPreview, review.getDiffPreview(input), {
             "rpc.aggregate": "review",
           }),
-<<<<<<< HEAD
         [WS_METHODS.changeRequestGetReviewDraft]: (input) =>
           observeRpcEffect(
             WS_METHODS.changeRequestGetReviewDraft,
