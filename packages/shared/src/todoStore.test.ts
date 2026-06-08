@@ -12,10 +12,13 @@ import {
   deleteItem,
   loadTodos,
   renameCategory,
+  renameItem,
   reorderCategories,
   reorderItems,
   setCategoryColor,
   setCategoryJiraLink,
+  setItemPriority,
+  setJiraBaseUrl,
   setItemJiraLink,
   toggleCategory,
   updateDescription,
@@ -266,6 +269,22 @@ describe("todoStore", () => {
       expect(palette).toContain(next.categories[0]!.color);
     });
 
+    it("creates a category with a custom name", () => {
+      const state = loadTodos([], []);
+      const next = createCategory(state, "Custom Cat", "#123456");
+
+      expect(next.categories[0]!.name).toBe("Custom Cat");
+      expect(next.categories[0]!.color).toBe("#123456");
+    });
+
+    it("rejects empty name and returns unchanged state", () => {
+      const state = loadTodos([], []);
+      const next = createCategory(state, "   ");
+
+      expect(next).toBe(state);
+      expect(next.categories).toHaveLength(0);
+    });
+
     it("does not mutate the original state", () => {
       const state = loadTodos(sampleCategories, sampleItems);
       const next = createCategory(state);
@@ -316,6 +335,14 @@ describe("todoStore", () => {
       const next = renameCategory(state, "nonexistent", "Test");
 
       expect(next.categories).toEqual(state.categories);
+    });
+
+    it("rejects empty name and returns unchanged state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameCategory(state, "cat-1", "   ");
+
+      expect(next).toBe(state);
+      expect(next.categories[0]!.name).toBe("Backend");
     });
   });
 
@@ -435,10 +462,11 @@ describe("todoStore", () => {
   describe("applyMutation", () => {
     it("applies createCategory mutation", () => {
       const state = loadTodos([], []);
-      const next = applyMutation(state, { type: "createCategory", name: "Test", color: "#123" });
+      const next = applyMutation(state, { type: "createCategory", name: "Custom", color: "#abc" });
 
       expect(next.categories).toHaveLength(1);
-      expect(next.categories[0]!.name).toBe("New Category");
+      expect(next.categories[0]!.name).toBe("Custom");
+      expect(next.categories[0]!.color).toBe("#abc");
     });
 
     it("applies renameCategory mutation", () => {
@@ -499,6 +527,15 @@ describe("todoStore", () => {
       expect(next.categories).toHaveLength(3);
     });
 
+    it("applies toggleCategory mutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, { type: "toggleCategory", categoryId: "cat-1" });
+
+      expect(next.categories[0]!.collapsed).toBe(true);
+      const next2 = applyMutation(next, { type: "toggleCategory", categoryId: "cat-1" });
+      expect(next2.categories[0]!.collapsed).toBe(false);
+    });
+
     it("applies createItem mutation", () => {
       const state = loadTodos(sampleCategories, sampleItems);
       const next = applyMutation(state, {
@@ -523,8 +560,8 @@ describe("todoStore", () => {
       ]);
 
       expect(next.categories).toHaveLength(2);
-      expect(next.categories[0]!.name).toBe("New Category");
-      expect(next.categories[1]!.name).toBe("New Category");
+      expect(next.categories[0]!.name).toBe("A");
+      expect(next.categories[1]!.name).toBe("B");
     });
 
     it("chains mutation results", () => {
@@ -948,6 +985,168 @@ describe("todoStore", () => {
       const next = deleteItem(state, "item-1");
 
       expect(next.items).toHaveLength(0);
+    });
+  });
+
+  describe("setJiraBaseUrl", () => {
+    it("sets a JIRA base URL on the state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setJiraBaseUrl(state, "https://company.atlassian.net/browse");
+
+      expect(next.jiraBaseUrl).toBe("https://company.atlassian.net/browse");
+    });
+
+    it("clears the JIRA base URL when given empty string", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const withUrl = setJiraBaseUrl(state, "https://company.atlassian.net/browse");
+      const withoutUrl = setJiraBaseUrl(withUrl, "");
+
+      expect(withoutUrl.jiraBaseUrl).toBeUndefined();
+    });
+
+    it("returns unchanged categories and items", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setJiraBaseUrl(state, "https://company.atlassian.net/browse");
+
+      expect(next.categories).toEqual(state.categories);
+      expect(next.items).toEqual(state.items);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setJiraBaseUrl(state, "https://company.atlassian.net/browse");
+
+      expect(next).not.toBe(state);
+      expect(state.jiraBaseUrl).toBeUndefined();
+    });
+
+    it("applies via applyMutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "setJiraBaseUrl",
+        jiraBaseUrl: "https://company.atlassian.net/browse",
+      });
+
+      expect(next.jiraBaseUrl).toBe("https://company.atlassian.net/browse");
+    });
+  });
+
+  describe("renameItem", () => {
+    it("renames an item title", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameItem(state, "item-1", "Updated title");
+
+      expect(next.items[0]!.title).toBe("Updated title");
+    });
+
+    it("rejects empty title and returns unchanged state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameItem(state, "item-1", "");
+
+      expect(next).toBe(state);
+      expect(next.items[0]!.title).toBe("Fix auth bug");
+    });
+
+    it("rejects whitespace-only title and returns unchanged state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameItem(state, "item-1", "   ");
+
+      expect(next).toBe(state);
+      expect(next.items[0]!.title).toBe("Fix auth bug");
+    });
+
+    it("updates updatedAt on rename", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameItem(state, "item-1", "New title");
+
+      expect(next.items[0]!.updatedAt).not.toBe(sampleItems[0]!.updatedAt);
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameItem(state, "item-1", "New title");
+
+      expect(next).not.toBe(state);
+      expect(next.items).not.toBe(state.items);
+      expect(state.items[0]!.title).toBe("Fix auth bug");
+    });
+
+    it("does not affect other items", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameItem(state, "item-1", "New title");
+
+      expect(next.items[1]!.title).toBe("Redesign header");
+      expect(next.items[1]).toBe(state.items[1]);
+    });
+
+    it("returns unchanged state for unknown item ID", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = renameItem(state, "nonexistent", "Test");
+
+      expect(next.items).toEqual(state.items);
+    });
+
+    it("applies via applyMutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "renameItem",
+        itemId: "item-1",
+        title: "Renamed via mutation",
+      });
+
+      expect(next.items[0]!.title).toBe("Renamed via mutation");
+    });
+  });
+
+  describe("setItemPriority", () => {
+    it("sets priority on an item that had none", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemPriority(state, "item-1", "high");
+
+      expect(next.items[0]!.priority).toBe("high");
+      expect(next.items[0]!.updatedAt).not.toBe(sampleItems[0]!.updatedAt);
+    });
+
+    it("updates priority on an item that already had one", () => {
+      const itemWithPriority: TodoItem = { ...sampleItems[0]!, priority: "low" };
+      const state = loadTodos(sampleCategories, [itemWithPriority, sampleItems[1]!]);
+      const next = setItemPriority(state, "item-1", "medium");
+
+      expect(next.items[0]!.priority).toBe("medium");
+    });
+
+    it("does not mutate the original state", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemPriority(state, "item-1", "high");
+
+      expect(next).not.toBe(state);
+      expect(state.items[0]!.priority).toBeUndefined();
+    });
+
+    it("returns unchanged state for unknown item ID", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemPriority(state, "nonexistent", "low");
+
+      expect(next.items).toEqual(state.items);
+    });
+
+    it("does not affect other items", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = setItemPriority(state, "item-1", "high");
+
+      expect(next.items[1]!.priority).toBeUndefined();
+      expect(next.items[1]).toBe(state.items[1]);
+    });
+
+    it("applies via applyMutation", () => {
+      const state = loadTodos(sampleCategories, sampleItems);
+      const next = applyMutation(state, {
+        type: "setItemPriority",
+        itemId: "item-1",
+        priority: "medium",
+      });
+
+      expect(next.items[0]!.priority).toBe("medium");
     });
   });
 

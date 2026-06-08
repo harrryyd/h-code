@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -24,6 +24,7 @@ import {
   EyeOffIcon,
   GripVerticalIcon,
   PlusIcon,
+  SettingsIcon,
 } from "lucide-react";
 import type { TodoCategory, TodoItem, ContextMenuItem, TodoMutation } from "@t3tools/contracts";
 import { ensureLocalApi } from "~/localApi";
@@ -43,9 +44,54 @@ const COLOR_PALETTE = [
   "#6366f1",
 ];
 
+function priorityBgColor(priority: string): string {
+  switch (priority) {
+    case "high":
+      return "#ef444420";
+    case "medium":
+      return "#f59e0b20";
+    case "low":
+      return "#3b82f620";
+    default:
+      return "transparent";
+  }
+}
+
+function priorityFgColor(priority: string): string {
+  switch (priority) {
+    case "high":
+      return "#ef4444";
+    case "medium":
+      return "#f59e0b";
+    case "low":
+      return "#3b82f6";
+    default:
+      return "inherit";
+  }
+}
+
 function extractJiraKey(url: string): string | null {
   const match = url.match(/([A-Z]+-\d+)$/);
   return match ? (match[1] ?? null) : null;
+}
+
+function isJiraKey(text: string): boolean {
+  return /^[A-Z]+-\d+$/.test(text.trim());
+}
+
+function resolveJiraUrl(input: string, baseUrl: string | undefined): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  if (isJiraKey(trimmed) && baseUrl) {
+    const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+    return base + trimmed;
+  }
+  if (/^https?:\/\//.test(trimmed)) return trimmed;
+  if (baseUrl) {
+    const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+    return base + trimmed;
+  }
+  return trimmed;
 }
 
 function countActiveItems(items: TodoItem[], categoryId: string): number {
@@ -56,7 +102,7 @@ function countActiveItems(items: TodoItem[], categoryId: string): number {
 }
 
 export function TodoPanel() {
-  const { categories, items, loading, error, mutate } = useTodos();
+  const { categories, items, jiraBaseUrl, loading, error, mutate } = useTodos();
   const [hideEmpty, setHideEmpty] = useState(false);
   const [draggedItem, setDraggedItem] = useState<TodoItem | null>(null);
   const [draggedCategory, setDraggedCategory] = useState<TodoCategory | null>(null);
@@ -217,6 +263,21 @@ export function TodoPanel() {
           <div className="flex-1" />
           <button
             className="p-0.5 rounded hover:bg-accent/50 text-muted-foreground"
+            onClick={() => {
+              const url = window.prompt(
+                "Enter JIRA base URL (e.g., https://company.atlassian.net/browse):",
+                jiraBaseUrl ?? "",
+              );
+              if (url !== null) {
+                mutate([{ type: "setJiraBaseUrl", jiraBaseUrl: url.trim() }]);
+              }
+            }}
+            title={jiraBaseUrl ? `JIRA base: ${jiraBaseUrl}` : "Set JIRA base URL"}
+          >
+            <SettingsIcon size={14} />
+          </button>
+          <button
+            className="p-0.5 rounded hover:bg-accent/50 text-muted-foreground"
             onClick={() => setHideEmpty((prev) => !prev)}
             title={hideEmpty ? "Show empty categories" : "Hide empty categories"}
           >
@@ -248,6 +309,7 @@ export function TodoPanel() {
                 key={category.id}
                 category={category}
                 items={items}
+                jiraBaseUrl={jiraBaseUrl}
                 mutate={mutate}
                 onCycleItem={handleCycleItem}
                 onSelectItem={setSelectedItemId}
@@ -388,6 +450,7 @@ function SortableTodoItem({
   item,
   categoryColor,
   categoryJiraLink,
+  jiraBaseUrl,
   onCycleItem,
   onSelectItem,
   mutate,
@@ -395,6 +458,7 @@ function SortableTodoItem({
   item: TodoItem;
   categoryColor: string;
   categoryJiraLink: string | undefined;
+  jiraBaseUrl: string | undefined;
   onCycleItem: (itemId: string) => void;
   onSelectItem: (itemId: string) => void;
   mutate: (mutations: TodoMutation[]) => Promise<void>;
@@ -404,10 +468,49 @@ function SortableTodoItem({
     data: { kind: "item", categoryId: item.categoryId },
   });
 
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(item.title);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
+  };
+
+  const handleTitleClick = () => {
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      setEditValue(item.title);
+      setEditing(true);
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        onSelectItem(item.id);
+      }, 200);
+    }
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      commitEdit();
+    } else if (e.key === "Escape") {
+      cancelEdit();
+    }
+  };
+
+  const commitEdit = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== item.title) {
+      mutate([{ type: "renameItem", itemId: item.id, title: trimmed }]);
+    }
+    setEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setEditValue(item.title);
   };
 
   const handleContextMenu = (event: React.MouseEvent) => {
@@ -418,6 +521,15 @@ function SortableTodoItem({
     void api.contextMenu
       .show(
         [
+          {
+            id: "priority",
+            label: "Priority",
+            children: [
+              { id: `priority:low:${item.id}`, label: "Low" },
+              { id: `priority:medium:${item.id}`, label: "Medium" },
+              { id: `priority:high:${item.id}`, label: "High" },
+            ],
+          },
           {
             id: `jira:${item.id}`,
             label: item.jiraLink ? "Change JIRA Link" : "Edit JIRA Link",
@@ -436,12 +548,17 @@ function SortableTodoItem({
       .then((clicked) => {
         if (!clicked) return;
 
-        if (clicked === `jira:${item.id}`) {
-          const url = window.prompt("Enter JIRA issue URL:", item.jiraLink ?? "");
+        if (clicked.startsWith("priority:")) {
+          const priority = clicked.split(":")[1] as "low" | "medium" | "high";
+          if (priority) {
+            mutate([{ type: "setItemPriority", itemId: item.id, priority }]);
+          }
+        } else if (clicked === `jira:${item.id}`) {
+          const url = window.prompt("Enter JIRA issue URL or key:", item.jiraLink ?? "");
           if (url !== null) {
-            const trimmed = url.trim();
-            if (trimmed) {
-              mutate([{ type: "setItemJiraLink", itemId: item.id, jiraLink: trimmed }]);
+            const resolved = resolveJiraUrl(url, jiraBaseUrl);
+            if (resolved) {
+              mutate([{ type: "setItemJiraLink", itemId: item.id, jiraLink: resolved }]);
             } else {
               mutate([{ type: "setItemJiraLink", itemId: item.id, jiraLink: "" }]);
             }
@@ -477,9 +594,32 @@ function SortableTodoItem({
       >
         <StatusIcon status={item.status} />
       </button>
-      <span className="truncate cursor-pointer" onClick={() => onSelectItem(item.id)}>
-        {item.title}
+      <span className="truncate cursor-pointer" onClick={handleTitleClick}>
+        {editing ? (
+          <input
+            className="bg-transparent border-b border-primary outline-none text-xs w-full"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleEditKeyDown}
+            onBlur={commitEdit}
+            autoFocus
+          />
+        ) : (
+          item.title
+        )}
       </span>
+      {item.priority && (
+        <span
+          className="shrink-0 text-[10px] px-1 py-0.5 rounded font-medium uppercase"
+          style={{
+            backgroundColor: priorityBgColor(item.priority),
+            color: priorityFgColor(item.priority),
+          }}
+          title={`Priority: ${item.priority}`}
+        >
+          {item.priority}
+        </span>
+      )}
       {jiraKey && (
         <a
           href={effectiveJiraLink}
@@ -502,17 +642,23 @@ function SortableTodoItem({
 function TodoCategoryRow({
   category,
   items,
+  jiraBaseUrl,
   mutate,
   onCycleItem,
   onSelectItem,
 }: {
   category: TodoCategory;
   items: TodoItem[];
+  jiraBaseUrl: string | undefined;
   mutate: (mutations: TodoMutation[]) => Promise<void>;
   onCycleItem: (itemId: string) => void;
   onSelectItem: (itemId: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(category.collapsed === true);
+
+  useEffect(() => {
+    setCollapsed(category.collapsed === true);
+  }, [category.collapsed]);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(category.name);
   const [adding, setAdding] = useState(false);
@@ -619,12 +765,12 @@ function TodoCategoryRow({
             const color = clicked.slice("color:".length);
             mutate([{ type: "setCategoryColor", categoryId: category.id, color }]);
           } else if (clicked === "jira") {
-            const url = window.prompt("Enter JIRA issue URL:", category.jiraLink ?? "");
+            const url = window.prompt("Enter JIRA issue URL or key:", category.jiraLink ?? "");
             if (url !== null) {
-              const trimmed = url.trim();
-              if (trimmed) {
+              const resolved = resolveJiraUrl(url, jiraBaseUrl);
+              if (resolved) {
                 mutate([
-                  { type: "setCategoryJiraLink", categoryId: category.id, jiraLink: trimmed },
+                  { type: "setCategoryJiraLink", categoryId: category.id, jiraLink: resolved },
                 ]);
               }
             }
@@ -657,7 +803,10 @@ function TodoCategoryRow({
       <SortableCategoryHeader
         category={category}
         collapsed={collapsed}
-        onToggle={() => setCollapsed((prev) => !prev)}
+        onToggle={() => {
+          setCollapsed((prev) => !prev);
+          mutate([{ type: "toggleCategory", categoryId: category.id }]);
+        }}
         renaming={renaming}
         renameValue={renameValue}
         onRenameChange={setRenameValue}
@@ -693,6 +842,7 @@ function TodoCategoryRow({
                   item={item}
                   categoryColor={category.color}
                   categoryJiraLink={category.jiraLink}
+                  jiraBaseUrl={jiraBaseUrl}
                   onCycleItem={onCycleItem}
                   onSelectItem={onSelectItem}
                   mutate={mutate}
@@ -777,7 +927,7 @@ function ItemDetailPanel({
           </div>
         ) : item.description ? (
           <div
-            className="text-xs prose prose-sm max-w-none cursor-pointer"
+            className="text-xs todo-markdown max-w-none cursor-pointer"
             onClick={handleStartEdit}
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.description}</ReactMarkdown>
