@@ -976,6 +976,42 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     );
   });
 
+  const compactThread: ProviderServiceShape["compactThread"] = Effect.fn("compactThread")(
+    function* (rawInput) {
+      const input = yield* decodeInputOrValidationError({
+        operation: "ProviderService.compactThread",
+        schema: Schema.Struct({
+          threadId: ThreadId,
+        }),
+        payload: rawInput,
+      });
+
+      return yield* Effect.gen(function* () {
+        const routed = yield* resolveRoutableSession({
+          threadId: input.threadId,
+          operation: "ProviderService.compactThread",
+          allowRecovery: false,
+        });
+        yield* Effect.annotateCurrentSpan({
+          "provider.operation": "compact-thread",
+          "provider.kind": routed.adapter.provider,
+          "provider.thread_id": input.threadId,
+        });
+        return yield* routed.adapter.compactThread(routed.threadId);
+      }).pipe(
+        Effect.mapError((cause) =>
+          cause._tag === "ProviderAdapterRequestError" ||
+          cause._tag === "ProviderAdapterSessionNotFoundError"
+            ? cause
+            : new ProviderValidationError({
+                operation: "ProviderService.compactThread",
+                issue: Cause.pretty(cause),
+              }),
+        ),
+      );
+    },
+  );
+
   const runStopAll = Effect.fn("runStopAll")(function* () {
     const threadIds = yield* directory.listThreadIds();
     const currentAdapters = yield* getAdapterEntries;
@@ -1043,6 +1079,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     getCapabilities,
     getInstanceInfo,
     rollbackConversation,
+    compactThread,
     // Each access creates a fresh PubSub subscription so that multiple
     // consumers (ProviderRuntimeIngestion, CheckpointReactor, etc.) each
     // independently receive all runtime events.

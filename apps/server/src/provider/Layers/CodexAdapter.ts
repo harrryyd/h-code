@@ -1595,6 +1595,16 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
     );
   };
 
+  const compactThread: CodexAdapterShape["compactThread"] = (threadId) =>
+    requireSession(threadId).pipe(
+      Effect.flatMap((session) => session.runtime.compactThread),
+      Effect.mapError((cause) =>
+        cause._tag === "ProviderAdapterSessionNotFoundError"
+          ? cause
+          : mapCodexRuntimeError(threadId, "thread/compact/start", cause),
+      ),
+    );
+
   const respondToRequest: CodexAdapterShape["respondToRequest"] = (threadId, requestId, decision) =>
     requireSession(threadId).pipe(
       Effect.flatMap((session) => session.runtime.respondToRequest(requestId, decision)),
@@ -1683,6 +1693,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
     interruptTurn,
     readThread,
     rollbackThread,
+    compactThread,
     respondToRequest,
     respondToUserInput,
     stopSession,

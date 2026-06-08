@@ -1119,6 +1119,194 @@ it.effect("decodes thread.context.trim as part of OrchestrationCommand union", (
   }),
 );
 
+// ── thread.context.summarize command & event ──────────────────────────
+
+import {
+  ThreadContextSummarizeCommand,
+  ThreadContextSummarizedPayload,
+  ThreadContextCompactCommand,
+  ThreadContextCompactedPayload,
+} from "./orchestration.ts";
+
+const decodeThreadContextSummarizeCommand = Schema.decodeUnknownEffect(ThreadContextSummarizeCommand);
+const decodeThreadContextSummarizedPayload = Schema.decodeUnknownEffect(ThreadContextSummarizedPayload);
+const decodeThreadContextCompactCommand = Schema.decodeUnknownEffect(ThreadContextCompactCommand);
+const decodeThreadContextCompactedPayload = Schema.decodeUnknownEffect(ThreadContextCompactedPayload);
+
+it.effect("decodes thread.context.summarize command", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextSummarizeCommand({
+      type: "thread.context.summarize",
+      commandId: "cmd-summarize-1",
+      threadId: "thread-1",
+      summary: "Compacted summary text",
+      compactDurationMs: 1500,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.context.summarize");
+    assert.strictEqual(parsed.summary, "Compacted summary text");
+    assert.strictEqual(parsed.compactDurationMs, 1500);
+  }),
+);
+
+it.effect("decodes thread.context-summarized payload", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextSummarizedPayload({
+      threadId: "thread-1",
+      trimPointId: "trim-1",
+      summary: "Compacted summary text",
+      compactDurationMs: 1500,
+    });
+    assert.strictEqual(parsed.threadId, "thread-1");
+    assert.strictEqual(parsed.trimPointId, "trim-1");
+    assert.strictEqual(parsed.summary, "Compacted summary text");
+    assert.strictEqual(parsed.compactDurationMs, 1500);
+  }),
+);
+
+it.effect("decodes thread.context-summarized event", () =>
+  Effect.gen(function* () {
+    const event = yield* decodeOrchestrationEvent({
+      sequence: 200,
+      eventId: "event-summarized-1",
+      aggregateKind: "thread",
+      aggregateId: "thread-1",
+      type: "thread.context-summarized",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-summarize-1",
+      causationEventId: null,
+      correlationId: "cmd-summarize-1",
+      metadata: {},
+      payload: {
+        threadId: "thread-1",
+        trimPointId: "trim-1",
+        summary: "Compacted context summary",
+        compactDurationMs: 1200,
+      },
+    });
+    assert.strictEqual(event.type, "thread.context-summarized");
+    if (event.type === "thread.context-summarized") {
+      assert.strictEqual(event.payload.summary, "Compacted context summary");
+      assert.strictEqual(event.payload.compactDurationMs, 1200);
+    }
+  }),
+);
+
+// ── thread.context.compact command & event ────────────────────────────
+
+it.effect("decodes thread.context.compact command", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextCompactCommand({
+      type: "thread.context.compact",
+      commandId: "cmd-compact-1",
+      threadId: "thread-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.context.compact");
+    assert.strictEqual(parsed.threadId, "thread-1");
+  }),
+);
+
+it.effect("decodes thread.context-compacted payload", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextCompactedPayload({
+      threadId: "thread-1",
+      summary: "Provider compacted the conversation.",
+      compactDurationMs: 800,
+    });
+    assert.strictEqual(parsed.threadId, "thread-1");
+    assert.strictEqual(parsed.summary, "Provider compacted the conversation.");
+    assert.strictEqual(parsed.compactDurationMs, 800);
+  }),
+);
+
+it.effect("decodes thread.context-compacted event", () =>
+  Effect.gen(function* () {
+    const event = yield* decodeOrchestrationEvent({
+      sequence: 300,
+      eventId: "event-compacted-1",
+      aggregateKind: "thread",
+      aggregateId: "thread-1",
+      type: "thread.context-compacted",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-compact-1",
+      causationEventId: null,
+      correlationId: "cmd-compact-1",
+      metadata: {},
+      payload: {
+        threadId: "thread-1",
+        summary: "Provider compacted the conversation.",
+        compactDurationMs: 800,
+      },
+    });
+    assert.strictEqual(event.type, "thread.context-compacted");
+    if (event.type === "thread.context-compacted") {
+      assert.strictEqual(event.payload.summary, "Provider compacted the conversation.");
+      assert.strictEqual(event.payload.compactDurationMs, 800);
+    }
+  }),
+);
+
+// ── ContextTrimPoint with summary ──────────────────────────────────────
+
+it.effect("decodes ContextTrimPoint with summary", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeContextTrimPoint({
+      id: "trim-2",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      beforeEntryId: "msg-10",
+      prunedMessageCount: 20,
+      prunedTurnIds: ["turn-3", "turn-4"],
+      summary: "This is a compaction summary.",
+    });
+    assert.strictEqual(parsed.id, "trim-2");
+    assert.strictEqual(parsed.prunedMessageCount, 20);
+    assert.strictEqual(parsed.summary, "This is a compaction summary.");
+  }),
+);
+
+it.effect("decodes ContextTrimPoint without summary (backward compat)", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeContextTrimPoint({
+      id: "trim-3",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      beforeEntryId: "msg-5",
+      prunedMessageCount: 5,
+      prunedTurnIds: ["turn-1"],
+    });
+    assert.strictEqual(parsed.summary, undefined);
+  }),
+);
+
+// ── ThreadContextTrimCommand with summary ──────────────────────────────
+
+it.effect("decodes thread.context.trim command with summary", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadContextTrimCommand({
+      type: "thread.context.trim",
+      commandId: "cmd-trim-summary-1",
+      threadId: "thread-1",
+      summary: "Trim with compaction summary",
+      keepLastNTurns: 2,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.summary, "Trim with compaction summary");
+    assert.strictEqual(parsed.keepLastNTurns, 2);
+  }),
+);
+
+it.effect("decodes thread.context.compact as part of OrchestrationCommand union", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.context.compact",
+      commandId: "cmd-compact-u",
+      threadId: "thread-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.context.compact");
+  }),
+);
+
 // ── thread.archive-and-new command & event ─────────────────────────────
 
 const decodeThreadArchivedAndNewCreatedPayload = Schema.decodeUnknownEffect(

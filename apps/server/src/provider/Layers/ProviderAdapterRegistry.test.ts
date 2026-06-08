@@ -40,6 +40,7 @@ const fakeCodexAdapter: CodexAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
+  compactThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };
@@ -57,6 +58,7 @@ const fakeClaudeAdapter: ClaudeAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
+  compactThread: vi.fn(),
   toggleMcpServerOnThread: vi.fn(),
   listMcpServersOnThread: vi.fn(),
   stopAll: vi.fn(),
@@ -76,6 +78,7 @@ const fakeOpenCodeAdapter: OpenCodeAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
+  compactThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };
@@ -93,6 +96,7 @@ const fakeCursorAdapter: CursorAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
+  compactThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };
