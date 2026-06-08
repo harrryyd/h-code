@@ -57,6 +57,7 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       getReviewDraft: rpcClient.changeRequest.getReviewDraft,
       upsertReviewComment: rpcClient.changeRequest.upsertReviewComment,
       deleteReviewComment: rpcClient.changeRequest.deleteReviewComment,
+      submitReview: rpcClient.changeRequest.submitReview,
     },
     orchestration: {
       dispatchCommand: rpcClient.orchestration.dispatchCommand,

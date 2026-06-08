@@ -161,6 +161,7 @@ export const WS_METHODS = {
   changeRequestUpsertReviewComment: "changeRequest.upsertReviewComment",
   changeRequestDeleteReviewComment: "changeRequest.deleteReviewComment",
   changeRequestGetPrDiff: "changeRequest.getPrDiff",
+  changeRequestSubmitReview: "changeRequest.submitReview",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -561,6 +562,34 @@ export const WsChangeRequestGetPrDiffRpc = Rpc.make(WS_METHODS.changeRequestGetP
   error: Schema.Union([ChangeRequestGetPrDiffError, EnvironmentAuthorizationError]),
 });
 
+export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<ChangeRequestSubmitReviewError>()(
+  "ChangeRequestSubmitReviewError",
+  {
+    kind: Schema.Literals(["no-draft", "review-failed", "not-a-repo"]),
+    detail: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `Submit review error (${this.kind}): ${this.detail}`;
+  }
+}
+
+export const WsChangeRequestSubmitReviewInput = Schema.Struct({
+  threadId: ThreadId,
+  prNumber: PositiveInt,
+});
+export type WsChangeRequestSubmitReviewInput = typeof WsChangeRequestSubmitReviewInput.Type;
+
+export const WsChangeRequestSubmitReviewRpc = Rpc.make(
+  WS_METHODS.changeRequestSubmitReview,
+  {
+    payload: WsChangeRequestSubmitReviewInput,
+    success: ReviewDraft,
+    error: Schema.Union([ChangeRequestSubmitReviewError, EnvironmentAuthorizationError]),
+  },
+);
+
 export const TodosLoadResult = Schema.Struct({
   categories: Schema.Array(TodoCategory),
   items: Schema.Array(TodoItem),
@@ -912,6 +941,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsChangeRequestUpsertReviewCommentRpc,
   WsChangeRequestDeleteReviewCommentRpc,
   WsChangeRequestGetPrDiffRpc,
+  WsChangeRequestSubmitReviewRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,

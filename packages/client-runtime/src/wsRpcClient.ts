@@ -142,6 +142,7 @@ export interface WsRpcClient {
     readonly deleteReviewComment: RpcUnaryMethod<
       typeof WS_METHODS.changeRequestDeleteReviewComment
     >;
+    readonly submitReview: RpcUnaryMethod<typeof WS_METHODS.changeRequestSubmitReview>;
   };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
@@ -326,6 +327,10 @@ export function createWsRpcClient(
       deleteReviewComment: (input) =>
         transport.request((client) =>
           client[WS_METHODS.changeRequestDeleteReviewComment](input),
+        ),
+      submitReview: (input) =>
+        transport.request((client) =>
+          client[WS_METHODS.changeRequestSubmitReview](input),
         ),
     },
     server: {

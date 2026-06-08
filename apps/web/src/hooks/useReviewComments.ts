@@ -24,11 +24,14 @@ export interface UseReviewCommentsResult {
   editingComment: EditingCommentState | null;
   savePending: boolean;
   saveError: string | null;
+  submitting: boolean;
+  submitError: string | null;
   startEditing: (filePath: string, lineNumber: number | null, prefillBody?: string) => void;
   cancelEditing: () => void;
   saveComment: (body: string) => Promise<void>;
   deleteComment: (commentId: string) => Promise<void>;
   refreshDraft: () => void;
+  submitReview: () => Promise<ReviewDraft | null>;
 }
 
 export function useReviewComments(
@@ -41,6 +44,8 @@ export function useReviewComments(
   const [editingComment, setEditingComment] = useState<EditingCommentState | null>(null);
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const refreshDraft = useCallback(() => {
     if (!environmentId || !threadId || !prNumber) return;
@@ -134,6 +139,30 @@ export function useReviewComments(
     [environmentId, threadId, prNumber],
   );
 
+  const submitReview = useCallback(
+    async (): Promise<ReviewDraft | null> => {
+      if (!environmentId || !threadId || !prNumber) return null;
+      const api = readEnvironmentApi(environmentId);
+      if (!api) return null;
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        const updatedDraft = await api.changeRequest.submitReview({
+          threadId,
+          prNumber,
+        });
+        setReviewDraft(updatedDraft);
+        setSubmitting(false);
+        return updatedDraft;
+      } catch (error) {
+        setSubmitError(error instanceof Error ? error.message : "Failed to submit review");
+        setSubmitting(false);
+        return null;
+      }
+    },
+    [environmentId, threadId, prNumber],
+  );
+
   return {
     reviewDraft,
     comments: reviewDraft?.comments ?? [],
@@ -142,10 +171,13 @@ export function useReviewComments(
     editingComment,
     savePending,
     saveError,
+    submitting,
+    submitError,
     startEditing,
     cancelEditing,
     saveComment,
     deleteComment,
+    submitReview,
     refreshDraft,
   };
 }
