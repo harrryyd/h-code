@@ -20,6 +20,8 @@ import { GitWorkflowService } from "../git/GitWorkflowService.ts";
 import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { ReviewService } from "./ReviewService.ts";
 
+export const DEFAULT_MAX_CONCURRENT_AGENTS = 3;
+
 const AGENT_PROMPT_TEMPLATE = `
 You are a code review assistant. A developer has left a review comment on a pull request.
 
@@ -57,17 +59,25 @@ function buildPrompt(input: {
     .replace("{commentBody}", input.commentBody);
 }
 
+export interface RunBackgroundAgentInput {
+  readonly threadId: string;
+  readonly prNumber: number;
+  readonly commentId: string;
+  readonly cwd: string;
+  readonly prHeadRef: string;
+  readonly commentFile: string;
+  readonly commentLine: number | undefined;
+  readonly commentBody: string;
+}
+
 export interface BackgroundAgentServiceShape {
-  readonly runBackgroundAgent: (input: {
-    readonly threadId: string;
-    readonly prNumber: number;
-    readonly commentId: string;
-    readonly cwd: string;
-    readonly prHeadRef: string;
-    readonly commentFile: string;
-    readonly commentLine: number | undefined;
-    readonly commentBody: string;
-  }) => Stream.Stream<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError>;
+  readonly runBackgroundAgent: (
+    input: RunBackgroundAgentInput,
+  ) => Stream.Stream<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError>;
+  readonly runBatchAgents: (
+    inputs: readonly RunBackgroundAgentInput[],
+    maxConcurrent?: number,
+  ) => Stream.Stream<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError>;
 }
 
 export class BackgroundAgentService extends Context.Service<
@@ -93,16 +103,7 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
   const review = yield* ReviewService.ReviewService;
 
   const runBackgroundAgent = Effect.fn("BackgroundAgentService.runBackgroundAgent")(
-    (input: {
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly commentId: string;
-      readonly cwd: string;
-      readonly prHeadRef: string;
-      readonly commentFile: string;
-      readonly commentLine: number | undefined;
-      readonly commentBody: string;
-    }): Stream.Stream<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError> =>
+    (input: RunBackgroundAgentInput): Stream.Stream<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError> =>
       Stream.callback<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError>(
         (queue) =>
           Effect.gen(function* () {
@@ -419,8 +420,50 @@ export const make = Effect.fn("makeBackgroundAgentService")(function* () {
       ),
   );
 
+  const runBatchAgents = Effect.fn("BackgroundAgentService.runBatchAgents")(
+    (
+      inputs: readonly RunBackgroundAgentInput[],
+      maxConcurrent?: number,
+    ): Stream.Stream<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError> =>
+      Stream.callback<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError>(
+        (outputQueue) =>
+          Effect.gen(function* () {
+            const concurrency = maxConcurrent ?? DEFAULT_MAX_CONCURRENT_AGENTS;
+
+            if (inputs.length === 0) {
+              yield* Queue.end(outputQueue);
+              return;
+            }
+
+            yield* Effect.forEach(
+              inputs,
+              (input) =>
+                runBackgroundAgent(input).pipe(
+                  Stream.runForEach((event) => Queue.offer(outputQueue, event)),
+                  Effect.catchAll((error) =>
+                    Queue.offer(outputQueue, {
+                      type: "error" as const,
+                      commentId: input.commentId,
+                      message:
+                        error && typeof error === "object" && "detail" in error
+                          ? String(error.detail)
+                          : error instanceof Error
+                            ? error.message
+                            : "Agent execution failed",
+                    }),
+                  ),
+                ),
+              { concurrency },
+            );
+
+            yield* Queue.end(outputQueue);
+          }),
+      ),
+  );
+
   return BackgroundAgentService.of({
     runBackgroundAgent,
+    runBatchAgents,
   });
 });
 

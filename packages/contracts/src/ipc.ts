@@ -684,6 +684,7 @@ export interface EnvironmentApi {
     submitReview: (input: {
       readonly threadId: string;
       readonly prNumber: number;
+      readonly runBatchAgents?: boolean;
     }) => Promise<{
       readonly threadId: string;
       readonly prNumber: number;
@@ -704,6 +705,24 @@ export interface EnvironmentApi {
         readonly threadId: string;
         readonly prNumber: number;
         readonly commentId: string;
+      },
+      callback: (event: {
+        readonly type: "text" | "detail" | "status" | "done" | "error";
+        readonly commentId: string;
+        readonly content?: string;
+        readonly agentStatus?: string;
+        readonly title?: string;
+        readonly message?: string;
+      }) => void,
+      options?: {
+        onResubscribe?: () => void;
+      },
+    ) => () => void;
+    runBatchAgents: (
+      input: {
+        readonly threadId: string;
+        readonly prNumber: number;
+        readonly commentIds: readonly string[];
       },
       callback: (event: {
         readonly type: "text" | "detail" | "status" | "done" | "error";

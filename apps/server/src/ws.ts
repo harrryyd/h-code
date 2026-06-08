@@ -1652,6 +1652,87 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
             }),
             { "rpc.aggregate": "change-request" },
           ),
+        [WS_METHODS.changeRequestRunBatchAgents]: (input) =>
+          observeRpcStreamEffect(
+            WS_METHODS.changeRequestRunBatchAgents,
+            Effect.gen(function* () {
+              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              if (Option.isNone(thread)) {
+                return yield* Effect.fail(
+                  new ChangeRequestRunBackgroundAgentError({
+                    kind: "thread-not-found",
+                    detail: `Thread ${input.threadId} not found.`,
+                  }),
+                );
+              }
+              const cwd = thread.value.worktreePath;
+              if (!cwd) {
+                return yield* Effect.fail(
+                  new ChangeRequestRunBackgroundAgentError({
+                    kind: "no-worktree",
+                    detail: `Thread ${input.threadId} has no worktree path.`,
+                  }),
+                );
+              }
+
+              if (input.commentIds.length === 0) {
+                return Stream.empty;
+              }
+
+              yield* git
+                .execute({
+                  operation: "changeRequest.runBatchAgents.fetchHead",
+                  cwd,
+                  args: [
+                    "fetch",
+                    "origin",
+                    `+refs/pull/${input.prNumber}/head:refs/t3/pr/${input.prNumber}/head`,
+                  ],
+                })
+                .pipe(
+                  Effect.mapError(
+                    (cause) =>
+                      new ChangeRequestRunBackgroundAgentError({
+                        kind: "agent-failed",
+                        detail: `Failed to fetch PR head: ${cause.message}`,
+                        cause,
+                      }),
+                  ),
+                );
+
+              const draft = yield* review.getReviewDraft({
+                threadId: input.threadId,
+                prNumber: input.prNumber,
+                cwd,
+              });
+
+              const prHeadRef = `refs/t3/pr/${input.prNumber}/head`;
+
+              const agentInputs = input.commentIds
+                .map((commentId) => {
+                  const comment = draft?.comments.find((c) => c.id === commentId);
+                  if (!comment) return null;
+                  return {
+                    threadId: input.threadId,
+                    prNumber: input.prNumber,
+                    commentId,
+                    cwd,
+                    prHeadRef,
+                    commentFile: comment.file,
+                    commentLine: comment.line,
+                    commentBody: comment.body,
+                  };
+                })
+                .filter((x): x is NonNullable<typeof x> => x !== null);
+
+              if (agentInputs.length === 0) {
+                return Stream.empty;
+              }
+
+              return backgroundAgent.runBatchAgents(agentInputs);
+            }),
+            { "rpc.aggregate": "change-request" },
+          ),
         [WS_METHODS.terminalOpen]: (input) =>
           observeRpcEffect(WS_METHODS.terminalOpen, terminalManager.open(input), {
             "rpc.aggregate": "terminal",
