@@ -11,6 +11,7 @@ export const TODOS_ARCHIVE_PATH = T3CODE_DIR + "/todos-archive.json";
 export interface TodosData {
   categories: TodoCategory[];
   items: TodoItem[];
+  jiraBaseUrl?: string;
 }
 
 export const readTodos = Effect.gen(function* () {

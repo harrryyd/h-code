@@ -10,6 +10,7 @@ import {
   RenameCategoryMutation,
   SetCategoryColorMutation,
   SetCategoryJiraLinkMutation,
+  SetJiraBaseUrlMutation,
   TodoMutation,
   TodosMutateInput,
 } from "./rpc.ts";
@@ -239,6 +240,17 @@ it.effect("discriminates mutation types in TodoMutation union", () =>
       categoryId: "cat-1",
     });
     assert.strictEqual(parsed.type, "deleteCategory");
+  }),
+);
+
+it.effect("parses a valid SetJiraBaseUrlMutation", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decode(SetJiraBaseUrlMutation, {
+      type: "setJiraBaseUrl",
+      jiraBaseUrl: "https://company.atlassian.net/browse",
+    });
+    assert.strictEqual(parsed.type, "setJiraBaseUrl");
+    assert.strictEqual(parsed.jiraBaseUrl, "https://company.atlassian.net/browse");
   }),
 );
 

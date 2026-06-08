@@ -5,6 +5,7 @@ import { ensureLocalApi } from "~/localApi";
 export interface UseTodosResult {
   categories: TodoCategory[];
   items: TodoItem[];
+  jiraBaseUrl: string | undefined;
   loading: boolean;
   error: string | null;
   reload: () => void;
@@ -14,6 +15,7 @@ export interface UseTodosResult {
 export function useTodos(): UseTodosResult {
   const [categories, setCategories] = useState<TodoCategory[]>([]);
   const [items, setItems] = useState<TodoItem[]>([]);
+  const [jiraBaseUrl, setJiraBaseUrl] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
@@ -27,12 +29,14 @@ export function useTodos(): UseTodosResult {
         if (!mountedRef.current) return;
         setCategories([...result.categories]);
         setItems([...result.items]);
+        setJiraBaseUrl(result.jiraBaseUrl ?? undefined);
         setError(null);
       })
       .catch((err: unknown) => {
         if (!mountedRef.current) return;
         setCategories([]);
         setItems([]);
+        setJiraBaseUrl(undefined);
         setError(err instanceof Error ? err.message : "Failed to load todos");
       })
       .finally(() => {
@@ -46,6 +50,7 @@ export function useTodos(): UseTodosResult {
     if (!mountedRef.current) return;
     setCategories([...result.categories]);
     setItems([...result.items]);
+    setJiraBaseUrl(result.jiraBaseUrl ?? undefined);
   }, []);
 
   useEffect(() => {
@@ -56,5 +61,5 @@ export function useTodos(): UseTodosResult {
     };
   }, [load]);
 
-  return { categories, items, loading, error, reload: load, mutate };
+  return { categories, items, jiraBaseUrl, loading, error, reload: load, mutate };
 }

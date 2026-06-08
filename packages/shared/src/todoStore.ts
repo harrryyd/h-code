@@ -1,12 +1,17 @@
-import type { TodoCategory, TodoItem, TodoMutation } from "@t3tools/contracts";
+import type { TodoCategory, TodoItem, TodoItemPriority, TodoMutation } from "@t3tools/contracts";
 
 export interface TodoState {
   categories: TodoCategory[];
   items: TodoItem[];
+  jiraBaseUrl: string | undefined;
 }
 
-export function loadTodos(categories: TodoCategory[], items: TodoItem[]): TodoState {
-  return { categories, items };
+export function loadTodos(
+  categories: TodoCategory[],
+  items: TodoItem[],
+  jiraBaseUrl: string | undefined = undefined,
+): TodoState {
+  return { categories, items, jiraBaseUrl };
 }
 
 export function toggleCategory(state: TodoState, categoryId: string): TodoState {
@@ -53,11 +58,13 @@ export function reorderItems(
   };
 }
 
-export function createCategory(state: TodoState): TodoState {
+export function createCategory(state: TodoState, name = "New Category", color?: string): TodoState {
+  const trimmedName = name.trim();
+  if (!trimmedName) return state;
   const category: TodoCategory = {
     id: crypto.randomUUID(),
-    name: "New Category",
-    color: getRandomColor(),
+    name: trimmedName,
+    color: color?.trim() || getRandomColor(),
     // @effect-diagnostics-next-line globalDate:off
     createdAt: new Date().toISOString(),
   };
@@ -65,6 +72,7 @@ export function createCategory(state: TodoState): TodoState {
 }
 
 export function renameCategory(state: TodoState, categoryId: string, name: string): TodoState {
+  if (!name.trim()) return state;
   return {
     ...state,
     categories: state.categories.map((c) => (c.id === categoryId ? { ...c, name } : c)),
@@ -137,6 +145,51 @@ export function createItem(state: TodoState, categoryId: string, title: string):
   };
 }
 
+export function setJiraBaseUrl(state: TodoState, jiraBaseUrl: string): TodoState {
+  const value = jiraBaseUrl.trim();
+  return {
+    ...state,
+    ...(value ? { jiraBaseUrl: value } : { jiraBaseUrl: undefined }),
+  };
+}
+
+export function renameItem(state: TodoState, itemId: string, title: string): TodoState {
+  if (!title.trim()) return state;
+  return {
+    ...state,
+    items: state.items.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            title,
+            // @effect-diagnostics-next-line globalDate:off
+            updatedAt: new Date().toISOString(),
+          }
+        : item,
+    ),
+  };
+}
+
+export function setItemPriority(
+  state: TodoState,
+  itemId: string,
+  priority: TodoItemPriority,
+): TodoState {
+  return {
+    ...state,
+    items: state.items.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            priority,
+            // @effect-diagnostics-next-line globalDate:off
+            updatedAt: new Date().toISOString(),
+          }
+        : item,
+    ),
+  };
+}
+
 function getRandomColor(): string {
   const colors = [
     "#3b82f6",
@@ -155,7 +208,7 @@ function getRandomColor(): string {
 export function applyMutation(state: TodoState, mutation: TodoMutation): TodoState {
   switch (mutation.type) {
     case "createCategory":
-      return createCategory(state);
+      return createCategory(state, mutation.name, mutation.color);
     case "renameCategory":
       return renameCategory(state, mutation.categoryId, mutation.name);
     case "setCategoryColor":
@@ -164,6 +217,8 @@ export function applyMutation(state: TodoState, mutation: TodoMutation): TodoSta
       return setCategoryJiraLink(state, mutation.categoryId, mutation.jiraLink);
     case "deleteCategory":
       return deleteCategory(state, mutation.categoryId).state;
+    case "toggleCategory":
+      return toggleCategory(state, mutation.categoryId);
     case "createItem":
       return createItem(state, mutation.categoryId, mutation.title);
     case "cycleItemStatus":
@@ -176,6 +231,12 @@ export function applyMutation(state: TodoState, mutation: TodoMutation): TodoSta
       return updateDescription(state, mutation.itemId, mutation.description);
     case "setItemJiraLink":
       return setItemJiraLink(state, mutation.itemId, mutation.jiraLink);
+    case "renameItem":
+      return renameItem(state, mutation.itemId, mutation.title);
+    case "setItemPriority":
+      return setItemPriority(state, mutation.itemId, mutation.priority);
+    case "setJiraBaseUrl":
+      return setJiraBaseUrl(state, mutation.jiraBaseUrl);
     case "deleteItem":
       return deleteItem(state, mutation.itemId);
     default:
