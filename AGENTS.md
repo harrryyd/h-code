@@ -1,5 +1,23 @@
 # AGENTS.md
 
+## Running the Dev Server
+
+This repo shares port ranges and the `~/.t3` state directory with a separately-running T3 Code instance. Running `bun run dev` without isolation will corrupt the other instance's database and state.
+
+**Always run dev with an isolated home directory:**
+
+```bash
+./scripts/dev.sh
+```
+
+Or manually:
+
+```bash
+T3CODE_HOME=~/.t3-hcode bun run dev
+```
+
+The script auto-derives a unique `T3CODE_HOME` per worktree/path, so multiple worktrees can run simultaneously without conflict.
+
 ## Task Completion Requirements
 
 - `vp check` and `vp run typecheck` must pass before considering tasks completed.
