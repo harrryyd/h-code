@@ -263,7 +263,7 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
 
 export function parseStandaloneComposerSlashCommand(
   text: string,
-): "plan" | "default" | "new" | ComposerClearSlashCommand | null {
+): "plan" | "default" | "new" | "compact" | ComposerClearSlashCommand | null {
   const trimmed = text.trim();
   const clearMatch = /^\/clear(?:\s+(\d+))?\s*$/i.exec(trimmed);
   if (clearMatch) {
@@ -275,6 +275,9 @@ export function parseStandaloneComposerSlashCommand(
   }
   if (/^\/new\s*$/i.test(trimmed)) {
     return "new";
+  }
+  if (/^\/compact\s*$/i.test(trimmed)) {
+    return "compact";
   }
   const match = /^\/(plan|default)\s*$/i.exec(trimmed);
   if (!match) {

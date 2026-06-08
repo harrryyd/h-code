@@ -16,6 +16,7 @@ import { isTemporaryWorktreeBranch, WORKTREE_BRANCH_PREFIX } from "@t3tools/shar
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
+import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
@@ -52,7 +53,8 @@ type ProviderIntentEvent = Extract<
       | "thread.turn-interrupt-requested"
       | "thread.approval-response-requested"
       | "thread.user-input-response-requested"
-      | "thread.session-stop-requested";
+      | "thread.session-stop-requested"
+      | "thread.context-compacted";
   }
 >;
 
@@ -944,6 +946,64 @@ const make = Effect.gen(function* () {
     });
   });
 
+  const processContextCompacted = Effect.fn("processContextCompacted")(function* (
+    event: Extract<ProviderIntentEvent, { type: "thread.context-compacted" }>,
+  ) {
+    const threadId = event.payload.threadId;
+    const thread = yield* resolveThread(threadId);
+    if (!thread) {
+      return;
+    }
+
+    const nowIso = yield* Effect.map(DateTime.now, DateTime.formatIso);
+
+    // Attempt provider compaction
+    const compactResult = yield* providerService.compactThread({ threadId }).pipe(
+      Effect.map((result) => ({ _tag: "success" as const, ...result })),
+      Effect.catchAll((cause) =>
+        Effect.gen(function* () {
+          yield* Effect.logWarning("provider compaction failed, proceeding with trim-only", {
+            threadId: String(threadId),
+            cause: Cause.pretty(cause),
+          });
+          return { _tag: "failure" as const };
+        }),
+      ),
+    );
+
+    if (compactResult._tag === "success") {
+      // Dispatch summarize with the compaction summary
+      const summarizeCommandId = yield* serverCommandId("compact-summarize");
+      yield* orchestrationEngine.dispatch({
+        type: "thread.context.summarize",
+        commandId: summarizeCommandId,
+        threadId,
+        summary: compactResult.summary,
+        compactDurationMs: compactResult.durationMs,
+        createdAt: nowIso,
+      });
+
+      // Dispatch trim with the summary attached
+      const trimCommandId = yield* serverCommandId("compact-trim");
+      yield* orchestrationEngine.dispatch({
+        type: "thread.context.trim",
+        commandId: trimCommandId,
+        threadId,
+        summary: compactResult.summary,
+        createdAt: nowIso,
+      });
+    } else {
+      // Dispatch trim without summary (fallback)
+      const trimCommandId = yield* serverCommandId("compact-trim-fallback");
+      yield* orchestrationEngine.dispatch({
+        type: "thread.context.trim",
+        commandId: trimCommandId,
+        threadId,
+        createdAt: nowIso,
+      });
+    }
+  });
+
   const processDomainEvent = Effect.fn("processDomainEvent")(function* (
     event: ProviderIntentEvent,
   ) {
@@ -984,6 +1044,9 @@ const make = Effect.gen(function* () {
       case "thread.session-stop-requested":
         yield* processSessionStopRequested(event);
         return;
+      case "thread.context-compacted":
+        yield* processContextCompacted(event);
+        return;
     }
   });
 
@@ -1010,7 +1073,8 @@ const make = Effect.gen(function* () {
         event.type === "thread.turn-interrupt-requested" ||
         event.type === "thread.approval-response-requested" ||
         event.type === "thread.user-input-response-requested" ||
-        event.type === "thread.session-stop-requested"
+        event.type === "thread.session-stop-requested" ||
+        event.type === "thread.context-compacted"
       ) {
         return yield* worker.enqueue(event);
       }

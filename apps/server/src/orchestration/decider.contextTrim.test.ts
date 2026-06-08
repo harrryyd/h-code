@@ -716,3 +716,312 @@ describe("thread.context.trim decider", () => {
     ]);
   });
 });
+
+describe("thread.context.compact decider", () => {
+  it("emits thread.context-compacted for a valid thread", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const threadId = asThreadId("thread-compact");
+    let model = createEmptyReadModel(now);
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 1,
+        eventId: asEventId("evt-project-compact"),
+        aggregateKind: "project",
+        aggregateId: asProjectId("project-compact"),
+        type: "project.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-project-compact"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-project-compact"),
+        metadata: {},
+        payload: {
+          projectId: asProjectId("project-compact"),
+          title: "Compact Project",
+          workspaceRoot: "/tmp/compact-project",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 2,
+        eventId: asEventId("evt-thread-compact"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        type: "thread.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-thread-compact"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-thread-compact"),
+        metadata: {},
+        payload: {
+          threadId,
+          projectId: asProjectId("project-compact"),
+          title: "Compact Thread",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          branch: null,
+          worktreePath: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    const result = await runDecide({
+      command: {
+        type: "thread.context.compact",
+        commandId: asCommandId("cmd-compact"),
+        threadId,
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.compact" }>,
+      readModel: model,
+    });
+
+    const events = Array.isArray(result) ? result : [result];
+    expect(events.map((e) => e.type)).toEqual(["thread.context-compacted"]);
+  });
+
+  it("rejects compact on non-existent thread", async () => {
+    const readModel = createEmptyReadModel("2026-01-01T00:00:00.000Z");
+
+    await expect(
+      runDecide({
+        command: {
+          type: "thread.context.compact",
+          commandId: asCommandId("cmd-compact-unknown"),
+          threadId: asThreadId("thread-unknown"),
+          createdAt: "2026-01-02T00:00:00.000Z",
+        } as Extract<OrchestrationCommand, { type: "thread.context.compact" }>,
+        readModel,
+      }),
+    ).rejects.toBeDefined();
+  });
+
+  it("rejects compact when thread has an active turn", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const threadId = asThreadId("thread-compact-active");
+    let model = createEmptyReadModel(now);
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 1,
+        eventId: asEventId("evt-project-compact-active"),
+        aggregateKind: "project",
+        aggregateId: asProjectId("project-compact-active"),
+        type: "project.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-project-compact-active"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-project-compact-active"),
+        metadata: {},
+        payload: {
+          projectId: asProjectId("project-compact-active"),
+          title: "Compact Active",
+          workspaceRoot: "/tmp/compact-active",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 2,
+        eventId: asEventId("evt-thread-compact-active"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        type: "thread.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-thread-compact-active"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-thread-compact-active"),
+        metadata: {},
+        payload: {
+          threadId,
+          projectId: asProjectId("project-compact-active"),
+          title: "Active Thread",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          branch: null,
+          worktreePath: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 3,
+        eventId: asEventId("evt-session-compact-active"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        type: "thread.session-set",
+        occurredAt: "2026-01-01T00:05:00.000Z",
+        commandId: asCommandId("cmd-session-compact-active"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-session-compact-active"),
+        metadata: {},
+        payload: {
+          threadId,
+          session: {
+            threadId,
+            status: "running" as const,
+            providerName: "codex",
+            runtimeMode: DEFAULT_RUNTIME_MODE,
+            activeTurnId: asTurnId("turn-active-compact"),
+            lastError: null,
+            updatedAt: "2026-01-01T00:05:00.000Z",
+          },
+        },
+      }),
+    );
+
+    await expect(
+      runDecide({
+        command: {
+          type: "thread.context.compact",
+          commandId: asCommandId("cmd-compact-active"),
+          threadId,
+          createdAt: "2026-01-02T00:00:00.000Z",
+        } as Extract<OrchestrationCommand, { type: "thread.context.compact" }>,
+        readModel: model,
+      }),
+    ).rejects.toBeDefined();
+  });
+});
+
+describe("thread.context.summarize decider", () => {
+  it("emits thread.context-summarized for a valid thread", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const threadId = asThreadId("thread-summarize");
+    let model = createEmptyReadModel(now);
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 1,
+        eventId: asEventId("evt-project-summarize"),
+        aggregateKind: "project",
+        aggregateId: asProjectId("project-summarize"),
+        type: "project.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-project-summarize"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-project-summarize"),
+        metadata: {},
+        payload: {
+          projectId: asProjectId("project-summarize"),
+          title: "Summarize Project",
+          workspaceRoot: "/tmp/summarize-project",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    model = await Effect.runPromise(
+      projectEvent(model, {
+        sequence: 2,
+        eventId: asEventId("evt-thread-summarize"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        type: "thread.created",
+        occurredAt: now,
+        commandId: asCommandId("cmd-thread-summarize"),
+        causationEventId: null,
+        correlationId: asCommandId("cmd-thread-summarize"),
+        metadata: {},
+        payload: {
+          threadId,
+          projectId: asProjectId("project-summarize"),
+          title: "Summarize Thread",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("codex"),
+            model: "gpt-5-codex",
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          branch: null,
+          worktreePath: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+
+    const result = await runDecide({
+      command: {
+        type: "thread.context.summarize",
+        commandId: asCommandId("cmd-summarize"),
+        threadId,
+        summary: "The user asked about compacting threads.",
+        compactDurationMs: 1200,
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.summarize" }>,
+      readModel: model,
+    });
+
+    const events = Array.isArray(result) ? result : [result];
+    expect(events.map((e) => e.type)).toEqual(["thread.context-summarized"]);
+
+    const summarizeEvent = events.find((e) => e.type === "thread.context-summarized");
+    expect(summarizeEvent?.payload.summary).toBe("The user asked about compacting threads.");
+    expect(summarizeEvent?.payload.compactDurationMs).toBe(1200);
+  });
+
+  it("rejects summarize on non-existent thread", async () => {
+    const readModel = createEmptyReadModel("2026-01-01T00:00:00.000Z");
+
+    await expect(
+      runDecide({
+        command: {
+          type: "thread.context.summarize",
+          commandId: asCommandId("cmd-summarize-unknown"),
+          threadId: asThreadId("thread-unknown"),
+          summary: "Test",
+          createdAt: "2026-01-02T00:00:00.000Z",
+        } as Extract<OrchestrationCommand, { type: "thread.context.summarize" }>,
+        readModel,
+      }),
+    ).rejects.toBeDefined();
+  });
+});
+
+describe("thread.context.trim with summary", () => {
+  it("includes summary in trim point when provided", async () => {
+    const readModel = await seedThreadWithMessages();
+
+    const result = await runDecide({
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-summary"),
+        threadId: asThreadId("thread-trim"),
+        summary: "Compact summary text",
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel,
+    });
+
+    const events = Array.isArray(result) ? result : [result];
+    const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
+    expect(trimEvent?.payload.trimPoint.summary).toBe("Compact summary text");
+  });
+});

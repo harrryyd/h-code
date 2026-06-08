@@ -2979,6 +2979,21 @@ export default function ChatView(props: ChatViewProps) {
           to: "/thread/$threadId",
           params: { threadId: nextThreadId },
         });
+      } else if (standaloneSlashCommand === "compact") {
+        api.orchestration.dispatchCommand({
+          type: "thread.context.compact",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          createdAt: new Date().toISOString(),
+        }).catch((error) => {
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title: "Failed to compact context",
+              description: error instanceof Error ? error.message : "An unexpected error occurred.",
+            }),
+          );
+        });
       } else {
         handleInteractionModeChange(standaloneSlashCommand);
       }

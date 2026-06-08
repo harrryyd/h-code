@@ -47,6 +47,7 @@ import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { ContextTrimPointDivider } from "./ContextTrimPointDivider";
+import { ContextSummaryBanner } from "./ContextSummaryBanner";
 import {
   computeStableMessagesTimelineRows,
   MAX_VISIBLE_WORK_LOG_ENTRIES,
@@ -359,11 +360,14 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
       {row.kind === "manager-instruction" ? <ManagerInstructionTimelineRow row={row} /> : null}
       {row.kind === "context-trim" ? (
-        <ContextTrimPointDivider
-          trimPoint={row.trimPoint}
-          expanded={ctx.expandedTrimPointIds.has(row.trimPoint.id)}
-          onToggle={() => ctx.onTrimToggle(row.trimPoint.id)}
-        />
+        <>
+          {row.trimPoint.summary ? <ContextSummaryBanner summary={row.trimPoint.summary} /> : null}
+          <ContextTrimPointDivider
+            trimPoint={row.trimPoint}
+            expanded={ctx.expandedTrimPointIds.has(row.trimPoint.id)}
+            onToggle={() => ctx.onTrimToggle(row.trimPoint.id)}
+          />
+        </>
       ) : null}
     </div>
   );
