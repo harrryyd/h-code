@@ -3,11 +3,14 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
 import {
   VcsRepositoryDetectionError,
   VcsUnsupportedOperationError,
+  type ReviewComment,
+  type ReviewDraft,
   type ReviewDiffPreviewError,
   type ReviewDiffPreviewInput,
   type ReviewDiffPreviewResult,
@@ -16,11 +19,27 @@ import {
 import { ServerConfig } from "../config.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
+import * as ReviewDraftStore from "./ReviewDraftStore.ts";
 
 export interface ReviewServiceShape {
   readonly getDiffPreview: (
     input: ReviewDiffPreviewInput,
   ) => Effect.Effect<ReviewDiffPreviewResult, ReviewDiffPreviewError>;
+  readonly getReviewDraft: (input: {
+    readonly threadId: string;
+    readonly prNumber: number;
+  }) => Effect.Effect<ReviewDraft | null, never>;
+  readonly upsertReviewComment: (input: {
+    readonly threadId: string;
+    readonly prNumber: number;
+    readonly prHeadSHA: string;
+    readonly comment: ReviewComment;
+  }) => Effect.Effect<ReviewDraft, never>;
+  readonly deleteReviewComment: (input: {
+    readonly threadId: string;
+    readonly prNumber: number;
+    readonly commentId: string;
+  }) => Effect.Effect<ReviewDraft | null, never>;
 }
 
 export class ReviewService extends Context.Service<ReviewService, ReviewServiceShape>()(
@@ -33,6 +52,7 @@ export const make = Effect.fn("makeReviewService")(function* () {
   const path = yield* Path.Path;
   const vcsRegistry = yield* VcsDriverRegistry.VcsDriverRegistry;
   const git = yield* GitVcsDriver.GitVcsDriver;
+  const draftStore = yield* ReviewDraftStore.ReviewDraftStore;
 
   const canonicalizePath = (value: string) =>
     fileSystem.realPath(path.resolve(value)).pipe(Effect.orElseSucceed(() => path.resolve(value)));
@@ -91,9 +111,69 @@ export const make = Effect.fn("makeReviewService")(function* () {
     return yield* getDriverDiffPreview(input);
   });
 
+  const getReviewDraft: ReviewServiceShape["getReviewDraft"] = (input) =>
+    draftStore.get(input.threadId, input.prNumber).pipe(Effect.map(Option.getOrNull));
+
+  const upsertReviewComment: ReviewServiceShape["upsertReviewComment"] = (input) =>
+    draftStore.get(input.threadId, input.prNumber).pipe(
+      Effect.map(Option.getOrNull as (o: Option.Option<ReviewDraft>) => ReviewDraft | null),
+      Effect.flatMap((existingDraft) => {
+        const draft: ReviewDraft = existingDraft
+          ? {
+              ...existingDraft,
+              prHeadSHA: input.prHeadSHA,
+              comments: [
+                ...existingDraft.comments.filter((c) => c.id !== input.comment.id),
+                input.comment,
+              ],
+            }
+          : {
+              threadId: input.threadId,
+              prNumber: input.prNumber,
+              prHeadSHA: input.prHeadSHA,
+              comments: [input.comment],
+              state: "draft" as const,
+            };
+
+        return draftStore.upsert(draft).pipe(Effect.as(draft));
+      }),
+    );
+
+  const deleteReviewComment: ReviewServiceShape["deleteReviewComment"] = (input) =>
+    draftStore.get(input.threadId, input.prNumber).pipe(
+      Effect.map(Option.getOrNull as (o: Option.Option<ReviewDraft>) => ReviewDraft | null),
+      Effect.flatMap((existingDraft) => {
+        if (!existingDraft) {
+          return Effect.succeed<ReviewDraft | null>(null);
+        }
+
+        const updatedComments = existingDraft.comments.filter(
+          (c) => c.id !== input.commentId,
+        );
+
+        if (updatedComments.length === 0) {
+          return draftStore.delete(input.threadId, input.prNumber).pipe(
+            Effect.as<ReviewDraft | null>(null),
+          );
+        }
+
+        const draft: ReviewDraft = {
+          ...existingDraft,
+          comments: updatedComments,
+        };
+
+        return draftStore.upsert(draft).pipe(Effect.as<ReviewDraft | null>(draft));
+      }),
+    );
+
   return ReviewService.of({
     getDiffPreview,
+    getReviewDraft,
+    upsertReviewComment,
+    deleteReviewComment,
   });
 });
 
-export const layer = Layer.effect(ReviewService, make());
+export const layer = Layer.effect(ReviewService, make()).pipe(
+  Layer.provideMerge(ReviewDraftStore.layer),
+);

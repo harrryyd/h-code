@@ -529,6 +529,16 @@ const buildAppUnderTest = (options?: {
     );
     const reviewLayer = options?.layers?.reviewService
       ? Layer.mock(ReviewService.ReviewService)({
+          getReviewDraft: () => Effect.succeed(null),
+          upsertReviewComment: () =>
+            Effect.succeed({
+              threadId: "",
+              prNumber: 1,
+              prHeadSHA: "",
+              comments: [],
+              state: "draft",
+            }),
+          deleteReviewComment: () => Effect.succeed(null),
           ...options.layers.reviewService,
         })
       : ReviewService.layer.pipe(
