@@ -1,8 +1,10 @@
 import {
+  ContextTrimPoint,
   EventId,
   type OrchestrationCommand,
   type OrchestrationEvent,
   type OrchestrationReadModel,
+  TurnId,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Crypto from "effect/Crypto";
@@ -1038,7 +1040,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         threadId: command.threadId,
       });
 
-      // Group messages into turns by turnId, preserving order
       const messagesByTurn = new Map<
         string,
         { turnId: string; messages: typeof thread.messages }
@@ -1053,7 +1054,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         }
       }
 
-      // Ordered list of turn IDs (by first message's createdAt)
       const orderedTurns = [...messagesByTurn.values()].toSorted((a, b) => {
         const aFirst = a.messages.reduce(
           (earliest, m) => (m.createdAt < earliest ? m.createdAt : earliest),
@@ -1069,7 +1069,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       const totalTurns = orderedTurns.length;
       const keepN = command.keepLastNTurns ?? 0;
 
-      // Determine which turns survive
       const survivingTurnIds = new Set<string>();
       if (keepN > 0 && totalTurns > 0) {
         const keepCount = Math.min(keepN, totalTurns);
@@ -1078,30 +1077,27 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         }
       }
 
-      // Find the first surviving message (for beforeEntryId)
       let beforeEntryId = "";
       let prunedMessageCount = 0;
-      const prunedTurnIds: string[] = [];
+      const prunedTurnIds: TurnId[] = [];
 
       for (const turn of orderedTurns) {
         if (survivingTurnIds.has(turn.turnId)) {
-          // First surviving turn - use its first message as beforeEntryId
           if (beforeEntryId === "") {
             beforeEntryId = turn.messages[0]?.id ?? "";
           }
         } else {
-          prunedTurnIds.push(turn.turnId);
+          prunedTurnIds.push(TurnId.make(turn.turnId));
           prunedMessageCount += turn.messages.length;
         }
       }
 
-      // Also count messages without a turnId as pruned
       const unkeyedMessages = thread.messages.filter((m) => m.turnId === null);
       prunedMessageCount += unkeyedMessages.length;
 
       const occurredAt = yield* nowIso;
       const trimPointId = EventId.make(crypto.randomUUID());
-      const trimPoint: import("@t3tools/contracts").ContextTrimPoint = {
+      const trimPoint: ContextTrimPoint = {
         id: trimPointId,
         createdAt: occurredAt,
         beforeEntryId,

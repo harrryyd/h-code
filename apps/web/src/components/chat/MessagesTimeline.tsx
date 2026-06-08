@@ -332,11 +332,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
       {row.kind === "manager-instruction" ? <ManagerInstructionTimelineRow row={row} /> : null}
       {row.kind === "context-trim" ? (
-        <ContextTrimPointDivider
-          id={row.id}
-          createdAt={row.createdAt}
-          trimPoint={row.trimPoint}
-        />
+        <ContextTrimPointDivider trimPoint={row.trimPoint} />
       ) : null}
     </div>
   );

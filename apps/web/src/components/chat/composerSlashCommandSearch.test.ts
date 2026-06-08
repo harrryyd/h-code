@@ -42,6 +42,63 @@ describe("searchSlashCommandItems", () => {
     ]);
   });
 
+  it("finds the /clear built-in slash command", () => {
+    const items = [
+      {
+        id: "slash:model",
+        type: "slash-command",
+        command: "model",
+        label: "/model",
+        description: "Switch response model for this thread",
+      },
+      {
+        id: "slash:clear",
+        type: "slash-command",
+        command: "clear",
+        label: "/clear",
+        description: "Clear conversation context and restart session",
+      },
+      {
+        id: "slash:default",
+        type: "slash-command",
+        command: "default",
+        label: "/default",
+        description: "Switch this thread back to normal build mode",
+      },
+    ] satisfies Array<
+      Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" }>
+    >;
+
+    expect(searchSlashCommandItems(items, "clear").map((item) => item.id)).toEqual([
+      "slash:clear",
+    ]);
+  });
+
+  it("finds /clear with number suffix as prefix match", () => {
+    const items = [
+      {
+        id: "slash:clear",
+        type: "slash-command",
+        command: "clear",
+        label: "/clear",
+        description: "Clear conversation context and restart session",
+      },
+      {
+        id: "slash:model",
+        type: "slash-command",
+        command: "model",
+        label: "/model",
+        description: "Switch response model for this thread",
+      },
+    ] satisfies Array<
+      Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" }>
+    >;
+
+    expect(searchSlashCommandItems(items, "clear 3").map((item) => item.id)).toEqual([
+      "slash:clear",
+    ]);
+  });
+
   it("supports fuzzy provider command matches", () => {
     const items = [
       {

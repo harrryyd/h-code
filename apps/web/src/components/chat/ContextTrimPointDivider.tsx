@@ -5,8 +5,6 @@ import { Button } from "../ui/button";
 import { cn } from "~/lib/utils";
 
 interface ContextTrimPointDividerProps {
-  id: string;
-  createdAt: string;
   trimPoint: ContextTrimPoint;
 }
 
