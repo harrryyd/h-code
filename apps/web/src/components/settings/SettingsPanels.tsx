@@ -47,7 +47,7 @@ import { ensureLocalApi, readLocalApi } from "../../localApi";
 import { useShallow } from "zustand/react/shallow";
 import { selectProjectsAcrossEnvironments, useStore } from "../../store";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
-import { isMacPlatform } from "../../lib/utils";
+import { useMultiSelectClick } from "../../useMultiSelectClick";
 import { formatRelativeTime, formatRelativeTimeLabel } from "../../timestampFormat";
 import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { Button } from "../ui/button";
@@ -1348,11 +1348,7 @@ export function ArchivedThreadsPanel() {
     refresh: refreshArchivedThreads,
   } = useArchivedThreadSnapshots(environmentIds);
 
-  const toggleThreadSelection = useThreadSelectionStore((state) => state.toggleThread);
-  const rangeSelectTo = useThreadSelectionStore((state) => state.rangeSelectTo);
-  const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
-  const setSelectionAnchor = useThreadSelectionStore((state) => state.setAnchor);
-  const removeFromSelection = useThreadSelectionStore((state) => state.removeFromSelection);
+  const handleMultiSelectClick = useMultiSelectClick();
   const selectedThreadKeys = useThreadSelectionStore((state) => state.selectedThreadKeys);
 
   const archivedGroups = useMemo(() => {
@@ -1396,77 +1392,6 @@ export function ArchivedThreadsPanel() {
       .filter((group) => group.threads.length > 0);
   }, [archivedSnapshots]);
 
-  const allThreadShells = useMemo(
-    () =>
-      archivedSnapshots.flatMap(({ environmentId, snapshot }) =>
-        snapshot.threads.map((thread) => ({
-          id: thread.id,
-          title: thread.title,
-          worktreePath: thread.worktreePath as string | null,
-          projectId: thread.projectId,
-          environmentId,
-        })),
-      ),
-    [archivedSnapshots],
-  );
-
-  const allProjects = useMemo(
-    () =>
-      archivedSnapshots.flatMap(({ environmentId, snapshot }) =>
-        snapshot.projects.map((project) => ({
-          id: project.id,
-          cwd: project.workspaceRoot,
-          environmentId,
-        })),
-      ),
-    [archivedSnapshots],
-  );
-
-  const threadShellsByEnvironment = useMemo(() => {
-    const map = new Map<string, typeof allThreadShells>();
-    for (const shell of allThreadShells) {
-      const list = map.get(shell.environmentId);
-      if (list) {
-        list.push(shell);
-      } else {
-        map.set(shell.environmentId, [shell]);
-      }
-    }
-    return map;
-  }, [allThreadShells]);
-
-  const handleArchivedThreadClick = useCallback(
-    (
-      event: React.MouseEvent,
-      threadRef: ScopedThreadRef,
-      orderedProjectThreadKeys: readonly string[],
-    ) => {
-      const isMac = isMacPlatform(navigator.platform);
-      const isModClick = isMac ? event.metaKey : event.ctrlKey;
-      const isShiftClick = event.shiftKey;
-      const threadKey = scopedThreadKey(threadRef);
-      const currentSelectionCount = useThreadSelectionStore.getState().selectedThreadKeys.size;
-
-      if (isModClick) {
-        event.preventDefault();
-        toggleThreadSelection(threadKey);
-        return;
-      }
-
-      if (isShiftClick) {
-        event.preventDefault();
-        rangeSelectTo(threadKey, orderedProjectThreadKeys);
-        return;
-      }
-
-      if (currentSelectionCount > 0) {
-        clearSelection();
-      }
-      setSelectionAnchor(threadKey);
-    },
-    [clearSelection, rangeSelectTo, setSelectionAnchor, toggleThreadSelection],
-  );
-
   const handleMultiSelectContextMenu = useCallback(
     async (position: { x: number; y: number }) => {
       const api = readLocalApi();
@@ -1474,6 +1399,10 @@ export function ArchivedThreadsPanel() {
       const threadKeys = [...useThreadSelectionStore.getState().selectedThreadKeys];
       if (threadKeys.length === 0) return;
       const count = threadKeys.length;
+
+      const refs = threadKeys
+        .map((key) => parseScopedThreadKey(key))
+        .filter((r): r is ScopedThreadRef => r !== null);
 
       const clicked = await api.contextMenu.show(
         [
@@ -1483,37 +1412,44 @@ export function ArchivedThreadsPanel() {
         position,
       );
 
+      if (clicked !== "unarchive" && clicked !== "delete") return;
+
+      const refsByEnv = new Map<string, ScopedThreadRef[]>();
+      for (const ref of refs) {
+        const list = refsByEnv.get(ref.environmentId);
+        if (list) {
+          list.push(ref);
+        } else {
+          refsByEnv.set(ref.environmentId, [ref]);
+        }
+      }
+
       if (clicked === "unarchive") {
-        const refs = threadKeys
-          .map((key) => parseScopedThreadKey(key))
-          .filter((r): r is ScopedThreadRef => r !== null);
-        await bulkUnarchiveThreads(refs);
-        removeFromSelection(threadKeys);
+        for (const envRefs of refsByEnv.values()) {
+          await bulkUnarchiveThreads(envRefs);
+        }
         return;
       }
 
-      if (clicked !== "delete") return;
+      for (const [environmentId, envRefs] of refsByEnv) {
+        const snapshotEntry = archivedSnapshots.find((s) => s.environmentId === environmentId);
+        const shells = (snapshotEntry?.snapshot.threads ?? []).map((thread) => ({
+          id: thread.id,
+          title: thread.title,
+          worktreePath: thread.worktreePath as string | null,
+          projectId: thread.projectId,
+          environmentId,
+        }));
+        const proj = (snapshotEntry?.snapshot.projects ?? []).map((project) => ({
+          id: project.id,
+          cwd: project.workspaceRoot,
+          environmentId,
+        }));
 
-      const refs = threadKeys
-        .map((key) => parseScopedThreadKey(key))
-        .filter((r): r is ScopedThreadRef => r !== null);
-      if (refs.length === 0) return;
-
-      const first = refs[0]!;
-      const environmentId = first.environmentId;
-      const shells = threadShellsByEnvironment.get(environmentId) ?? [];
-      const proj = allProjects.filter((p) => p.environmentId === environmentId);
-
-      await bulkDeleteThreads(refs, shells, proj);
-      removeFromSelection(threadKeys);
+        await bulkDeleteThreads(envRefs, shells, proj);
+      }
     },
-    [
-      allProjects,
-      bulkDeleteThreads,
-      bulkUnarchiveThreads,
-      removeFromSelection,
-      threadShellsByEnvironment,
-    ],
+    [archivedSnapshots, bulkDeleteThreads, bulkUnarchiveThreads],
   );
 
   const handleArchivedThreadContextMenu = useCallback(
@@ -1609,7 +1545,7 @@ export function ArchivedThreadsPanel() {
                     data-thread-selection-safe
                     className={isSelected ? "bg-accent" : ""}
                     onClick={(event) => {
-                      handleArchivedThreadClick(event, threadRef, orderedProjectThreadKeys);
+                      handleMultiSelectClick(event, threadRef, orderedProjectThreadKeys);
                     }}
                     onContextMenu={(event) => {
                       event.preventDefault();

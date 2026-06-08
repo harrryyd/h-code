@@ -27,6 +27,29 @@ import {
 } from "../worktreeCleanup";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useSettings } from "./useSettings";
+import { useThreadSelectionStore } from "../threadSelectionStore";
+
+function _dispatchThreadUnarchive(
+  api: NonNullable<ReturnType<typeof readEnvironmentApi>>,
+  threadId: ThreadId,
+) {
+  return api.orchestration.dispatchCommand({
+    type: "thread.unarchive",
+    commandId: newCommandId(),
+    threadId,
+  });
+}
+
+function _dispatchThreadDelete(
+  api: NonNullable<ReturnType<typeof readEnvironmentApi>>,
+  threadId: ThreadId,
+) {
+  return api.orchestration.dispatchCommand({
+    type: "thread.delete",
+    commandId: newCommandId(),
+    threadId,
+  });
+}
 
 export function useThreadActions() {
   const sidebarThreadSortOrder = useSettings((settings) => settings.sidebarThreadSortOrder);
@@ -38,10 +61,6 @@ export function useThreadActions() {
   const clearTerminalState = useTerminalStateStore((state) => state.clearTerminalState);
   const router = useRouter();
   const { handleNewThread } = useNewThreadHandler();
-  // Keep a ref so archiveThread can call handleNewThread without appearing in
-  // its dependency array — handleNewThread is inherently unstable (depends on
-  // the projects list) and would otherwise cascade new references into every
-  // sidebar row via archiveThread → attemptArchiveThread.
   const handleNewThreadRef = useRef(handleNewThread);
   handleNewThreadRef.current = handleNewThread;
   const queryClient = useQueryClient();
@@ -96,11 +115,7 @@ export function useThreadActions() {
   const unarchiveThread = useCallback(async (target: ScopedThreadRef) => {
     const api = readEnvironmentApi(target.environmentId);
     if (!api) return;
-    await api.orchestration.dispatchCommand({
-      type: "thread.unarchive",
-      commandId: newCommandId(),
-      threadId: target.threadId,
-    });
+    await _dispatchThreadUnarchive(api, target.threadId);
     refreshArchivedThreadsForEnvironment(target.environmentId);
   }, []);
 
@@ -113,11 +128,7 @@ export function useThreadActions() {
 
     for (const target of targets) {
       try {
-        await api.orchestration.dispatchCommand({
-          type: "thread.unarchive",
-          commandId: newCommandId(),
-          threadId: target.threadId,
-        });
+        await _dispatchThreadUnarchive(api, target.threadId);
       } catch (error) {
         toastManager.add(
           stackedThreadToast({
@@ -131,6 +142,7 @@ export function useThreadActions() {
     }
 
     refreshArchivedThreadsForEnvironment(first.environmentId);
+    useThreadSelectionStore.getState().clearSelection();
   }, []);
 
   const deleteThread = useCallback(
@@ -139,12 +151,7 @@ export function useThreadActions() {
       if (!api) return;
       const resolved = resolveThreadTarget(target);
       if (!resolved) {
-        // Thread not in main store (e.g. archived thread) — dispatch delete directly.
-        await api.orchestration.dispatchCommand({
-          type: "thread.delete",
-          commandId: newCommandId(),
-          threadId: target.threadId,
-        });
+        await _dispatchThreadDelete(api, target.threadId);
         refreshArchivedThreadsForEnvironment(target.environmentId);
         return;
       }
@@ -217,11 +224,7 @@ export function useThreadActions() {
         deletedThreadIds,
         sortOrder: sidebarThreadSortOrder,
       });
-      await api.orchestration.dispatchCommand({
-        type: "thread.delete",
-        commandId: newCommandId(),
-        threadId: threadRef.threadId,
-      });
+      await _dispatchThreadDelete(api, threadRef.threadId);
       refreshArchivedThreadsForEnvironment(threadRef.environmentId);
       clearComposerDraftForThread(threadRef);
       clearProjectDraftThreadById(
@@ -302,8 +305,9 @@ export function useThreadActions() {
         title: string;
         worktreePath: string | null;
         projectId: string;
+        environmentId: string;
       }>,
-      projects: ReadonlyArray<{ id: string; cwd: string }>,
+      projects: ReadonlyArray<{ id: string; cwd: string; environmentId: string }>,
     ) => {
       if (targets.length === 0) return;
 
@@ -315,7 +319,9 @@ export function useThreadActions() {
       if (!localApi) return;
 
       const titles = targets.map((t) => {
-        const shell = threadShells.find((s) => s.id === t.threadId);
+        const shell = threadShells.find(
+          (s) => s.id === t.threadId && s.environmentId === environmentId,
+        );
         return shell?.title ?? t.threadId;
       });
       const displayedTitles = titles.slice(0, 50);
@@ -326,8 +332,9 @@ export function useThreadActions() {
       );
       if (!confirmed) return;
 
+      const envShells = threadShells.filter((s) => s.environmentId === environmentId);
       const targetIds = new Set(targets.map((t) => t.threadId));
-      const orphanedWorktreePaths = getOrphanedWorktreePathsForThreads(threadShells, targetIds);
+      const orphanedWorktreePaths = getOrphanedWorktreePathsForThreads(envShells, targetIds);
 
       let shouldDeleteWorktrees = false;
       if (orphanedWorktreePaths.length > 0) {
@@ -338,11 +345,7 @@ export function useThreadActions() {
 
       for (const target of targets) {
         try {
-          await api.orchestration.dispatchCommand({
-            type: "thread.delete",
-            commandId: newCommandId(),
-            threadId: target.threadId,
-          });
+          await _dispatchThreadDelete(api, target.threadId);
         } catch (error) {
           toastManager.add(
             stackedThreadToast({
@@ -357,10 +360,11 @@ export function useThreadActions() {
 
       if (shouldDeleteWorktrees) {
         const envApi = await ensureEnvironmentApi(environmentId);
+        const envProjects = projects.filter((p) => p.environmentId === environmentId);
         for (const worktreePath of orphanedWorktreePaths) {
-          const owningThread = threadShells.find((s) => s.worktreePath === worktreePath);
+          const owningThread = envShells.find((s) => s.worktreePath === worktreePath);
           const project = owningThread
-            ? projects.find((p) => p.id === owningThread.projectId)
+            ? envProjects.find((p) => p.id === owningThread.projectId)
             : undefined;
 
           if (!project) continue;
@@ -386,6 +390,7 @@ export function useThreadActions() {
       }
 
       refreshArchivedThreadsForEnvironment(environmentId);
+      useThreadSelectionStore.getState().clearSelection();
     },
     [],
   );
