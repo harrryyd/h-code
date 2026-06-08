@@ -412,7 +412,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     isReviewMode && diffSourceMode === "pr" && prNumberInput.trim().length > 0;
 
   useEffect(() => {
-    if (isReviewMode && diffSourceMode !== "checkpoint") {
+    if (isReviewMode) {
       setDiffSourceMode("pr");
     }
   }, [isReviewMode]);

@@ -113,7 +113,7 @@ it.effect("getPrDiff computes valid unified diff for a real git repo", () =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const tempDir = yield* fileSystem.makeTemp({
+    const tempDir = yield* fileSystem.makeTempDirectory({
       prefix: "t3-getPrDiff-test-",
     });
 
@@ -128,6 +128,7 @@ it.effect("getPrDiff computes valid unified diff for a real git repo", () =>
       );
       yield* runGit(tempDir, ["add", "hello.txt"]);
       yield* runGit(tempDir, ["commit", "-m", "initial commit"]);
+      yield* runGit(tempDir, ["branch", "-M", "main"]);
 
       yield* runGit(tempDir, ["checkout", "-b", "feature-branch"]);
 
