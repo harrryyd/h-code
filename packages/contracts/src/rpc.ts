@@ -481,7 +481,6 @@ export const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPrevie
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
 });
 
-<<<<<<< HEAD
 export const WsChangeRequestGetReviewDraftInput = Schema.Struct({
   threadId: ThreadId,
   prNumber: PositiveInt,

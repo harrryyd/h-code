@@ -94,7 +94,7 @@ describe("searchSlashCommandItems", () => {
       Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" }>
     >;
 
-    expect(searchSlashCommandItems(items, "clear 3").map((item) => item.id)).toEqual([
+    expect(searchSlashCommandItems(items, "clear").map((item) => item.id)).toEqual([
       "slash:clear",
     ]);
   });

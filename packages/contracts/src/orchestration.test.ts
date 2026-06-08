@@ -986,7 +986,9 @@ it.effect("decodes ContextTrimPoint", () =>
     assert.strictEqual(parsed.id, "trim-1");
     assert.strictEqual(parsed.beforeEntryId, "msg-5");
     assert.strictEqual(parsed.prunedMessageCount, 10);
-    assert.deepStrictEqual(parsed.prunedTurnIds, ["turn-1", "turn-2"]);
+    assert.strictEqual(parsed.prunedTurnIds.length, 2);
+    assert.strictEqual(parsed.prunedTurnIds[0], "turn-1");
+    assert.strictEqual(parsed.prunedTurnIds[1], "turn-2");
   }),
 );
 
