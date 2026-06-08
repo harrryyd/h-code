@@ -85,6 +85,10 @@ Checkout their getting started guide for more information: https://viteplus.dev/
 vp i
 ```
 
+T3 Cloud is optional and disabled in a fresh clone. To enable it for web, desktop, and mobile source
+builds, copy [`.env.example`](./.env.example) to `.env` at the repository root and set the canonical
+public configuration there.
+
 Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening an issue or PR.
 
 Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
