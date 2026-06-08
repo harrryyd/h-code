@@ -27,6 +27,7 @@ import {
   requireThreadArchived,
   requireThreadAbsent,
   requireThreadNotArchived,
+  requireTurnNotActive,
 } from "./commandInvariants.ts";
 import {
   applyRefinementHandoffToSeededWorkItem,
@@ -746,6 +747,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      yield* requireTurnNotActive({ thread, command });
       yield* requireThreadAbsent({
         readModel,
         command,
@@ -1082,6 +1084,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      yield* requireTurnNotActive({ thread, command });
 
       const messagesByTurn = new Map<
         string,
@@ -1565,6 +1568,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    // NOTE: thread.context.summarize (issue #87) must also guard against
+    // active turns using requireTurnNotActive when the command is implemented.
     default: {
       command satisfies never;
       const fallback = command as never as { type: string };

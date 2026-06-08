@@ -219,6 +219,21 @@ export function requireThreadAbsent(input: {
   );
 }
 
+export function requireTurnNotActive(input: {
+  readonly thread: OrchestrationThread;
+  readonly command: OrchestrationCommand;
+}): Effect.Effect<void, OrchestrationCommandInvariantError> {
+  if (input.thread.latestTurn?.state === "running") {
+    return Effect.fail(
+      invariantError(
+        input.command.type,
+        `Thread '${input.thread.id}' has an active turn. Wait for generation to complete before trimming context or starting a new thread.`,
+      ),
+    );
+  }
+  return Effect.void;
+}
+
 export function requireNonNegativeInteger(input: {
   readonly commandType: OrchestrationCommand["type"];
   readonly field: string;
