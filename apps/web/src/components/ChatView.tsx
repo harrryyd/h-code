@@ -2940,6 +2940,19 @@ export default function ChatView(props: ChatViewProps) {
             : {}),
           createdAt: new Date().toISOString(),
         });
+      } else if (standaloneSlashCommand === "new") {
+        const nextThreadId = newThreadId();
+        void api.orchestration.dispatchCommand({
+          type: "thread.archive-and-new",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          newThreadId: nextThreadId,
+          createdAt: new Date().toISOString(),
+        });
+        void navigate({
+          to: "/thread/$threadId",
+          params: { threadId: nextThreadId },
+        });
       } else {
         handleInteractionModeChange(standaloneSlashCommand);
       }
