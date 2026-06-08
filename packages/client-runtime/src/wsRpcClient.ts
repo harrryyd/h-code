@@ -135,6 +135,13 @@ export interface WsRpcClient {
   };
   readonly changeRequest: {
     readonly getPrDiff: RpcUnaryMethod<typeof WS_METHODS.changeRequestGetPrDiff>;
+    readonly getReviewDraft: RpcUnaryMethod<typeof WS_METHODS.changeRequestGetReviewDraft>;
+    readonly upsertReviewComment: RpcUnaryMethod<
+      typeof WS_METHODS.changeRequestUpsertReviewComment
+    >;
+    readonly deleteReviewComment: RpcUnaryMethod<
+      typeof WS_METHODS.changeRequestDeleteReviewComment
+    >;
   };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
@@ -310,6 +317,16 @@ export function createWsRpcClient(
     changeRequest: {
       getPrDiff: (input) =>
         transport.request((client) => client[WS_METHODS.changeRequestGetPrDiff](input)),
+      getReviewDraft: (input) =>
+        transport.request((client) => client[WS_METHODS.changeRequestGetReviewDraft](input)),
+      upsertReviewComment: (input) =>
+        transport.request((client) =>
+          client[WS_METHODS.changeRequestUpsertReviewComment](input),
+        ),
+      deleteReviewComment: (input) =>
+        transport.request((client) =>
+          client[WS_METHODS.changeRequestDeleteReviewComment](input),
+        ),
     },
     server: {
       getConfig: () => transport.request((client) => client[WS_METHODS.serverGetConfig]({})),
