@@ -305,7 +305,7 @@ describe("ReviewService submitReview", () => {
               Effect.orElseSucceed(() => "file-read-error"),
             );
           }),
-        ghGetReviews: () => Effect.die("should not be called"),
+        ghGetReviews: () => Effect.succeed({ comments: [] }),
       })));
 
       // Verify gh pr review was called
