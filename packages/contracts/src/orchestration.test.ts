@@ -19,6 +19,7 @@ import {
   OrchestrationProposedPlan,
   OrchestrationSession,
   ProjectCreateCommand,
+  RuntimeMode,
   ThreadMetaUpdatedPayload,
   ThreadTurnStartCommand,
   ThreadCreatedPayload,
@@ -272,7 +273,7 @@ it.effect("decodes refiner thread metadata on created payloads", () =>
       role: "refiner",
       managerThreadId: "manager-console-1",
       seededWorkItemId: "work-refine-1",
-    });
+    } as typeof thread.managerMetadata);
   }),
 );
 
@@ -882,14 +883,56 @@ it.effect("ModelSelection encodes to the canonical instanceId wire form", () =>
   }),
 );
 
-it.effect("ModelSelection rejects malformed instance ids", () =>
+it.effect("RuntimeMode decodes 'review' and rejects invalid values", () =>
+  Effect.gen(function* () {
+    const decode = Schema.decodeUnknownEffect(RuntimeMode);
+
+    const accept = yield* decode("review");
+    assert.strictEqual(accept, "review");
+
+    const reject = yield* Effect.exit(decode("not-a-mode"));
+    assert.strictEqual(reject._tag, "Failure");
+  }),
+);
+
+// ── changeRequest.getPrDiff RPC round-trip ────────────────────────
+
+import {
+  ChangeRequestGetPrDiffInput,
+  ChangeRequestGetPrDiffResult,
+} from "./rpc.ts";
+
+const decodePrDiffInput = Schema.decodeUnknownEffect(ChangeRequestGetPrDiffInput);
+const decodePrDiffResult = Schema.decodeUnknownEffect(ChangeRequestGetPrDiffResult);
+
+it.effect("changeRequest.getPrDiff input decodes threadId and prNumber", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodePrDiffInput({
+      threadId: "thread-1",
+      prNumber: 42,
+    });
+    assert.strictEqual(parsed.threadId, "thread-1");
+    assert.strictEqual(parsed.prNumber, 42);
+  }),
+);
+
+it.effect("changeRequest.getPrDiff input rejects invalid prNumber", () =>
   Effect.gen(function* () {
     const result = yield* Effect.exit(
-      decodeModelSelection({
-        instanceId: "1invalid", // must start with a letter
-        model: "x",
+      decodePrDiffInput({
+        threadId: "thread-1",
+        prNumber: 0,
       }),
     );
     assert.strictEqual(result._tag, "Failure");
+  }),
+);
+
+it.effect("changeRequest.getPrDiff result decodes diff string", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodePrDiffResult({
+      diff: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new",
+    });
+    assert.strictEqual(parsed.diff.startsWith("---"), true);
   }),
 );

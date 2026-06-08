@@ -108,3 +108,54 @@ it.effect("GitVcsDriver forwards execute env to the VCS process", () => {
     ),
   );
 });
+
+it.effect("getPrDiff computes valid unified diff for a real git repo", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const tempDir = yield* fileSystem.makeTempDirectory({
+      prefix: "t3-getPrDiff-test-",
+    });
+
+    yield* Effect.gen(function* () {
+      yield* runGit(tempDir, ["init"]);
+      yield* runGit(tempDir, ["config", "user.email", "test@test.com"]);
+      yield* runGit(tempDir, ["config", "user.name", "Test"]);
+
+      yield* fileSystem.writeFileString(
+        path.join(tempDir, "hello.txt"),
+        "Hello, world!\n",
+      );
+      yield* runGit(tempDir, ["add", "hello.txt"]);
+      yield* runGit(tempDir, ["commit", "-m", "initial commit"]);
+      yield* runGit(tempDir, ["branch", "-M", "main"]);
+
+      yield* runGit(tempDir, ["checkout", "-b", "feature-branch"]);
+
+      yield* fileSystem.writeFileString(
+        path.join(tempDir, "hello.txt"),
+        "Hello, review world!\n",
+      );
+      yield* runGit(tempDir, ["add", "hello.txt"]);
+      yield* runGit(tempDir, ["commit", "-m", "feature changes"]);
+
+      const driver = yield* GitVcsDriver.GitVcsDriver;
+      const diff = yield* driver.getPrDiff(tempDir, "main", "feature-branch");
+
+      assert.ok(
+        diff.includes("@@"),
+        `expected diff to contain hunk header (@@), got: ${diff.slice(0, 100)}`,
+      );
+      assert.ok(diff.includes("---"), "expected diff to contain file marker (---)");
+      assert.ok(diff.includes("+++"), "expected diff to contain file marker (+++)");
+
+      yield* fileSystem.remove(tempDir, { recursive: true }).pipe(Effect.ignore);
+    }).pipe(
+      Effect.onError(() =>
+        fileSystem.remove(tempDir, { recursive: true }).pipe(Effect.ignore),
+      ),
+    );
+  }).pipe(
+    Effect.provide(GitContractLayer),
+  ),
+);

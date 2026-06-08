@@ -40,6 +40,7 @@ import {
   type RelayClientInstallProgressEvent,
   OrchestrationReplayEventsError,
   FilesystemBrowseError,
+  ChangeRequestGetPrDiffError,
   ProviderInstanceId,
   EnvironmentAuthorizationError,
   ThreadId,
@@ -191,6 +192,7 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.changeRequestGetReviewDraft, AuthReviewWriteScope],
   [WS_METHODS.changeRequestUpsertReviewComment, AuthReviewWriteScope],
   [WS_METHODS.changeRequestDeleteReviewComment, AuthReviewWriteScope],
+  [WS_METHODS.changeRequestGetPrDiff, AuthReviewWriteScope],
   [WS_METHODS.terminalOpen, AuthTerminalOperateScope],
   [WS_METHODS.terminalAttach, AuthTerminalOperateScope],
   [WS_METHODS.terminalWrite, AuthTerminalOperateScope],
@@ -256,6 +258,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
       const keybindings = yield* Keybindings;
       const externalLauncher = yield* ExternalLauncher.ExternalLauncher;
       const gitWorkflow = yield* GitWorkflowService;
+      const git = yield* GitVcsDriver.GitVcsDriver;
       const review = yield* ReviewService;
       const vcsProvisioning = yield* VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster;
@@ -1447,6 +1450,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(WS_METHODS.reviewGetDiffPreview, review.getDiffPreview(input), {
             "rpc.aggregate": "review",
           }),
+<<<<<<< HEAD
         [WS_METHODS.changeRequestGetReviewDraft]: (input) =>
           observeRpcEffect(
             WS_METHODS.changeRequestGetReviewDraft,
@@ -1464,6 +1468,61 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
             WS_METHODS.changeRequestDeleteReviewComment,
             review.deleteReviewComment(input),
             { "rpc.aggregate": "review" },
+          ),
+        [WS_METHODS.changeRequestGetPrDiff]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.changeRequestGetPrDiff,
+            Effect.gen(function* () {
+              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              if (Option.isNone(thread)) {
+                return yield* new ChangeRequestGetPrDiffError({
+                  kind: "not-a-repo",
+                  detail: `Thread ${input.threadId} not found.`,
+                });
+              }
+              const cwd = thread.value.worktreePath;
+              if (!cwd) {
+                return yield* new ChangeRequestGetPrDiffError({
+                  kind: "not-a-repo",
+                  detail: `Thread ${input.threadId} has no worktree path.`,
+                });
+              }
+              const headRef = `refs/t3/pr/${input.prNumber}/head`;
+              yield* git
+                .execute({
+                  operation: "changeRequest.getPrDiff.fetch",
+                  cwd,
+                  args: [
+                    "fetch",
+                    "origin",
+                    `+refs/pull/${input.prNumber}/head:${headRef}`,
+                  ],
+                })
+                .pipe(
+                  Effect.mapError(
+                    (cause) =>
+                      new ChangeRequestGetPrDiffError({
+                        kind: "pr-not-found",
+                        detail: `Failed to fetch PR #${input.prNumber}: ${cause.message}`,
+                        cause,
+                      }),
+                  ),
+                );
+              const diff = yield* git
+                .getPrDiff(cwd, "origin/HEAD", headRef)
+                .pipe(
+                  Effect.mapError(
+                    (cause) =>
+                      new ChangeRequestGetPrDiffError({
+                        kind: "diff-failed",
+                        detail: `Failed to compute PR diff: ${cause.message}`,
+                        cause,
+                      }),
+                  ),
+                );
+              return { diff };
+            }),
+            { "rpc.aggregate": "change-request" },
           ),
         [WS_METHODS.terminalOpen]: (input) =>
           observeRpcEffect(WS_METHODS.terminalOpen, terminalManager.open(input), {

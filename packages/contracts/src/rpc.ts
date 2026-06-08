@@ -160,6 +160,7 @@ export const WS_METHODS = {
   changeRequestGetReviewDraft: "changeRequest.getReviewDraft",
   changeRequestUpsertReviewComment: "changeRequest.upsertReviewComment",
   changeRequestDeleteReviewComment: "changeRequest.deleteReviewComment",
+  changeRequestGetPrDiff: "changeRequest.getPrDiff",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -235,7 +236,7 @@ export type WsMcpToggleServerResult = typeof WsMcpToggleServerResult.Type;
 export class McpToggleError extends Schema.TaggedErrorClass<McpToggleError>()("McpToggleError", {
   kind: Schema.Literals(["provider-not-claude", "session-not-found", "sdk-failure"]),
   detail: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {
   override get message(): string {
     return `MCP toggle error (${this.kind}): ${this.detail}`;
@@ -480,6 +481,7 @@ export const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPrevie
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
 });
 
+<<<<<<< HEAD
 export const WsChangeRequestGetReviewDraftInput = Schema.Struct({
   threadId: ThreadId,
   prNumber: PositiveInt,
@@ -529,6 +531,35 @@ export const WsChangeRequestDeleteReviewCommentRpc = Rpc.make(
     error: EnvironmentAuthorizationError,
   },
 );
+export class ChangeRequestGetPrDiffError extends Schema.TaggedErrorClass<ChangeRequestGetPrDiffError>()(
+  "ChangeRequestGetPrDiffError",
+  {
+    kind: Schema.Literals(["diff-failed", "not-a-repo", "pr-not-found"]),
+    detail: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `PR diff error (${this.kind}): ${this.detail}`;
+  }
+}
+
+export const ChangeRequestGetPrDiffInput = Schema.Struct({
+  threadId: ThreadId,
+  prNumber: PositiveInt,
+});
+export type ChangeRequestGetPrDiffInput = typeof ChangeRequestGetPrDiffInput.Type;
+
+export const ChangeRequestGetPrDiffResult = Schema.Struct({
+  diff: Schema.String,
+});
+export type ChangeRequestGetPrDiffResult = typeof ChangeRequestGetPrDiffResult.Type;
+
+export const WsChangeRequestGetPrDiffRpc = Rpc.make(WS_METHODS.changeRequestGetPrDiff, {
+  payload: ChangeRequestGetPrDiffInput,
+  success: ChangeRequestGetPrDiffResult,
+  error: Schema.Union([ChangeRequestGetPrDiffError, EnvironmentAuthorizationError]),
+});
 
 export const TodosLoadResult = Schema.Struct({
   categories: Schema.Array(TodoCategory),
@@ -540,7 +571,7 @@ export type TodosLoadResult = typeof TodosLoadResult.Type;
 export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("TodosLoadError", {
   kind: Schema.Literals(["io-failure", "parse-failure"]),
   detail: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {
   override get message(): string {
     return `Todo load error (${this.kind}): ${this.detail}`;
@@ -694,7 +725,7 @@ export class TodosMutateError extends Schema.TaggedErrorClass<TodosMutateError>(
   {
     kind: Schema.Literals(["io-failure", "validation-failure"]),
     detail: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   },
 ) {
   override get message(): string {
@@ -880,6 +911,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsChangeRequestGetReviewDraftRpc,
   WsChangeRequestUpsertReviewCommentRpc,
   WsChangeRequestDeleteReviewCommentRpc,
+  WsChangeRequestGetPrDiffRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,
