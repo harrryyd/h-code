@@ -32,6 +32,30 @@ export function getOrphanedWorktreePathForThread(
   return isShared ? null : targetWorktreePath;
 }
 
+export function getOrphanedWorktreePathsForThreads(
+  threads: ReadonlyArray<{ id: string; worktreePath: string | null }>,
+  threadIds: ReadonlySet<string>,
+): string[] {
+  const orphaned = new Set<string>();
+
+  for (const thread of threads) {
+    if (!threadIds.has(thread.id)) continue;
+
+    const path = normalizeWorktreePath(thread.worktreePath);
+    if (!path) continue;
+
+    const hasSurvivor = threads.some(
+      (other) => !threadIds.has(other.id) && normalizeWorktreePath(other.worktreePath) === path,
+    );
+
+    if (!hasSurvivor) {
+      orphaned.add(path);
+    }
+  }
+
+  return [...orphaned];
+}
+
 export function formatWorktreePathForDisplay(worktreePath: string): string {
   const trimmed = worktreePath.trim();
   if (!trimmed) {
