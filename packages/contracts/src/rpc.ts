@@ -98,7 +98,7 @@ import {
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
 } from "./sourceControl.ts";
-import { TodoCategory, TodoItem } from "./todos.ts";
+import { TodoCategory, TodoItem, TodoItemPriority } from "./todos.ts";
 import { VcsError } from "./vcs.ts";
 
 export const WS_METHODS = {
@@ -420,6 +420,7 @@ export const WsVcsInitRpc = Rpc.make(WS_METHODS.vcsInit, {
 export const TodosLoadResult = Schema.Struct({
   categories: Schema.Array(TodoCategory),
   items: Schema.Array(TodoItem),
+  jiraBaseUrl: Schema.optional(Schema.String),
 });
 export type TodosLoadResult = typeof TodosLoadResult.Type;
 
@@ -445,12 +446,16 @@ export const TodoMutationType = Schema.Literals([
   "setCategoryColor",
   "setCategoryJiraLink",
   "deleteCategory",
+  "toggleCategory",
   "createItem",
   "cycleItemStatus",
   "reorderItems",
   "reorderCategories",
   "updateItemDescription",
   "setItemJiraLink",
+  "renameItem",
+  "setItemPriority",
+  "setJiraBaseUrl",
   "deleteItem",
 ]);
 export type TodoMutationType = typeof TodoMutationType.Type;
@@ -519,9 +524,31 @@ export const SetItemJiraLinkMutation = Schema.Struct({
   jiraLink: Schema.String,
 });
 
+export const SetJiraBaseUrlMutation = Schema.Struct({
+  type: Schema.Literal("setJiraBaseUrl"),
+  jiraBaseUrl: Schema.String,
+});
+
+export const RenameItemMutation = Schema.Struct({
+  type: Schema.Literal("renameItem"),
+  itemId: Schema.String,
+  title: TrimmedNonEmptyString,
+});
+
+export const SetItemPriorityMutation = Schema.Struct({
+  type: Schema.Literal("setItemPriority"),
+  itemId: Schema.String,
+  priority: TodoItemPriority,
+});
+
 export const DeleteItemMutation = Schema.Struct({
   type: Schema.Literal("deleteItem"),
   itemId: Schema.String,
+});
+
+export const ToggleCategoryMutation = Schema.Struct({
+  type: Schema.Literal("toggleCategory"),
+  categoryId: Schema.String,
 });
 
 export const TodoMutation = Schema.Union([
@@ -530,12 +557,16 @@ export const TodoMutation = Schema.Union([
   SetCategoryColorMutation,
   SetCategoryJiraLinkMutation,
   DeleteCategoryMutation,
+  ToggleCategoryMutation,
   CreateItemMutation,
   CycleItemStatusMutation,
   ReorderItemsMutation,
   ReorderCategoriesMutation,
   UpdateItemDescriptionMutation,
   SetItemJiraLinkMutation,
+  RenameItemMutation,
+  SetItemPriorityMutation,
+  SetJiraBaseUrlMutation,
   DeleteItemMutation,
 ]);
 export type TodoMutation = typeof TodoMutation.Type;

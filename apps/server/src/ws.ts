@@ -1013,15 +1013,27 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             Effect.gen(function* () {
               const current = yield* readTodos;
               const next = applyMutations(
-                { categories: current.categories, items: current.items },
+                {
+                  categories: current.categories,
+                  items: current.items,
+                  jiraBaseUrl: current.jiraBaseUrl,
+                },
                 input.mutations,
               );
               const { state: deduped, archived } = archiveDoneItems(next);
               if (archived.length > 0) {
                 yield* appendToArchive(archived);
               }
-              yield* writeTodos({ categories: deduped.categories, items: deduped.items });
-              return { categories: deduped.categories, items: deduped.items };
+              yield* writeTodos({
+                categories: deduped.categories,
+                items: deduped.items,
+                jiraBaseUrl: deduped.jiraBaseUrl,
+              });
+              return {
+                categories: deduped.categories,
+                items: deduped.items,
+                jiraBaseUrl: deduped.jiraBaseUrl,
+              };
             }).pipe(
               Effect.mapError(
                 (cause) =>

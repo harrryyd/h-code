@@ -84,6 +84,22 @@ _Avoid_: Focus thread, focus window
 A sidebar thread indicator that shows Change Request state and glanceable metadata for the Thread's linked Change Request.
 _Avoid_: PR icon, badge
 
+**Change Request Review**:
+A sub-mode of a Thread that provides an interactive diff review experience for the Change Request linked to that Thread, allowing inline comments, AI-assisted review responses, and GitHub review submission — all inside the app instead of on the Git provider's website.
+_Avoid_: PR review mode, review panel
+
+**Review Draft**:
+The locally cached set of Review Comments that have been authored but not yet posted to the Git provider. Persists across server restarts and is shared by all Threads linked to the same Change Request.
+_Avoid_: Pending comments, local review state
+
+**Review Comment**:
+An inline comment anchored to a file, optional line number, and commit SHA within a Change Request Review.
+_Avoid_: Inline review, PR note
+
+**Background Review Agent**:
+A short-lived AI agent spawned from a Review Comment to respond to or act on that comment. Runs in an isolated temp worktree, pushes commits directly to the Change Request branch, and streams responses back inline.
+_Avoid_: Review bot, response agent
+
 **Delegation Badge**:
 A sidebar thread indicator that marks a Worker Thread as delegated from the Manager Console.
 _Avoid_: Agent badge, child badge
@@ -143,6 +159,14 @@ _Avoid_: Project metadata, browser-only setting
 - A **Focus Chat Shortcut** targets the **Current Thread**
 - A **Logical Project Grouping** can combine multiple physical **Projects** into one sidebar presentation
 - A **Change Request Badge** belongs to a **Thread** when that Thread is linked to a Change Request
+- A **Change Request Review** belongs to a **Thread** that is linked to a Change Request
+- A **Change Request Review** contains many **Review Comments**
+- A **Review Draft** belongs to a **Change Request Review**
+- A **Review Comment** is anchored to a file, optionally a line, and a commit SHA
+- A **Review Comment** can spawn a **Background Review Agent**
+- A **Background Review Agent** runs in an isolated temp worktree
+- A **Background Review Agent** pushes commits to the Change Request branch
+- A **Change Request Review** is shared across all **Threads** linked to the same Change Request
 - A **Delegation Badge** belongs to a **Worker Thread**
 
 ## Example dialogue

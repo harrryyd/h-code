@@ -270,6 +270,137 @@ label:has(> select#reasoning-effort) select {
   height: 100%;
 }
 
+/* Todo description markdown rendering */
+.todo-markdown h1,
+.todo-markdown h2,
+.todo-markdown h3,
+.todo-markdown h4,
+.todo-markdown h5,
+.todo-markdown h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0.65rem 0 0.25rem;
+}
+
+.todo-markdown h1 {
+  font-size: 1.1rem;
+}
+
+.todo-markdown h2 {
+  font-size: 1rem;
+}
+
+.todo-markdown h3 {
+  font-size: 0.9rem;
+}
+
+.todo-markdown h4,
+.todo-markdown h5,
+.todo-markdown h6 {
+  font-size: 0.85rem;
+}
+
+.todo-markdown > :first-child {
+  margin-top: 0;
+}
+
+.todo-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.todo-markdown p {
+  margin: 0.35rem 0;
+}
+
+.todo-markdown ul,
+.todo-markdown ol {
+  padding-left: 1.1rem;
+  margin: 0.35rem 0;
+}
+
+.todo-markdown ul {
+  list-style-type: disc;
+}
+
+.todo-markdown ol {
+  list-style-type: decimal;
+}
+
+.todo-markdown li + li {
+  margin-top: 0.15rem;
+}
+
+.todo-markdown a {
+  color: var(--info-foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--info-foreground) 40%, transparent);
+}
+
+.todo-markdown a:hover {
+  opacity: 0.8;
+}
+
+.todo-markdown blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.6rem;
+  margin: 0.35rem 0;
+  color: var(--muted-foreground);
+}
+
+.todo-markdown :not(pre) > code {
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.05rem 0.25rem;
+  color: var(--foreground);
+  font-size: 0.7rem;
+}
+
+.todo-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--muted);
+  padding: 0.5rem 0.6rem;
+  margin: 0.35rem 0;
+}
+
+.todo-markdown pre code {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 0.7rem;
+}
+
+.todo-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.5rem 0;
+}
+
+.todo-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+}
+
+.todo-markdown th,
+.todo-markdown td {
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.35rem;
+  text-align: left;
+}
+
+.todo-markdown th {
+  background: var(--muted);
+  font-weight: 600;
+}
+
+.todo-markdown input[type="checkbox"] {
+  margin-right: 0.25rem;
+}
+
 /* Chat markdown rendering */
 .chat-markdown {
   min-width: 0;
