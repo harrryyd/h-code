@@ -191,9 +191,11 @@ function makeUpdateState(input: {
 }
 
 export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
+  yield* Effect.logDebug("providerMaintenanceRunner.make start");
   const providerRegistry = yield* ProviderRegistry;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const httpClient = yield* HttpClient.HttpClient;
+  yield* Effect.logDebug("providerMaintenanceRunner.make dependencies ready");
   const runMaintenanceCommand = (command: string, args: ReadonlyArray<string>) =>
     runProviderMaintenanceCommandWithSpawner({
       spawner,

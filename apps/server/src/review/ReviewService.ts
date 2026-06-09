@@ -62,6 +62,7 @@ export class ReviewService extends Context.Service<ReviewService, ReviewServiceS
 ) {}
 
 export const make = Effect.fn("makeReviewService")(function* () {
+  yield* Effect.logDebug("reviewService.make start");
   const config = yield* ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -69,6 +70,7 @@ export const make = Effect.fn("makeReviewService")(function* () {
   const git = yield* GitVcsDriver.GitVcsDriver;
   const draftStore = yield* ReviewDraftStore.ReviewDraftStore;
   const githubCliOption = yield* Effect.serviceOption(GitHubCli.GitHubCli);
+  yield* Effect.logDebug("reviewService.make dependencies ready");
 
   function mapGitHubCommentToReviewComment(
     comment: GitHubCli.GitHubPullRequestReviewComment,

@@ -4,6 +4,7 @@ import {
   type AuthBrowserSessionResult,
   type AuthCreatePairingCredentialInput,
   type AuthSessionState,
+  type AuthWebSocketTicketResult,
   type DesktopBridge,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -85,6 +86,7 @@ async function installAuthApi(input: {
   readonly browserSession?: (
     credential: string,
   ) => Effect.Effect<AuthBrowserSessionResult, EnvironmentAuthInvalidError>;
+  readonly webSocketTicket?: () => Effect.Effect<AuthWebSocketTicketResult>;
   readonly pairingCredential?: (payload: AuthCreatePairingCredentialInput) => Effect.Effect<{
     readonly id: string;
     readonly credential: string;
@@ -97,6 +99,7 @@ async function installAuthApi(input: {
     ...(input.browserSession
       ? { browserSession: (payload) => input.browserSession!(payload.credential) }
       : {}),
+    ...(input.webSocketTicket ? { webSocketTicket: () => input.webSocketTicket!() } : {}),
     ...(input.pairingCredential
       ? { pairingCredential: (payload) => input.pairingCredential!(payload) }
       : {}),
@@ -286,6 +289,36 @@ describe("resolveInitialServerAuthGateState", () => {
     expect(testApi.calls.session).toBe(2);
   });
 
+  it("waits for the authenticated session to become observable after manual pairing", async () => {
+    vi.useFakeTimers();
+    const nextSession = sequence(
+      unauthenticatedSession(LOOPBACK_AUTH),
+      unauthenticatedSession(LOOPBACK_AUTH),
+      authenticatedSession(LOOPBACK_AUTH),
+    );
+    const testApi = await installAuthApi({
+      session: nextSession,
+      browserSession: () => Effect.succeed(browserSession(["orchestration:read"])),
+    });
+    const { resolveInitialServerAuthGateState, submitServerAuthCredential } =
+      await import("./environments/primary");
+
+    await expect(resolveInitialServerAuthGateState()).resolves.toEqual({
+      status: "requires-auth",
+      auth: LOOPBACK_AUTH,
+    });
+
+    const submitPromise = submitServerAuthCredential("retry-token");
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(submitPromise).resolves.toBeUndefined();
+    await expect(resolveInitialServerAuthGateState()).resolves.toEqual({
+      status: "authenticated",
+    });
+    expect(testApi.calls.browserSession).toEqual([{ credential: "retry-token" }]);
+    expect(testApi.calls.session).toBe(3);
+  });
+
   it("surfaces a friendly error message when an invalid pairing token is submitted", async () => {
     const testApi = await installAuthApi({
       browserSession: () =>
@@ -304,6 +337,22 @@ describe("resolveInitialServerAuthGateState", () => {
       "Invalid pairing token. Check the token and try again.",
     );
     expect(testApi.calls.browserSession).toEqual([{ credential: "bad-token" }]);
+  });
+
+  it("resolves the primary websocket url using an authenticated websocket ticket", async () => {
+    const testApi = await installAuthApi({
+      webSocketTicket: () =>
+        Effect.succeed({
+          ticket: "ws-ticket",
+          expiresAt: SESSION_EXPIRES_AT,
+        }),
+    });
+    const { resolvePrimaryWebSocketConnectionUrl } = await import("./environments/primary");
+
+    await expect(
+      resolvePrimaryWebSocketConnectionUrl("ws://localhost:13773"),
+    ).resolves.toBe("ws://localhost:13773/ws?wsTicket=ws-ticket");
+    expect(testApi.calls.webSocketTicket).toBe(1);
   });
 
   it("waits for the authenticated session to become observable after silent desktop bootstrap", async () => {

@@ -69,10 +69,12 @@ export class SourceControlDiscovery extends Context.Service<
 export const layer = Layer.effect(
   SourceControlDiscovery,
   Effect.gen(function* () {
+    yield* Effect.logDebug("sourceControlDiscovery.make start");
     const config = yield* ServerConfig;
     const process = yield* VcsProcess.VcsProcess;
     const sourceControlProviders =
       yield* SourceControlProviderRegistry.SourceControlProviderRegistry;
+    yield* Effect.logDebug("sourceControlDiscovery.make dependencies ready");
 
     const probe = <Kind extends VcsDriverKind>(
       input: DiscoveryProbe & { readonly kind: Kind },

@@ -1,6 +1,8 @@
 import { EnvironmentHttpApi } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Duration from "effect/Duration";
+import * as Option from "effect/Option";
 import { FetchHttpClient, HttpRouter, HttpServer } from "effect/unstable/http";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 
@@ -14,7 +16,7 @@ import {
   browserApiCorsLayer,
 } from "./http.ts";
 import { fixPath } from "./os-jank.ts";
-import { websocketRpcRouteLayer } from "./ws.ts";
+import { debugBuildWsRpcContext, debugWsRpcContextRouteLayer, websocketRpcRouteLayer, wsAppServicesLayer } from "./ws.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import { layerConfig as SqlitePersistenceLayerLive } from "./persistence/Layers/Sqlite.ts";
 import { ServerLifecycleEventsLive } from "./serverLifecycleEvents.ts";
@@ -44,6 +46,7 @@ import { RuntimeReceiptBusLive } from "./orchestration/Layers/RuntimeReceiptBus.
 import { ProviderRuntimeIngestionLive } from "./orchestration/Layers/ProviderRuntimeIngestion.ts";
 import { ProviderCommandReactorLive } from "./orchestration/Layers/ProviderCommandReactor.ts";
 import { CheckpointReactorLive } from "./orchestration/Layers/CheckpointReactor.ts";
+import { OrchestrationProjectionSnapshotQueryLive } from "./orchestration/Layers/ProjectionSnapshotQuery.ts";
 import { SeededWorkItemWritebackLive } from "./orchestration/Layers/SeededWorkItemWriteback.ts";
 import { SeededWorkItemWritebackReactorLive } from "./orchestration/Layers/SeededWorkItemWritebackReactor.ts";
 import { ThreadDeletionReactorLive } from "./orchestration/Layers/ThreadDeletionReactor.ts";
@@ -63,7 +66,10 @@ import * as VcsProcess from "./vcs/VcsProcess.ts";
 import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
+import * as BackgroundAgentService from "./review/BackgroundAgentService.ts";
+import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
 import * as ReviewService from "./review/ReviewService.ts";
+import * as SourceControlDiscoveryLayer from "./sourceControl/SourceControlDiscovery.ts";
 import * as SourceControlProviderRegistry from "./sourceControl/SourceControlProviderRegistry.ts";
 import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
 import { ProjectSetupScriptRunnerLive } from "./project/Layers/ProjectSetupScriptRunner.ts";
@@ -182,6 +188,13 @@ const ProviderLayerLive = ProviderServiceLive.pipe(
 
 const PersistenceLayerLive = Layer.empty.pipe(Layer.provideMerge(SqlitePersistenceLayerLive));
 
+const TerminalLayerLive = TerminalManagerLive.pipe(Layer.provide(PtyAdapterLive));
+
+const ProjectionSnapshotQueryLayerLive = OrchestrationProjectionSnapshotQueryLive.pipe(
+  Layer.provideMerge(PersistenceLayerLive),
+  Layer.provideMerge(RepositoryIdentityResolverLive),
+);
+
 const VcsDriverRegistryLayerLive = VcsDriverRegistry.layer.pipe(
   Layer.provide(VcsProjectConfig.layer),
 );
@@ -194,8 +207,13 @@ const SourceControlProviderRegistryLayerLive = SourceControlProviderRegistry.lay
   Layer.provideMerge(VcsDriverRegistryLayerLive),
 );
 
+const ProjectSetupScriptRunnerLayerLive = ProjectSetupScriptRunnerLive.pipe(
+  Layer.provideMerge(TerminalLayerLive),
+  Layer.provideMerge(ProjectionSnapshotQueryLayerLive),
+);
+
 const GitManagerLayerLive = GitManager.layer.pipe(
-  Layer.provideMerge(ProjectSetupScriptRunnerLive),
+  Layer.provideMerge(ProjectSetupScriptRunnerLayerLive),
   Layer.provideMerge(GitVcsDriver.layer),
   Layer.provideMerge(SourceControlProviderRegistryLayerLive),
   Layer.provideMerge(TextGeneration.layer),
@@ -221,6 +239,16 @@ const ReviewLayerLive = ReviewService.layer.pipe(
   Layer.provideMerge(VcsDriverRegistryLayerLive),
 );
 
+const BackgroundAgentServiceLayerLive = BackgroundAgentService.layer.pipe(
+  Layer.provideMerge(GitVcsDriver.layer),
+  Layer.provideMerge(GitWorkflowLayerLive),
+  Layer.provideMerge(ReviewLayerLive),
+);
+
+const SourceControlDiscoveryLayerLive = SourceControlDiscoveryLayer.layer.pipe(
+  Layer.provideMerge(SourceControlProviderRegistryLayerLive),
+);
+
 const VcsLayerLive = Layer.empty.pipe(
   Layer.provideMerge(VcsProjectConfig.layer),
   Layer.provideMerge(VcsDriverRegistryLayerLive),
@@ -231,12 +259,17 @@ const VcsLayerLive = Layer.empty.pipe(
   Layer.provideMerge(VcsStatusBroadcaster.layer.pipe(Layer.provide(GitWorkflowLayerLive))),
 );
 
-const CheckpointingLayerLive = Layer.empty.pipe(
-  Layer.provideMerge(CheckpointDiffQueryLive),
-  Layer.provideMerge(CheckpointStoreLive.pipe(Layer.provide(VcsDriverRegistryLayerLive))),
+const CheckpointStoreLayerLive = CheckpointStoreLive.pipe(Layer.provide(VcsDriverRegistryLayerLive));
+
+const CheckpointDiffQueryLayerLive = CheckpointDiffQueryLive.pipe(
+  Layer.provideMerge(CheckpointStoreLayerLive),
+  Layer.provideMerge(ProjectionSnapshotQueryLayerLive),
 );
 
-const TerminalLayerLive = TerminalManagerLive.pipe(Layer.provide(PtyAdapterLive));
+const CheckpointingLayerLive = Layer.empty.pipe(
+  Layer.provideMerge(CheckpointDiffQueryLayerLive),
+  Layer.provideMerge(CheckpointStoreLayerLive),
+);
 
 const WorkspaceEntriesLayerLive = WorkspaceEntriesLive.pipe(
   Layer.provide(WorkspacePathsLive),
@@ -271,8 +304,23 @@ const ThreadMcpToggleRepositoryLayerLive = ThreadMcpToggleRepositoryLive.pipe(
   Layer.provide(PersistenceLayerLive),
 );
 
+const ProviderDriverInfrastructureLayerLive = Layer.mergeAll(
+  ThreadMcpToggleRepositoryLayerLive,
+  ServerSettingsLive,
+  ProviderEventLoggersLive,
+  OpenCodeRuntimeLive,
+);
+
 const ProviderInstanceRegistryHydrationLayerLive = ProviderInstanceRegistryHydrationLive.pipe(
-  Layer.provideMerge(ThreadMcpToggleRepositoryLayerLive),
+  Layer.provideMerge(ProviderDriverInfrastructureLayerLive),
+);
+
+const ProviderRegistryLayerLive = ProviderRegistryLive.pipe(
+  Layer.provideMerge(ProviderInstanceRegistryHydrationLayerLive),
+);
+
+const ProviderMaintenanceRunnerLayerLive = ProviderMaintenanceRunner.layer.pipe(
+  Layer.provideMerge(ProviderRegistryLayerLive),
 );
 
 const ProviderAdapterRegistryLayerLive = ProviderAdapterRegistryLive.pipe(
@@ -290,36 +338,24 @@ const RuntimeCoreDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(SourceControlProviderRegistryLayerLive),
   Layer.provideMerge(GitLayerLive),
   Layer.provideMerge(VcsLayerLive),
-  Layer.provideMerge(ThreadMcpToggleRepositoryLayerLive),
+  Layer.provideMerge(ProviderDriverInfrastructureLayerLive),
   Layer.provideMerge(ProviderRuntimeLayerLive),
   Layer.provideMerge(TerminalLayerLive),
   Layer.provideMerge(PersistenceLayerLive),
+  Layer.provideMerge(ProjectionSnapshotQueryLayerLive),
   Layer.provideMerge(KeybindingsLive),
-  Layer.provideMerge(ProviderRegistryLive),
+  Layer.provideMerge(ProviderRegistryLayerLive),
   // The instance registry is the new routing keystone — text generation,
   // adapter lookup, and runtime ingestion all resolve `ProviderInstanceId`
   // through this layer. Built-in drivers come from `BUILT_IN_DRIVERS`;
   // `providerInstances` hydration merges `settings.providers.<kind>`
   // with explicit `providerInstances` entries on boot.
-  Layer.provideMerge(ProviderInstanceRegistryHydrationLayerLive),
   Layer.provideMerge(ProviderAdapterRegistryLayerLive),
-  // Shared native/canonical NDJSON writers used by both the per-instance
-  // drivers (native stream, written from inside each `<X>Adapter`) and
-  // `ProviderService` (canonical stream, written after event normalization).
-  // Provided once at the runtime level so every consumer sees the same
-  // logger instances.
-  Layer.provideMerge(ProviderEventLoggersLive),
-  // `OpenCodeDriver.create()` yields `OpenCodeRuntime`; previously the old
-  // `ProviderRegistryLive` pulled `OpenCodeRuntimeLive` in for itself, but
-  // the rewritten registry reads snapshots off the instance registry and
-  // no longer transitively provides it. Exposing it at the runtime level
-  // keeps a single Live for all opencode consumers.
-  Layer.provideMerge(OpenCodeRuntimeLive),
-  Layer.provideMerge(ServerSettingsLive),
   Layer.provideMerge(WorkspaceLayerLive),
   Layer.provideMerge(ProjectFaviconResolverLive),
   Layer.provideMerge(RepositoryIdentityResolverLive),
   Layer.provideMerge(ServerEnvironmentLive),
+  Layer.provideMerge(BackgroundAgentServiceLayerLive),
   Layer.provideMerge(AuthLayerLive),
   Layer.provideMerge(ServerSecretStore.layer),
   Layer.provideMerge(
@@ -332,6 +368,8 @@ const RuntimeCoreDependenciesLive = ReactorLayerLive.pipe(
 
 const RuntimeDependenciesLive = RuntimeCoreDependenciesLive.pipe(
   // Misc.
+  Layer.provideMerge(SourceControlDiscoveryLayerLive),
+  Layer.provideMerge(ProviderMaintenanceRunnerLayerLive),
   Layer.provideMerge(ProcessDiagnostics.layer),
   Layer.provideMerge(ProcessResourceMonitor.layer),
   Layer.provideMerge(TraceDiagnostics.layer),
@@ -341,8 +379,18 @@ const RuntimeDependenciesLive = RuntimeCoreDependenciesLive.pipe(
   Layer.provide(NetService.layer),
 );
 
-const RuntimeServicesLive = ServerRuntimeStartupLive.pipe(
+const ServerRuntimeStartupLayerLive = ServerRuntimeStartupLive.pipe(
   Layer.provideMerge(RuntimeDependenciesLive),
+  Layer.provideMerge(ProjectionSnapshotQueryLayerLive),
+);
+
+const RuntimeServicesLive = Layer.mergeAll(RuntimeDependenciesLive, ServerRuntimeStartupLayerLive);
+
+export const debugWsRuntimeLayer = RuntimeServicesLive.pipe(
+  Layer.provide(ObservabilityLive),
+  Layer.provideMerge(FetchHttpClient.layer),
+  Layer.provideMerge(VcsProcess.layer),
+  Layer.provideMerge(PlatformServicesLive),
 );
 
 export const makeRoutesLayer = Layer.mergeAll(
@@ -358,6 +406,7 @@ export const makeRoutesLayer = Layer.mergeAll(
   projectFaviconRouteLayer,
   staticAndDevRouteLayer,
   websocketRpcRouteLayer,
+  debugWsRpcContextRouteLayer,
 ).pipe(Layer.provide(browserApiCorsLayer));
 
 export const makeServerLayer = Layer.unwrap(
@@ -466,6 +515,27 @@ export const makeServerLayer = Layer.unwrap(
         );
       }),
     );
+    const debugWsRpcContextSelfTestLayer =
+      process.env.T3CODE_DEBUG_WS_CONTEXT_SELFTEST === "1"
+        ? Layer.effectDiscard(
+            Effect.gen(function* () {
+              yield* Effect.logWarning("[DEBUG-ws-rpc] self-test start");
+              const result = yield* debugBuildWsRpcContext({
+                sessionId: "debug-session",
+                subject: "debug-subject",
+                method: "browser-session-cookie",
+                scopes: [],
+              }).pipe(Effect.timeoutOption(Duration.seconds(5)));
+
+              if (Option.isNone(result)) {
+                yield* Effect.logError("[DEBUG-ws-rpc] self-test timed out");
+                return;
+              }
+
+              yield* Effect.logWarning("[DEBUG-ws-rpc] self-test built context");
+            }),
+          )
+        : Layer.empty;
 
     const serverApplicationLayer = Layer.mergeAll(
       HttpRouter.serve(makeRoutesLayer, {
@@ -475,9 +545,11 @@ export const makeServerLayer = Layer.unwrap(
       runtimeStateLayer,
       tailscaleServeLayer,
       cloudDesiredLinkReconcileLayer,
+      debugWsRpcContextSelfTestLayer,
     );
 
     return serverApplicationLayer.pipe(
+      Layer.provide(wsAppServicesLayer),
       Layer.provideMerge(RuntimeServicesLive),
       Layer.provideMerge(HttpServerLive),
       Layer.provide(ObservabilityLive),

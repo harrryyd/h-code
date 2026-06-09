@@ -98,9 +98,11 @@ function fail(
 }
 
 export const make = Effect.fn("makeBackgroundAgentService")(function* () {
-  const git = yield* GitVcsDriver.GitVcsDriver;
-  const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
-  const review = yield* ReviewService.ReviewService;
+  yield* Effect.logDebug("backgroundAgentService.make start");
+  const git = yield* GitVcsDriver;
+  const gitWorkflow = yield* GitWorkflowService;
+  const review = yield* ReviewService;
+  yield* Effect.logDebug("backgroundAgentService.make dependencies ready");
 
   const runBackgroundAgent = Effect.fn("BackgroundAgentService.runBackgroundAgent")(
     (input: RunBackgroundAgentInput): Stream.Stream<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError> =>
