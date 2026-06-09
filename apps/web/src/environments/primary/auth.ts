@@ -193,6 +193,33 @@ async function exchangeBootstrapCredential(credential: string): Promise<AuthBrow
   });
 }
 
+export async function resolvePrimaryWebSocketConnectionUrl(wsBaseUrl: string): Promise<string> {
+  const issued = await retryTransientBootstrap(async () => {
+    try {
+      return await runPrimaryHttp(
+        PrimaryEnvironmentHttpClient.pipe(
+          Effect.flatMap((client) => client.auth.webSocketTicket({ headers: {} })),
+        ),
+      );
+    } catch (error) {
+      throw new BootstrapHttpError({
+        message: readHttpApiErrorMessage(
+          error,
+          `Failed to issue websocket ticket (${readHttpApiStatus(error) ?? "unknown"}).`,
+        ),
+        status: readHttpApiStatus(error) ?? 500,
+      });
+    }
+  });
+
+  const url = new URL(wsBaseUrl);
+  if (url.pathname === "" || url.pathname === "/") {
+    url.pathname = "/ws";
+  }
+  url.searchParams.set("wsTicket", issued.ticket);
+  return url.toString();
+}
+
 async function waitForAuthenticatedSessionAfterBootstrap(): Promise<AuthSessionState> {
   const startedAt = Date.now();
 
@@ -286,6 +313,8 @@ export async function submitServerAuthCredential(credential: string): Promise<vo
 
   resolvedAuthenticatedGateState = null;
   await exchangeBootstrapCredential(trimmedCredential);
+  await waitForAuthenticatedSessionAfterBootstrap();
+  resolvedAuthenticatedGateState = { status: "authenticated" };
   bootstrapPromise = null;
   stripPairingTokenFromUrl();
 }

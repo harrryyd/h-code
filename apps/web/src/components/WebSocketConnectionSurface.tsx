@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from "react";
+import { fetchSessionState } from "../environments/primary";
 
 import { type SlowRpcAckRequest, useSlowRpcAckRequests } from "../rpc/requestLatencyState";
 import {
@@ -145,10 +146,20 @@ export function shouldRestartStalledReconnect(
   );
 }
 
+export function shouldCheckPrimaryAuthAfterWebSocketFailure(status: WsConnectionStatus): boolean {
+  const uiState = getWsConnectionUiState(status);
+  return (
+    status.online &&
+    status.disconnectedAt !== null &&
+    (uiState === "error" || uiState === "reconnecting")
+  );
+}
+
 export function WebSocketConnectionCoordinator() {
   const status = useWsConnectionStatus();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const lastForcedReconnectAtRef = useRef(0);
+  const initialFailureCheckKeyRef = useRef<string | null>(null);
   const toastIdRef = useRef<ReturnType<typeof toastManager.add> | null>(null);
   const toastResetTimerRef = useRef<number | null>(null);
   const previousUiStateRef = useRef<WsConnectionUiState>(getWsConnectionUiState(status));
@@ -366,6 +377,75 @@ export function WebSocketConnectionCoordinator() {
     previousUiStateRef.current = uiState;
     previousDisconnectedAtRef.current = status.disconnectedAt;
   }, [nowMs, status]);
+
+  useEffect(() => {
+    if (!shouldCheckPrimaryAuthAfterWebSocketFailure(status)) {
+      if (getWsConnectionUiState(status) === "connected") {
+        initialFailureCheckKeyRef.current = null;
+      }
+      return;
+    }
+
+    const failureKey = `${status.disconnectedAt}:${status.lastError ?? ""}:${status.closeReason ?? ""}`;
+    if (initialFailureCheckKeyRef.current === failureKey) {
+      return;
+    }
+    initialFailureCheckKeyRef.current = failureKey;
+
+    let cancelled = false;
+    void fetchSessionState()
+      .then((sessionState) => {
+        if (cancelled) {
+          return;
+        }
+        if (!sessionState.authenticated) {
+          window.location.assign("/pair");
+          return;
+        }
+
+        if (status.hasConnected) {
+          return;
+        }
+
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: buildReconnectTitle(status),
+            description:
+              status.lastError ??
+              status.closeReason ??
+              "Unable to establish the initial WebSocket connection.",
+            data: {
+              dismissAfterVisibleMs: 8_000,
+              hideCopyButton: true,
+            },
+          }),
+        );
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: buildReconnectTitle(status),
+            description:
+              error instanceof Error
+                ? error.message
+                : "Unable to verify the current session after the WebSocket failed.",
+            data: {
+              dismissAfterVisibleMs: 8_000,
+              hideCopyButton: true,
+            },
+          }),
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   useEffect(() => {
     return () => {

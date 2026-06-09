@@ -1,4 +1,5 @@
 import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
@@ -57,7 +58,7 @@ import {
   WsRpcGroup,
 } from "@t3tools/contracts";
 import { clamp } from "effect/Number";
-import { HttpRouter, HttpServerRequest, HttpServerRespondable } from "effect/unstable/http";
+import { HttpRouter, HttpServerRequest, HttpServerRespondable, HttpServerResponse } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
 
 import { CheckpointDiffQuery } from "./checkpointing/Services/CheckpointDiffQuery.ts";
@@ -80,7 +81,6 @@ import {
 import { isClaudeAdapter } from "./provider/Services/ClaudeAdapter.ts";
 import { ProviderAdapterRegistry } from "./provider/Services/ProviderAdapterRegistry.ts";
 import { ProviderRegistry } from "./provider/Services/ProviderRegistry.ts";
-import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
 import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import { redactServerSettingsForClient, ServerSettingsService } from "./serverSettings.ts";
@@ -93,8 +93,10 @@ import { WorkspacePathOutsideRootError } from "./workspace/Services/WorkspacePat
 import { VcsStatusBroadcaster } from "./vcs/VcsStatusBroadcaster.ts";
 import { VcsProvisioningService } from "./vcs/VcsProvisioningService.ts";
 import { GitWorkflowService } from "./git/GitWorkflowService.ts";
+import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
+import * as SourceControlDiscovery from "./sourceControl/SourceControlDiscovery.ts";
+import * as BackgroundAgentService from "./review/BackgroundAgentService.ts";
 import { ReviewService } from "./review/ReviewService.ts";
-import { BackgroundAgentService } from "./review/BackgroundAgentService.ts";
 import { ProjectSetupScriptRunner } from "./project/Services/ProjectSetupScriptRunner.ts";
 import { RepositoryIdentityResolver } from "./project/Services/RepositoryIdentityResolver.ts";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment.ts";
@@ -103,17 +105,8 @@ import type { AuthenticatedSession } from "./auth/EnvironmentAuth.ts";
 import * as ProcessDiagnostics from "./diagnostics/ProcessDiagnostics.ts";
 import * as ProcessResourceMonitor from "./diagnostics/ProcessResourceMonitor.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
-import * as SourceControlDiscoveryLayer from "./sourceControl/SourceControlDiscovery.ts";
 import { SourceControlRepositoryService } from "./sourceControl/SourceControlRepositoryService.ts";
-import * as AzureDevOpsCli from "./sourceControl/AzureDevOpsCli.ts";
-import * as BitbucketApi from "./sourceControl/BitbucketApi.ts";
-import * as GitHubCli from "./sourceControl/GitHubCli.ts";
-import * as GitLabCli from "./sourceControl/GitLabCli.ts";
-import * as SourceControlProviderRegistry from "./sourceControl/SourceControlProviderRegistry.ts";
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
-import * as VcsDriverRegistry from "./vcs/VcsDriverRegistry.ts";
-import * as VcsProjectConfig from "./vcs/VcsProjectConfig.ts";
-import * as VcsProcess from "./vcs/VcsProcess.ts";
 import * as PairingGrantStore from "./auth/PairingGrantStore.ts";
 import * as SessionStore from "./auth/SessionStore.ts";
 import { failEnvironmentAuthInvalid, failEnvironmentInternal } from "./auth/http.ts";
@@ -124,6 +117,10 @@ const isMcpToggleError = Schema.is(McpToggleError);
 const isProviderUnsupportedError = Schema.is(ProviderUnsupportedError);
 const isProviderAdapterSessionNotFoundError = Schema.is(ProviderAdapterSessionNotFoundError);
 const isProviderAdapterProcessError = Schema.is(ProviderAdapterProcessError);
+
+export class WsAppServices extends Context.Service<WsAppServices, Context.Context<never>>()(
+  "t3code/server/WsAppServices",
+) {}
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
@@ -253,26 +250,59 @@ function toAuthAccessStreamEvent(
   }
 }
 
-const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
-  WsRpcGroup.toLayer(
-    Effect.gen(function* () {
-      const currentSessionId = currentSession.sessionId;
-      const crypto = yield* Crypto.Crypto;
-      const projectionSnapshotQuery = yield* ProjectionSnapshotQuery;
-      const orchestrationEngine = yield* OrchestrationEngineService;
-      const checkpointDiffQuery = yield* CheckpointDiffQuery;
-      const keybindings = yield* Keybindings;
-      const externalLauncher = yield* ExternalLauncher.ExternalLauncher;
-      const gitWorkflow = yield* GitWorkflowService;
-      const git = yield* GitVcsDriver.GitVcsDriver;
-      const review = yield* ReviewService;
-      const backgroundAgent = yield* BackgroundAgentService;
+const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
+  Effect.gen(function* () {
+    const currentSessionId = currentSession.sessionId;
+    yield* Effect.logWarning("[DEBUG-ws-rpc] ws.rpc layer init start", {
+      sessionId: currentSessionId,
+    });
+    const loadService = <A, E, R>(label: string, effect: Effect.Effect<A, E, R>) =>
+      Effect.logWarning("[DEBUG-ws-rpc] service start", {
+        sessionId: currentSessionId,
+        service: label,
+      }).pipe(
+        Effect.andThen(effect),
+        Effect.tap(() =>
+          Effect.logWarning("[DEBUG-ws-rpc] service ready", {
+            sessionId: currentSessionId,
+            service: label,
+          }),
+        ),
+      );
+    const crypto = yield* loadService("Crypto.Crypto", Crypto.Crypto);
+    const projectionSnapshotQuery = yield* loadService(
+      "ProjectionSnapshotQuery",
+      ProjectionSnapshotQuery,
+    );
+    const orchestrationEngine = yield* loadService(
+      "OrchestrationEngineService",
+      OrchestrationEngineService,
+    );
+    const checkpointDiffQuery = yield* loadService("CheckpointDiffQuery", CheckpointDiffQuery);
+    const keybindings = yield* loadService("Keybindings", Keybindings);
+    const externalLauncher = yield* loadService(
+      "ExternalLauncher",
+      ExternalLauncher.ExternalLauncher,
+    );
+    const gitWorkflow = yield* loadService("GitWorkflowService", GitWorkflowService);
+    const git = yield* loadService("GitVcsDriver", GitVcsDriver.GitVcsDriver);
+    const review = yield* loadService("ReviewService", ReviewService);
+    const backgroundAgent = yield* loadService(
+      "BackgroundAgentService",
+      BackgroundAgentService.BackgroundAgentService,
+    );
+      yield* Effect.logDebug("ws.rpc layer review services ready", {
+        sessionId: currentSessionId,
+      });
       const vcsProvisioning = yield* VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster;
       const terminalManager = yield* TerminalManager;
       const providerAdapterRegistry = yield* ProviderAdapterRegistry;
       const providerRegistry = yield* ProviderRegistry;
       const providerMaintenanceRunner = yield* ProviderMaintenanceRunner.ProviderMaintenanceRunner;
+      yield* Effect.logDebug("ws.rpc layer provider services ready", {
+        sessionId: currentSessionId,
+      });
       const config = yield* ServerConfig;
       const lifecycleEvents = yield* ServerLifecycleEvents;
       const serverSettings = yield* ServerSettingsService;
@@ -283,7 +313,10 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
       const repositoryIdentityResolver = yield* RepositoryIdentityResolver;
       const serverEnvironment = yield* ServerEnvironment;
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
-      const sourceControlDiscovery = yield* SourceControlDiscoveryLayer.SourceControlDiscovery;
+      const sourceControlDiscovery = yield* SourceControlDiscovery.SourceControlDiscovery;
+      yield* Effect.logDebug("ws.rpc layer workspace services ready", {
+        sessionId: currentSessionId,
+      });
       const automaticGitFetchInterval = serverSettings.getSettings.pipe(
         Effect.map((settings) => settings.automaticGitFetchInterval),
         Effect.catch((cause) =>
@@ -298,6 +331,9 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
       const processDiagnostics = yield* ProcessDiagnostics.ProcessDiagnostics;
       const processResourceMonitor = yield* ProcessResourceMonitor.ProcessResourceMonitor;
       const relayClient = yield* RelayClient.RelayClient;
+      yield* Effect.logDebug("ws.rpc layer auxiliary services ready", {
+        sessionId: currentSessionId,
+      });
       const authorizationError = (requiredScope: AuthEnvironmentScope) =>
         new EnvironmentAuthorizationError({
           message: `The authenticated token is missing required scope: ${requiredScope}.`,
@@ -1163,11 +1199,13 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
             readTodos.pipe(
               Effect.mapError(
                 (cause) =>
-                  new TodosLoadError({
-                    kind: "io-failure",
-                    detail: `Failed to load todos: ${cause}`,
-                    cause,
-                  }),
+                  cause instanceof TodosLoadError
+                    ? cause
+                    : new TodosLoadError({
+                        kind: "io-failure",
+                        detail: `Failed to load todos: ${cause}`,
+                        cause,
+                      }),
               ),
             ),
             {
@@ -1889,8 +1927,66 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
             { "rpc.aggregate": "auth" },
           ),
       });
-    }),
+    });
+
+const makeWsRpcContext = (currentSession: AuthenticatedSession) => {
+  const sessionId = currentSession.sessionId;
+  return Effect.logWarning("[DEBUG-ws-rpc] ws.rpc context start", { sessionId }).pipe(
+    Effect.andThen(WsAppServices),
+    Effect.tap(() =>
+      Effect.logWarning("[DEBUG-ws-rpc] ws.rpc context services ready", { sessionId }),
+    ),
+    Effect.tap(() =>
+      Effect.logWarning("[DEBUG-ws-rpc] ws.rpc handlers build start", { sessionId }),
+    ),
+    Effect.flatMap((services) =>
+      makeWsRpcHandlers(currentSession).pipe(
+        Effect.tap(() =>
+          Effect.logWarning("[DEBUG-ws-rpc] ws.rpc handlers built", { sessionId }),
+        ),
+        Effect.map((handlers) => {
+          const contextMap = new Map<string, unknown>();
+          for (const [tag, handler] of Object.entries(handlers)) {
+            const rpc = (WsRpcGroup as any).requests.get(tag);
+            contextMap.set(rpc.key, {
+              tag: rpc._tag,
+              handler,
+              context: services,
+            });
+          }
+          return Context.makeUnsafe(contextMap);
+        }),
+      ),
+    ),
   );
+};
+
+export const debugBuildWsRpcContext = makeWsRpcContext;
+
+export const wsAppServicesLayer = Layer.effect(
+  WsAppServices,
+  Effect.context<never>(),
+);
+
+export const debugWsRpcContextRouteLayer = process.env.T3CODE_DEBUG_WS_CONTEXT_SELFTEST === "1"
+  ? Layer.unwrap(Effect.succeed(
+      HttpRouter.add(
+        "GET",
+        "/debug/ws-rpc-context",
+        Effect.gen(function* () {
+          yield* Effect.logWarning("[DEBUG-ws-rpc] in-request test start");
+          const rpcServices = yield* makeWsRpcContext({
+            sessionId: "debug-request-session",
+            subject: "debug-request-subject",
+            method: "browser-session-cookie",
+            scopes: [],
+          }).pipe(Effect.timeout(Duration.seconds(5)));
+          yield* Effect.logWarning("[DEBUG-ws-rpc] in-request test built context");
+          return HttpServerResponse.text("ok\n");
+        }),
+      )
+    ))
+  : Layer.empty;
 
 export const websocketRpcRouteLayer = Layer.unwrap(
   Effect.succeed(
@@ -1901,48 +1997,92 @@ export const websocketRpcRouteLayer = Layer.unwrap(
         const request = yield* HttpServerRequest.HttpServerRequest;
         const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
         const sessions = yield* SessionStore.SessionStore;
+        yield* Effect.logDebug("ws.upgrade received", {
+          path: request.originalUrl,
+          hasSessionCookie: typeof request.cookies[sessions.cookieName] === "string",
+          hasAuthorizationHeader: request.headers.authorization !== undefined,
+          hasWebSocketTicket: request.originalUrl.includes("wsTicket="),
+        });
         const session = yield* serverAuth.authenticateWebSocketUpgrade(request).pipe(
           Effect.catchTags({
             ServerAuthInvalidCredentialError: (error) => failEnvironmentAuthInvalid(error.reason),
             ServerAuthInternalError: (error) => failEnvironmentInternal("internal_error", error),
           }),
         );
+        yield* Effect.logDebug("ws.upgrade authenticated", {
+          path: request.originalUrl,
+          sessionId: session.sessionId,
+          sessionMethod: session.method,
+          scopeCount: session.scopes.length,
+        });
+        yield* Effect.logDebug("ws.rpc effect building", {
+          path: request.originalUrl,
+          sessionId: session.sessionId,
+        });
+        yield* Effect.logDebug("[DEBUG-ws-rpc] ws.rpc layer build start", {
+          path: request.originalUrl,
+          sessionId: session.sessionId,
+        });
+        const rpcServices = yield* makeWsRpcContext(session).pipe(
+          Effect.tap(() =>
+            Effect.logDebug("[DEBUG-ws-rpc] ws.rpc layer built", {
+              path: request.originalUrl,
+              sessionId: session.sessionId,
+            }),
+          ),
+        );
+        yield* Effect.logDebug("[DEBUG-ws-rpc] ws.rpc server build start", {
+          path: request.originalUrl,
+          sessionId: session.sessionId,
+        });
         const rpcWebSocketHttpEffect = yield* RpcServer.toHttpEffectWebsocket(WsRpcGroup, {
           disableTracing: true,
         }).pipe(
-          Effect.provide(
-        makeWsRpcLayer(session).pipe(
-          Layer.provideMerge(RpcSerialization.layerJson),
-          Layer.provide(BackgroundAgentService.layer),
-          Layer.provide(ProviderMaintenanceRunner.layer),
-              Layer.provide(
-                SourceControlDiscoveryLayer.layer.pipe(
-                  Layer.provide(
-                    SourceControlProviderRegistry.layer.pipe(
-                      Layer.provide(
-                        Layer.mergeAll(
-                          AzureDevOpsCli.layer,
-                          BitbucketApi.layer,
-                          GitHubCli.layer,
-                          GitLabCli.layer,
-                        ),
-                      ),
-                      Layer.provideMerge(GitVcsDriver.layer),
-                      Layer.provide(
-                        VcsDriverRegistry.layer.pipe(Layer.provide(VcsProjectConfig.layer)),
-                      ),
-                    ),
+          Effect.provide(rpcServices),
+          Effect.provideService(RpcSerialization.RpcSerialization, RpcSerialization.json),
+          Effect.tap(() =>
+            Effect.logDebug("[DEBUG-ws-rpc] ws.rpc server built", {
+              path: request.originalUrl,
+              sessionId: session.sessionId,
+            }),
+          ),
+        );
+        yield* Effect.logDebug("ws.rpc effect prepared", {
+          path: request.originalUrl,
+          sessionId: session.sessionId,
+        });
+        return yield* Effect.acquireUseRelease(
+          sessions.markConnected(session.sessionId).pipe(
+            Effect.tap(() =>
+              Effect.logDebug("ws.session marked connected", {
+                sessionId: session.sessionId,
+              }),
+            ),
+          ),
+          () =>
+            Effect.logDebug("ws.rpc effect starting", {
+              sessionId: session.sessionId,
+              path: request.originalUrl,
+            }).pipe(
+              Effect.andThen(
+                rpcWebSocketHttpEffect.pipe(
+                  Effect.ensuring(
+                    Effect.logDebug("ws.rpc effect ended", {
+                      sessionId: session.sessionId,
+                      path: request.originalUrl,
+                    }),
                   ),
-                  Layer.provide(VcsProcess.layer),
                 ),
               ),
             ),
-          ),
-        );
-        return yield* Effect.acquireUseRelease(
-          sessions.markConnected(session.sessionId),
-          () => rpcWebSocketHttpEffect,
-          () => sessions.markDisconnected(session.sessionId),
+          () =>
+            sessions.markDisconnected(session.sessionId).pipe(
+              Effect.tap(() =>
+                Effect.logDebug("ws.session marked disconnected", {
+                  sessionId: session.sessionId,
+                }),
+              ),
+            ),
         );
       }).pipe(
         Effect.catchTags({

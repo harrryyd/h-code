@@ -1077,9 +1077,27 @@ function OpenCommandPaletteDialog() {
 
   const handleAddProject = useCallback(
     async (rawCwd: string) => {
-      if (!browseEnvironmentId) return;
+      if (!browseEnvironmentId) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Failed to add project",
+            description: "No environment selected. Ensure a backend is paired and connected.",
+          }),
+        );
+        return;
+      }
       const api = readEnvironmentApi(browseEnvironmentId);
-      if (!api) return;
+      if (!api) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Failed to add project",
+            description: `Environment API not available for this environment. The WebSocket connection may not be established.`,
+          }),
+        );
+        return;
+      }
 
       if (isUnsupportedWindowsProjectPath(rawCwd.trim(), browseEnvironmentPlatform)) {
         toastManager.add(

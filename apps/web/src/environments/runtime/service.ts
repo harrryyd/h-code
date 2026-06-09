@@ -43,7 +43,7 @@ import {
 import { ensureLocalApi } from "~/localApi";
 import { collectActiveTerminalUiThreadKeys } from "~/lib/terminalUiStateCleanup";
 import { deriveOrchestrationBatchEffects } from "~/orchestrationEventEffects";
-import { getPrimaryKnownEnvironment } from "../primary";
+import { getPrimaryKnownEnvironment, resolvePrimaryWebSocketConnectionUrl } from "../primary";
 import { webRuntime } from "../../lib/runtime";
 import { connectManagedCloudEnvironment } from "../../cloud/linkEnvironment";
 import { readManagedRelayClerkToken } from "../../cloud/managedAuth";
@@ -1160,7 +1160,7 @@ function createPrimaryEnvironmentClient(
   const connectionLabel = knownEnvironment?.label ?? null;
 
   return createWsRpcClient(
-    new WsTransport(wsBaseUrl, {
+    new WsTransport(async () => await resolvePrimaryWebSocketConnectionUrl(wsBaseUrl), {
       getConnectionLabel: () => connectionLabel,
       getVersionMismatchHint: () =>
         resolveServerConfigVersionMismatch(getServerConfig())?.hint ?? null,

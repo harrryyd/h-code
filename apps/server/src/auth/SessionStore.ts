@@ -240,12 +240,22 @@ export const make = Effect.fn("makeSessionStore")(function* () {
     });
 
   const markConnected: SessionStoreShape["markConnected"] = (sessionId) =>
-    Ref.modify(connectedSessionsRef, (current) => {
-      const next = new Map(current);
-      const wasDisconnected = !next.has(sessionId);
-      next.set(sessionId, (next.get(sessionId) ?? 0) + 1);
-      return [wasDisconnected, next] as const;
-    }).pipe(
+    Effect.logDebug("session.markConnected start", { sessionId }).pipe(
+      Effect.andThen(
+        Ref.modify(connectedSessionsRef, (current) => {
+          const next = new Map(current);
+          const wasDisconnected = !next.has(sessionId);
+          next.set(sessionId, (next.get(sessionId) ?? 0) + 1);
+          return [wasDisconnected, next] as const;
+        }),
+      ),
+    ).pipe(
+      Effect.tap((wasDisconnected) =>
+        Effect.logDebug("session.markConnected state updated", {
+          sessionId,
+          wasDisconnected,
+        }),
+      ),
       Effect.flatMap((wasDisconnected) =>
         wasDisconnected
           ? DateTime.now.pipe(
@@ -259,6 +269,12 @@ export const make = Effect.fn("makeSessionStore")(function* () {
           : Effect.void,
       ),
       Effect.flatMap(() => loadActiveSession(sessionId)),
+      Effect.tap((session) =>
+        Effect.logDebug("session.markConnected loaded active session", {
+          sessionId,
+          hasActiveSession: Option.isSome(session),
+        }),
+      ),
       Effect.flatMap((session) =>
         Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
       ),
@@ -274,17 +290,27 @@ export const make = Effect.fn("makeSessionStore")(function* () {
     );
 
   const markDisconnected: SessionStoreShape["markDisconnected"] = (sessionId) =>
-    Ref.update(connectedSessionsRef, (current) => {
-      const next = new Map(current);
-      const remaining = (next.get(sessionId) ?? 0) - 1;
-      if (remaining > 0) {
-        next.set(sessionId, remaining);
-      } else {
-        next.delete(sessionId);
-      }
-      return next;
-    }).pipe(
+    Effect.logDebug("session.markDisconnected start", { sessionId }).pipe(
+      Effect.andThen(
+        Ref.update(connectedSessionsRef, (current) => {
+          const next = new Map(current);
+          const remaining = (next.get(sessionId) ?? 0) - 1;
+          if (remaining > 0) {
+            next.set(sessionId, remaining);
+          } else {
+            next.delete(sessionId);
+          }
+          return next;
+        }),
+      ),
+    ).pipe(
       Effect.flatMap(() => loadActiveSession(sessionId)),
+      Effect.tap((session) =>
+        Effect.logDebug("session.markDisconnected loaded active session", {
+          sessionId,
+          hasActiveSession: Option.isSome(session),
+        }),
+      ),
       Effect.flatMap((session) =>
         Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
       ),
