@@ -158,6 +158,7 @@ describe("OrchestrationEngine", () => {
           proposedPlans: [],
           activities: [],
           checkpoints: [],
+          contextTrimPoints: [],
           session: null,
         },
       ],
@@ -300,6 +301,7 @@ describe("OrchestrationEngine", () => {
   });
 
   it("bootstraps exactly one manager workspace and manager console through persisted projections", async () => {
+    // @effect-diagnostics-next-line cryptoRandomUUID:off
     const dbPath = `/tmp/t3-manager-bootstrap-${crypto.randomUUID()}.sqlite`;
     const firstSystem = await createOrchestrationSystem({ dbPath });
 
@@ -389,6 +391,7 @@ describe("OrchestrationEngine", () => {
   });
 
   it("stores seeded manager work items with readiness classifications through persisted projections", async () => {
+    // @effect-diagnostics-next-line cryptoRandomUUID:off
     const dbPath = `/tmp/t3-manager-seeded-work-${crypto.randomUUID()}.sqlite`;
     const firstSystem = await createOrchestrationSystem({ dbPath });
     const createdAt = now();
@@ -579,6 +582,7 @@ describe("OrchestrationEngine", () => {
   });
 
   it("creates project-bound refiner threads for needs-refinement work items and persists their projection", async () => {
+    // @effect-diagnostics-next-line cryptoRandomUUID:off
     const dbPath = `/tmp/t3-manager-refiner-thread-${crypto.randomUUID()}.sqlite`;
     const firstSystem = await createOrchestrationSystem({ dbPath });
     const createdAt = now();
@@ -775,6 +779,7 @@ describe("OrchestrationEngine", () => {
   });
 
   it("records a refinement handoff on the originating work item and auto-requests delegation when it becomes ready", async () => {
+    // @effect-diagnostics-next-line cryptoRandomUUID:off
     const dbPath = `/tmp/t3-manager-refinement-handoff-${crypto.randomUUID()}.sqlite`;
     const firstSystem = await createOrchestrationSystem({ dbPath });
     const createdAt = now();
@@ -931,6 +936,7 @@ describe("OrchestrationEngine", () => {
     await secondSystem.dispose();
   });
   it("creates a delegated Worker Thread with project-local metadata through the full delegation flow", async () => {
+    // @effect-diagnostics-next-line cryptoRandomUUID:off
     const dbPath = `/tmp/t3-worker-delegate-${crypto.randomUUID()}.sqlite`;
     const firstSystem = await createOrchestrationSystem({ dbPath });
     const createdAt = now();

@@ -469,6 +469,7 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
         Effect.map((result) => result.stdout.trim()),
         Effect.flatMap((raw) =>
           Effect.sync(() => {
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
             const parsed = JSON.parse(raw);
             const reviews = Array.isArray(parsed.reviews) ? parsed.reviews : [];
             const comments: Array<GitHubPullRequestReviewComment> = [];
@@ -490,9 +491,9 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
                           path: reply.path ?? "",
                           line:
                             typeof reply.line === "number" ? reply.line : undefined,
-                          commitSHA: reply.commit?.oid ?? "",
+                          commitSHA: (reply.commit as Record<string, unknown> | undefined)?.oid ?? "",
                           body: reply.body ?? "",
-                          author: { login: reply.author?.login ?? "" },
+                          author: { login: (reply.author as Record<string, unknown> | undefined)?.login ?? "" },
                           createdAt: reply.createdAt ?? "",
                         }),
                       ) ?? undefined,

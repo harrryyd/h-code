@@ -6,10 +6,11 @@ import type { BackgroundAgentResponseEvent } from "@t3tools/contracts";
 
 import {
   BackgroundAgentService,
+  type BackgroundAgentServiceShape,
   DEFAULT_MAX_CONCURRENT_AGENTS,
 } from "./BackgroundAgentService.ts";
 import { GitWorkflowService } from "../git/GitWorkflowService.ts";
-import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
+import { GitVcsDriver, type ExecuteGitInput, type ExecuteGitResult, type GitVcsDriverShape } from "../vcs/GitVcsDriver.ts";
 import { ReviewService } from "./ReviewService.ts";
 
 vi.mock("node:fs/promises", () => ({
@@ -20,7 +21,9 @@ vi.mock("node:child_process", () => ({
   spawn: vi.fn(),
 }));
 
+// @effect-diagnostics-next-line nodeBuiltinImport:off
 import * as fs from "node:fs/promises";
+// @effect-diagnostics-next-line nodeBuiltinImport:off
 import * as child_process from "node:child_process";
 
 function makeFakeChildProcess() {
@@ -78,17 +81,15 @@ function makeBaseGitWorkflow(options: {
 
 function makeBaseGit(gitDiff: string, gitStatus: string) {
   return GitVcsDriver.of({
-    execute: (args: { operation: string; cwd: string; args: string[] }) => {
+    execute: (args: ExecuteGitInput) => {
       const argStr = args.args.join(" ");
       if (argStr.includes("status --porcelain")) {
-        return Effect.succeed({ stdout: gitStatus, stderr: "", exitCode: 0 });
+        return Effect.succeed({ stdout: gitStatus, stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult);
       }
-      return Effect.succeed({ stdout: "", stderr: "", exitCode: 0 });
+      return Effect.succeed({ stdout: "", stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult);
     },
     getPrDiff: () => Effect.succeed(gitDiff),
     getReviewDiffPreview: () => Effect.die("unexpected"),
-    checkoutPullRequest: () => Effect.die("unexpected"),
-    refNameAtPath: () => Effect.die("unexpected"),
     listRefs: () => Effect.die("unexpected"),
     createWorktree: () => Effect.die("unexpected"),
     removeWorktree: () => Effect.die("unexpected"),
@@ -96,20 +97,7 @@ function makeBaseGit(gitDiff: string, gitStatus: string) {
     switchRef: () => Effect.die("unexpected"),
     pullCurrentBranch: () => Effect.die("unexpected"),
     renameBranch: () => Effect.die("unexpected"),
-    remoteResolvedHeadSha: () => Effect.die("unexpected"),
-    remoteHasCommit: () => Effect.die("unexpected"),
-    getPushTarget: () => Effect.die("unexpected"),
-    push: () => Effect.die("unexpected"),
-    createBranchOnRemote: () => Effect.die("unexpected"),
-    getDefaultBranch: () => Effect.die("unexpected"),
-    getDefaultBranchName: () => Effect.die("unexpected"),
-    currentBranchName: () => Effect.die("unexpected"),
-    stashAndPop: () => Effect.die("unexpected"),
-    hasUncommittedChanges: () => Effect.die("unexpected"),
-    listRefsPage: () => Effect.die("unexpected"),
-    resolveCommitPage: () => Effect.die("unexpected"),
-    streamStatus: () => Effect.die("unexpected"),
-  });
+  } as unknown as GitVcsDriverShape);
 }
 
 function makeBaseReview(updateMutation: ReturnType<typeof vi.fn> = vi.fn()) {
@@ -138,7 +126,7 @@ function makeLayer(options: {
       Layer.succeed(GitWorkflowService, makeBaseGitWorkflow({
         createWorktreePath: options.createWorktreePath,
         createWorktreeRefName: options.createWorktreeRefName,
-        createWorktreeError: options.createWorktreeError,
+        ...("createWorktreeError" in options ? { createWorktreeError: options.createWorktreeError } : {}),
       })),
       Layer.succeed(GitVcsDriver, makeBaseGit(options.gitDiff, options.gitStatus)),
       Layer.succeed(ReviewService, makeBaseReview(updateMutation)),
@@ -149,21 +137,23 @@ function makeLayer(options: {
 
 /** Collect stream events and close the fake child process, all within Effect */
 function runAndCollect(options: {
-  readonly service: BackgroundAgentService;
-  readonly input: Parameters<BackgroundAgentService["runBackgroundAgent"]>[0];
+  readonly service: BackgroundAgentServiceShape;
+  readonly input: Parameters<BackgroundAgentServiceShape["runBackgroundAgent"]>[0];
   readonly fakeChild: ReturnType<typeof makeFakeChildProcess>;
   readonly exitCode: number;
-}) {
+}): Effect.Effect<ReadonlyArray<BackgroundAgentResponseEvent>, never> {
   return Effect.gen(function* () {
+    // @effect-diagnostics-next-line runEffectInsideEffect:off
     const collectEffect = Effect.runPromise(
       options.service.runBackgroundAgent(options.input).pipe(Stream.runCollect),
     );
 
     // Let microtasks drain so the spawn callback fires
-    yield* Effect.promise(() => new Promise((r) => setTimeout(r, 10)));
+    // @effect-diagnostics-next-line globalTimers:off
+    yield* Effect.promise(() => new Promise<unknown>((r) => setTimeout(r, 10)));
     options.fakeChild._emitClose(options.exitCode);
 
-    const events = yield* Effect.promise(() => collectEffect);
+    const events = yield* Effect.promise<ReadonlyArray<BackgroundAgentResponseEvent>>(() => collectEffect);
     return Array.from(events);
   });
 }
@@ -180,7 +170,7 @@ describe("BackgroundAgentService", () => {
   it("runs agent on success path, commits changes, and completes", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
 
       const { layer } = makeLayer({
         gitDiff: "diff --git a/test.ts b/test.ts\n+test change",
@@ -245,7 +235,7 @@ describe("BackgroundAgentService", () => {
   it("updates agentStatus to completed on success", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -294,7 +284,7 @@ describe("BackgroundAgentService", () => {
   it("handles no changes from agent (no commits)", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -347,7 +337,7 @@ describe("BackgroundAgentService", () => {
   it("updates agentStatus to failed on createWorktree error", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -405,7 +395,7 @@ describe("BackgroundAgentService", () => {
   it("updates agentStatus to failed when agent exits with non-zero code", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -451,21 +441,19 @@ describe("BackgroundAgentService", () => {
   it("uses origin/HEAD as base ref for PR diff", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
 
       let capturedBaseRef = "";
       let capturedHeadRef = "";
 
       const gitWithSpy = GitVcsDriver.of({
-        execute: () => Effect.succeed({ stdout: "", stderr: "", exitCode: 0 }),
+        execute: () => Effect.succeed({ stdout: "", stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult),
         getPrDiff: (cwd: string, baseRef: string, headRef: string) => {
           capturedBaseRef = baseRef;
           capturedHeadRef = headRef;
           return Effect.succeed("test diff");
         },
         getReviewDiffPreview: () => Effect.die("unexpected"),
-        checkoutPullRequest: () => Effect.die("unexpected"),
-        refNameAtPath: () => Effect.die("unexpected"),
         listRefs: () => Effect.die("unexpected"),
         createWorktree: () => Effect.die("unexpected"),
         removeWorktree: () => Effect.die("unexpected"),
@@ -473,20 +461,7 @@ describe("BackgroundAgentService", () => {
         switchRef: () => Effect.die("unexpected"),
         pullCurrentBranch: () => Effect.die("unexpected"),
         renameBranch: () => Effect.die("unexpected"),
-        remoteResolvedHeadSha: () => Effect.die("unexpected"),
-        remoteHasCommit: () => Effect.die("unexpected"),
-        getPushTarget: () => Effect.die("unexpected"),
-        push: () => Effect.die("unexpected"),
-        createBranchOnRemote: () => Effect.die("unexpected"),
-        getDefaultBranch: () => Effect.die("unexpected"),
-        getDefaultBranchName: () => Effect.die("unexpected"),
-        currentBranchName: () => Effect.die("unexpected"),
-        stashAndPop: () => Effect.die("unexpected"),
-        hasUncommittedChanges: () => Effect.die("unexpected"),
-        listRefsPage: () => Effect.die("unexpected"),
-        resolveCommitPage: () => Effect.die("unexpected"),
-        streamStatus: () => Effect.die("unexpected"),
-      });
+      } as unknown as GitVcsDriverShape);
 
       const layer = Layer.mergeAll(
         Layer.succeed(GitWorkflowService, makeBaseGitWorkflow({
@@ -526,15 +501,13 @@ describe("BackgroundAgentService", () => {
         Layer.succeed(
           GitVcsDriver,
           GitVcsDriver.of({
-            execute: () => Effect.succeed({ stdout: "", stderr: "", exitCode: 0 }),
+            execute: () => Effect.succeed({ stdout: "", stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult),
             getPrDiff: (cwd: string, baseRef: string, headRef: string) => {
               expect(baseRef).toBe("origin/HEAD");
               expect(headRef).toBe("refs/t3/pr/1/head");
               return Effect.succeed("test diff");
             },
             getReviewDiffPreview: () => Effect.die("unexpected"),
-            checkoutPullRequest: () => Effect.die("unexpected"),
-            refNameAtPath: () => Effect.die("unexpected"),
             listRefs: () => Effect.die("unexpected"),
             createWorktree: () => Effect.die("unexpected"),
             removeWorktree: () => Effect.die("unexpected"),
@@ -542,20 +515,7 @@ describe("BackgroundAgentService", () => {
             switchRef: () => Effect.die("unexpected"),
             pullCurrentBranch: () => Effect.die("unexpected"),
             renameBranch: () => Effect.die("unexpected"),
-            remoteResolvedHeadSha: () => Effect.die("unexpected"),
-            remoteHasCommit: () => Effect.die("unexpected"),
-            getPushTarget: () => Effect.die("unexpected"),
-            push: () => Effect.die("unexpected"),
-            createBranchOnRemote: () => Effect.die("unexpected"),
-            getDefaultBranch: () => Effect.die("unexpected"),
-            getDefaultBranchName: () => Effect.die("unexpected"),
-            currentBranchName: () => Effect.die("unexpected"),
-            stashAndPop: () => Effect.die("unexpected"),
-            hasUncommittedChanges: () => Effect.die("unexpected"),
-            listRefsPage: () => Effect.die("unexpected"),
-            resolveCommitPage: () => Effect.die("unexpected"),
-            streamStatus: () => Effect.die("unexpected"),
-          }),
+          } as unknown as GitVcsDriverShape),
         ),
       ),
     )),
@@ -567,12 +527,12 @@ describe("BackgroundAgentService", () => {
       vi.mocked(child_process.spawn).mockImplementation(() => {
         const child = makeFakeChildProcess();
         children.push(child);
-        return child as ReturnType<typeof child_process.spawn>;
+        return child as unknown as ReturnType<typeof child_process.spawn>;
       });
       return children;
     }
 
-    const batchInput1: Parameters<BackgroundAgentService["runBackgroundAgent"]>[0] = {
+    const batchInput1: Parameters<BackgroundAgentServiceShape["runBackgroundAgent"]>[0] = {
       threadId: "thread-1",
       prNumber: 1,
       commentId: "comment-1",
@@ -583,7 +543,7 @@ describe("BackgroundAgentService", () => {
       commentBody: "Fix this",
     };
 
-    const batchInput2: Parameters<BackgroundAgentService["runBackgroundAgent"]>[0] = {
+    const batchInput2: Parameters<BackgroundAgentServiceShape["runBackgroundAgent"]>[0] = {
       threadId: "thread-1",
       prNumber: 1,
       commentId: "comment-2",
@@ -594,7 +554,7 @@ describe("BackgroundAgentService", () => {
       commentBody: "Extract this",
     };
 
-    const batchInput3: Parameters<BackgroundAgentService["runBackgroundAgent"]>[0] = {
+    const batchInput3: Parameters<BackgroundAgentServiceShape["runBackgroundAgent"]>[0] = {
       threadId: "thread-1",
       prNumber: 1,
       commentId: "comment-3",
@@ -620,13 +580,15 @@ describe("BackgroundAgentService", () => {
 
         const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
 
+        // @effect-diagnostics-next-line runEffectInsideEffect:off
         const collectPromise = Effect.runPromise(
           service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(
             Stream.runCollect,
           ),
         );
 
-        yield* Effect.promise(() => new Promise((r) => setTimeout(r, 20)));
+        // @effect-diagnostics-next-line globalTimers:off
+        yield* Effect.promise(() => new Promise<unknown>((r) => setTimeout(r, 20)));
 
         for (const child of fakeChildren) {
           child._emitClose(0);
@@ -685,13 +647,15 @@ describe("BackgroundAgentService", () => {
 
         const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
 
+        // @effect-diagnostics-next-line runEffectInsideEffect:off
         const collectPromise = Effect.runPromise(
           service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(
             Stream.runCollect,
           ),
         );
 
-        yield* Effect.promise(() => new Promise((r) => setTimeout(r, 20)));
+        // @effect-diagnostics-next-line globalTimers:off
+        yield* Effect.promise(() => new Promise<unknown>((r) => setTimeout(r, 20)));
 
         // Fail the first child, succeed the rest
         if (children[0]) children[0]._emitClose(1);
@@ -739,7 +703,7 @@ describe("BackgroundAgentService", () => {
           const child = makeFakeChildProcess();
           children.push(child);
           spawnOrder.push(`spawn-${children.length}`);
-          return child as ReturnType<typeof child_process.spawn>;
+          return child as unknown as ReturnType<typeof child_process.spawn>;
         });
 
         const updateMutation = vi.fn();
@@ -762,11 +726,13 @@ describe("BackgroundAgentService", () => {
           { ...batchInput1, commentId: "c-5" },
         ];
 
+        // @effect-diagnostics-next-line runEffectInsideEffect:off
         const collectPromise = Effect.runPromise(
           service.runBatchAgents(inputs, 2).pipe(Stream.runCollect),
         );
 
-        yield* Effect.promise(() => new Promise((r) => setTimeout(r, 20)));
+        // @effect-diagnostics-next-line globalTimers:off
+        yield* Effect.promise(() => new Promise<unknown>((r) => setTimeout(r, 20)));
 
         // Close all children
         for (const child of children) {

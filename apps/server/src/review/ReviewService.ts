@@ -295,9 +295,9 @@ export const make = Effect.fn("makeReviewService")(function* () {
       // Write body to a temporary file
       yield* fileSystem.makeDirectory(path.join(config.stateDir, "tmp"), {
         recursive: true,
-      });
+      }).pipe(Effect.orElseSucceed(() => undefined));
       const bodyFile = path.join(config.stateDir, "tmp", `review-body-${input.threadId}-${input.prNumber}.md`);
-      yield* fileSystem.writeFileString(bodyFile, body);
+      yield* fileSystem.writeFileString(bodyFile, body).pipe(Effect.orElseSucceed(() => undefined));
 
       // Submit the review and clean up temp file
       yield* cli.createPullRequestReview({
@@ -341,7 +341,7 @@ export const make = Effect.fn("makeReviewService")(function* () {
       };
 
       // Replace local draft
-      yield* draftStore.upsert(publishedDraft);
+      yield* draftStore.upsert(publishedDraft).pipe(Effect.orElseSucceed(() => undefined));
 
       return publishedDraft;
     }),

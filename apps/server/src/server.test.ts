@@ -131,6 +131,9 @@ import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as ReviewService from "./review/ReviewService.ts";
 import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
+import * as SourceControlDiscovery from "./sourceControl/SourceControlDiscovery.ts";
+import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
+import * as BackgroundAgentService from "./review/BackgroundAgentService.ts";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
@@ -198,6 +201,7 @@ const makeDefaultOrchestrationReadModel = () => {
         activities: [],
         proposedPlans: [],
         checkpoints: [],
+        contextTrimPoints: [],
         deletedAt: null,
       },
     ],
@@ -824,6 +828,22 @@ const buildAppUnderTest = (options?: {
         }),
       ),
       Layer.provideMerge(makeAuthTestLayer()),
+      Layer.provide(
+        Layer.mock(SourceControlDiscovery.SourceControlDiscovery)({
+          discover: Effect.succeed({ versionControlSystems: [], sourceControlProviders: [] }),
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(ProviderMaintenanceRunner.ProviderMaintenanceRunner)({
+          updateProvider: () => Effect.die("ProviderMaintenanceRunner.updateProvider not implemented in test"),
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(BackgroundAgentService.BackgroundAgentService)({
+          runBackgroundAgent: () => Stream.empty,
+          runBatchAgents: () => Stream.empty,
+        }),
+      ),
       Layer.provideMerge(ServerSecretStore.layer),
       Layer.provide(workspaceAndProjectServicesLayer),
       Layer.provideMerge(FetchHttpClient.layer),
@@ -5459,6 +5479,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             activities: [],
             proposedPlans: [],
             checkpoints: [],
+            contextTrimPoints: [],
             deletedAt: null,
           },
         ],
