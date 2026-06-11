@@ -41,7 +41,7 @@ export type MessagesTimelineRow =
       proposedPlan: ProposedPlan;
       hidden?: true;
     }
-  | { kind: "working"; id: string; createdAt: string | null }
+  | { kind: "working"; id: string; createdAt: string | null; hidden?: never }
   | {
       kind: "manager-instruction";
       id: string;
@@ -56,6 +56,7 @@ export type MessagesTimelineRow =
       id: string;
       createdAt: string;
       trimPoint: ContextTrimPoint;
+      hidden?: never;
     };
 
 export interface StableMessagesTimelineRowsState {

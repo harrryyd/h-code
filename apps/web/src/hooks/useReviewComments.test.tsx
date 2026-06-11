@@ -1,4 +1,4 @@
-import { EnvironmentId, type EnvironmentApi } from "@t3tools/contracts";
+import { EnvironmentId, ThreadId, type EnvironmentApi } from "@t3tools/contracts";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
@@ -9,14 +9,14 @@ import {
 } from "../environmentApi";
 
 const ENVIRONMENT_ID = EnvironmentId.make("test-env");
-const THREAD_ID = "thread-1";
+const THREAD_ID = ThreadId.make("thread-1");
 const PR_NUMBER = 42;
 
 let capturedResult: UseReviewCommentsResult | null = null;
 
 function CaptureComponent(props: {
   environmentId: EnvironmentId | null;
-  threadId: string | null;
+  threadId: ThreadId | null;
   prNumber: number | null;
   prHeadSHA: string | null;
 }) {
@@ -32,7 +32,7 @@ function CaptureComponent(props: {
 
 function renderCapture(options: {
   environmentId?: EnvironmentId | null;
-  threadId?: string | null;
+  threadId?: ThreadId | null;
   prNumber?: number | null;
   prHeadSHA?: string | null;
 } = {}) {
@@ -115,7 +115,7 @@ describe("useReviewComments", () => {
       const result = await capturedResult!.submitReview();
 
       expect(mockSubmitReview).toHaveBeenCalledTimes(1);
-      const callArg = mockSubmitReview.mock.calls[0][0];
+      const callArg = mockSubmitReview.mock.calls[0]?.[0];
       expect(callArg).not.toHaveProperty("runBatchAgents");
       expect(callArg).toEqual({
         threadId: THREAD_ID,

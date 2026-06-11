@@ -169,6 +169,8 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     cwd: activeCwd ?? null,
   });
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
+  const runtimeMode = activeThread?.runtimeMode;
+  const isReviewMode = runtimeMode === "review";
   const {
     comments,
     reviewDraft,
@@ -495,8 +497,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     selectedChip?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [selectedTurn?.turnId, selectedTurnId]);
 
-  const runtimeMode = activeThread?.runtimeMode;
-  const isReviewMode = runtimeMode === "review";
   const draftCommentCount = isReviewMode
     ? comments.filter((c) => c.author.login === "local").length
     : 0;

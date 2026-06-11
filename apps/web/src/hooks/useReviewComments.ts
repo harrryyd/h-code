@@ -1,6 +1,12 @@
-import type { ReviewComment, ReviewDraft } from "@t3tools/contracts";
+import type {
+  BackgroundAgentResponseEvent,
+  ReviewComment,
+  ReviewDraft,
+  ThreadId,
+} from "@t3tools/contracts";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { readEnvironmentApi } from "../environmentApi";
+import { randomUUID } from "../lib/utils";
 import type { EnvironmentId } from "@t3tools/contracts";
 
 export interface EditingCommentState {
@@ -9,18 +15,11 @@ export interface EditingCommentState {
   prefillBody: string;
 }
 
-export interface BackgroundAgentEvent {
-  type: "text" | "detail" | "status" | "done" | "error";
-  commentId: string;
-  content?: string;
-  agentStatus?: string;
-  title?: string;
-  message?: string;
-}
+export type BackgroundAgentEvent = BackgroundAgentResponseEvent;
 
 export interface UseReviewCommentsOptions {
   environmentId: EnvironmentId | null;
-  threadId: string | null;
+  threadId: ThreadId | null;
   prNumber: number | null;
   prHeadSHA: string | null;
 }
@@ -108,7 +107,7 @@ export function useReviewComments(
       if (!api) return;
       setSavePending(true);
       setSaveError(null);
-      const id = crypto.randomUUID();
+      const id = randomUUID();
       const comment: ReviewComment = {
         id,
         file: editingComment.filePath,

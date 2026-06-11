@@ -201,6 +201,18 @@ export const ReviewCommentAgentStatus = Schema.Literals([
 ]);
 export type ReviewCommentAgentStatus = typeof ReviewCommentAgentStatus.Type;
 
+export interface ReviewComment {
+  readonly id: string;
+  readonly file: string;
+  readonly line?: number | undefined;
+  readonly commitSHA: string;
+  readonly body: string;
+  readonly replies?: ReadonlyArray<ReviewComment> | undefined;
+  readonly agentStatus?: ReviewCommentAgentStatus | undefined;
+  readonly author: ReviewCommentAuthor;
+  readonly createdAt: string;
+}
+
 export const ReviewComment = Schema.Struct({
   id: TrimmedNonEmptyString,
   file: TrimmedNonEmptyString,
@@ -208,13 +220,12 @@ export const ReviewComment = Schema.Struct({
   commitSHA: TrimmedNonEmptyString,
   body: TrimmedNonEmptyString,
   replies: Schema.optional(
-    Schema.Array(Schema.suspend(() => ReviewComment)),
+    Schema.Array(Schema.suspend((): Schema.Codec<ReviewComment> => ReviewComment)),
   ),
   agentStatus: Schema.optional(ReviewCommentAgentStatus),
   author: ReviewCommentAuthor,
   createdAt: Schema.String,
 });
-export type ReviewComment = typeof ReviewComment.Type;
 
 export const ReviewDraftState = Schema.Literals(["draft", "published"]);
 export type ReviewDraftState = typeof ReviewDraftState.Type;

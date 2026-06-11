@@ -133,7 +133,7 @@ import {
   useSavedEnvironmentRegistryStore,
   useSavedEnvironmentRuntimeStore,
 } from "../environments/runtime";
-import { buildDraftThreadRouteParams } from "../threadRoutes";
+import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../threadRoutes";
 import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
@@ -2940,7 +2940,7 @@ export default function ChatView(props: ChatViewProps) {
         );
         return;
       }
-      if (typeof standaloneSlashCommand === "object" && standaloneSlashCommand.command === "clear") {
+      if (typeof standaloneSlashCommand === "object") {
         api.orchestration.dispatchCommand({
           type: "thread.context.trim",
           commandId: newCommandId(),
@@ -2976,8 +2976,10 @@ export default function ChatView(props: ChatViewProps) {
           );
         });
         void navigate({
-          to: "/thread/$threadId",
-          params: { threadId: nextThreadId },
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(
+            scopeThreadRef(activeThread.environmentId, nextThreadId),
+          ),
         });
       } else if (standaloneSlashCommand === "compact") {
         api.orchestration.dispatchCommand({

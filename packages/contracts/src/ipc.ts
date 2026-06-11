@@ -20,8 +20,15 @@ import type {
 } from "./git.ts";
 import type { ReviewDiffPreviewInput, ReviewDiffPreviewResult } from "./review.ts";
 import type {
+  BackgroundAgentResponseEvent,
   ChangeRequestGetPrDiffInput,
   ChangeRequestGetPrDiffResult,
+  ChangeRequestRunBackgroundAgentInput,
+  WsChangeRequestDeleteReviewCommentInput,
+  WsChangeRequestGetReviewDraftInput,
+  WsChangeRequestRunBatchAgentsInput,
+  WsChangeRequestSubmitReviewInput,
+  WsChangeRequestUpsertReviewCommentInput,
 } from "./rpc.ts";
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem.ts";
 import type {
@@ -82,6 +89,7 @@ import { EditorId } from "./editor.ts";
 import { ExecutionEnvironmentDescriptor } from "./environment.ts";
 import type { ClientSettings, ServerSettings, ServerSettingsPatch } from "./settings.ts";
 import type {
+  ReviewDraft,
   SourceControlCloneRepositoryInput,
   SourceControlCloneRepositoryResult,
   SourceControlDiscoveryResult,
@@ -611,127 +619,23 @@ export interface EnvironmentApi {
     getDiffPreview: (input: ReviewDiffPreviewInput) => Promise<ReviewDiffPreviewResult>;
   };
   changeRequest: {
-    getPrDiff: (
-      input: ChangeRequestGetPrDiffInput,
-    ) => Promise<ChangeRequestGetPrDiffResult>;
-    getReviewDraft: (input: {
-      readonly threadId: string;
-      readonly prNumber: number;
-    }) => Promise<{
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly prHeadSHA: string;
-      readonly comments: ReadonlyArray<{
-        readonly id: string;
-        readonly file: string;
-        readonly line?: number;
-        readonly commitSHA: string;
-        readonly body: string;
-        readonly author: { readonly login: string };
-        readonly createdAt: string;
-      }>;
-      readonly state: "draft" | "published";
-    } | null>;
-    upsertReviewComment: (input: {
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly prHeadSHA: string;
-      readonly comment: {
-        readonly id: string;
-        readonly file: string;
-        readonly line?: number;
-        readonly commitSHA: string;
-        readonly body: string;
-        readonly replies?: ReadonlyArray<Record<string, unknown>>;
-        readonly agentStatus?: string;
-        readonly author: { readonly login: string };
-        readonly createdAt: string;
-      };
-    }) => Promise<{
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly prHeadSHA: string;
-      readonly comments: ReadonlyArray<{
-        readonly id: string;
-        readonly file: string;
-        readonly line?: number;
-        readonly commitSHA: string;
-        readonly body: string;
-        readonly author: { readonly login: string };
-        readonly createdAt: string;
-      }>;
-      readonly state: "draft" | "published";
-    }>;
-    deleteReviewComment: (input: {
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly commentId: string;
-    }) => Promise<{
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly prHeadSHA: string;
-      readonly comments: ReadonlyArray<{
-        readonly id: string;
-        readonly file: string;
-        readonly line?: number;
-        readonly commitSHA: string;
-        readonly body: string;
-        readonly author: { readonly login: string };
-        readonly createdAt: string;
-      }>;
-      readonly state: "draft" | "published";
-    } | null>;
-    submitReview: (input: {
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly runBatchAgents?: boolean;
-    }) => Promise<{
-      readonly threadId: string;
-      readonly prNumber: number;
-      readonly prHeadSHA: string;
-      readonly comments: ReadonlyArray<{
-        readonly id: string;
-        readonly file: string;
-        readonly line?: number;
-        readonly commitSHA: string;
-        readonly body: string;
-        readonly author: { readonly login: string };
-        readonly createdAt: string;
-      }>;
-      readonly state: "draft" | "published";
-    }>;
+    getPrDiff: (input: ChangeRequestGetPrDiffInput) => Promise<ChangeRequestGetPrDiffResult>;
+    getReviewDraft: (input: WsChangeRequestGetReviewDraftInput) => Promise<ReviewDraft | null>;
+    upsertReviewComment: (input: WsChangeRequestUpsertReviewCommentInput) => Promise<ReviewDraft>;
+    deleteReviewComment: (
+      input: WsChangeRequestDeleteReviewCommentInput,
+    ) => Promise<ReviewDraft | null>;
+    submitReview: (input: WsChangeRequestSubmitReviewInput) => Promise<ReviewDraft>;
     runBackgroundAgent: (
-      input: {
-        readonly threadId: string;
-        readonly prNumber: number;
-        readonly commentId: string;
-      },
-      callback: (event: {
-        readonly type: "text" | "detail" | "status" | "done" | "error";
-        readonly commentId: string;
-        readonly content?: string;
-        readonly agentStatus?: string;
-        readonly title?: string;
-        readonly message?: string;
-      }) => void,
+      input: ChangeRequestRunBackgroundAgentInput,
+      callback: (event: BackgroundAgentResponseEvent) => void,
       options?: {
         onResubscribe?: () => void;
       },
     ) => () => void;
     runBatchAgents: (
-      input: {
-        readonly threadId: string;
-        readonly prNumber: number;
-        readonly commentIds: readonly string[];
-      },
-      callback: (event: {
-        readonly type: "text" | "detail" | "status" | "done" | "error";
-        readonly commentId: string;
-        readonly content?: string;
-        readonly agentStatus?: string;
-        readonly title?: string;
-        readonly message?: string;
-      }) => void,
+      input: WsChangeRequestRunBatchAgentsInput,
+      callback: (event: BackgroundAgentResponseEvent) => void,
       options?: {
         onResubscribe?: () => void;
       },

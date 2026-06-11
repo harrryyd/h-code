@@ -97,6 +97,14 @@ const rpcClientMock = {
   review: {
     getDiffPreview: vi.fn(),
   },
+  changeRequest: {
+    getPrDiff: vi.fn(),
+    getReviewDraft: vi.fn(),
+    upsertReviewComment: vi.fn(),
+    deleteReviewComment: vi.fn(),
+    submitReview: vi.fn(),
+    runBackgroundAgent: vi.fn(),
+    runBatchAgents: vi.fn(),
   },
   server: {
     getConfig: vi.fn(),

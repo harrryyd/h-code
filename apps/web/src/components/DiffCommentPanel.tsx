@@ -186,10 +186,10 @@ function AgentResponseDisplay({
 
 interface InlineCommentProps {
   comment: ReviewComment;
-  onDelete?: (commentId: string) => void;
-  onRequestAgent?: (commentId: string) => void;
-  agentEvents?: BackgroundAgentEvent[];
-  agentRunning?: boolean;
+  onDelete?: ((commentId: string) => void) | undefined;
+  onRequestAgent?: ((commentId: string) => void) | undefined;
+  agentEvents?: BackgroundAgentEvent[] | undefined;
+  agentRunning?: boolean | undefined;
 }
 
 function InlineComment({
@@ -241,7 +241,7 @@ function InlineComment({
             </span>
           )}
           <span className="text-[9px] text-muted-foreground/50">
-            {formatShortTimestamp(comment.createdAt, "iso")}
+            {formatShortTimestamp(comment.createdAt, "24-hour")}
           </span>
           {/* Agent status indicator */}
           {agentStatus === "completed" && (
@@ -315,12 +315,12 @@ interface DiffCommentPanelProps {
   onDeleteComment: (commentId: string) => void;
   savePending: boolean;
   saveError: string | null;
-  onRequestAgent?: (commentId: string) => void;
-  agentEvents?: Map<string, BackgroundAgentEvent[]>;
-  agentRunning?: Set<string>;
-  currentPrHeadSHA?: string | null;
-  storedPrHeadSHA?: string | null;
-  modifiedFiles?: ReadonlySet<string>;
+  onRequestAgent?: ((commentId: string) => void) | undefined;
+  agentEvents?: Map<string, BackgroundAgentEvent[]> | undefined;
+  agentRunning?: Set<string> | undefined;
+  currentPrHeadSHA?: string | null | undefined;
+  storedPrHeadSHA?: string | null | undefined;
+  modifiedFiles?: ReadonlySet<string> | undefined;
 }
 
 function isCommentOutdated(
