@@ -43,8 +43,7 @@ describe("ReviewService review drafts", () => {
       const review = yield* ReviewService.ReviewService;
       const result = yield* review.getReviewDraft({ threadId: "unknown", prNumber: 1 });
       expect(result).toBeNull();
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 
   it("round-trip: upsert → getReviewDraft → delete → getReviewDraft", () =>
     Effect.gen(function* () {
@@ -74,8 +73,7 @@ describe("ReviewService review drafts", () => {
 
       const emptyDraft = yield* review.getReviewDraft({ threadId: "thread-1", prNumber: 42 });
       expect(emptyDraft).toBeNull();
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 
   it("upsertReviewComment adds new comment to existing draft", () =>
     Effect.gen(function* () {
@@ -97,8 +95,7 @@ describe("ReviewService review drafts", () => {
 
       expect(upserted.comments).toHaveLength(2);
       expect(upserted.comments[1]?.id).toBe("comment-2");
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 
   it("upsertReviewComment replaces existing comment with same id", () =>
     Effect.gen(function* () {
@@ -128,8 +125,7 @@ describe("ReviewService review drafts", () => {
       expect(upserted.comments[0]?.body).toBe("Updated body text.");
       expect(upserted.comments[0]?.agentStatus).toBe("completed");
       expect(upserted.prHeadSHA).toBe("sha2");
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 
   it("deleteReviewComment returns null for unknown draft", () =>
     Effect.gen(function* () {
@@ -142,8 +138,7 @@ describe("ReviewService review drafts", () => {
       });
 
       expect(result).toBeNull();
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 });
 
 const testGhComment: GitHubCli.GitHubPullRequestReviewComment = {
@@ -178,24 +173,35 @@ const testGhComment3: GitHubCli.GitHubPullRequestReviewComment = {
 function makeSubmitReviewLayer(input: {
   readonly cwd: string;
   readonly baseDir: string;
-  readonly ghCreateReview: (opts: { readonly bodyFile: string }) => Effect.Effect<void, GitHubCli.GitHubCliError>;
-  readonly ghGetReviews: () => Effect.Effect<GitHubCli.GitHubPullRequestReview, GitHubCli.GitHubCliError>;
+  readonly ghCreateReview: (opts: {
+    readonly bodyFile: string;
+  }) => Effect.Effect<void, GitHubCli.GitHubCliError>;
+  readonly ghGetReviews: () => Effect.Effect<
+    GitHubCli.GitHubPullRequestReview,
+    GitHubCli.GitHubCliError
+  >;
 }) {
   return ReviewService.layer.pipe(
     Layer.provide(ServerConfig.layerTest(input.cwd, input.baseDir)),
     Layer.provide(
-      Layer.effect(GitHubCli.GitHubCli, Effect.succeed(GitHubCli.GitHubCli.of({
-        execute: () => Effect.die("unexpected GitHubCli.execute call"),
-        listOpenPullRequests: () => Effect.die("unexpected"),
-        getPullRequest: () => Effect.die("unexpected"),
-        getRepositoryCloneUrls: () => Effect.die("unexpected"),
-        createRepository: () => Effect.die("unexpected"),
-        createPullRequest: () => Effect.die("unexpected"),
-        getDefaultBranch: () => Effect.die("unexpected"),
-        checkoutPullRequest: () => Effect.die("unexpected"),
-        getPullRequestReviews: ({ cwd: _, reference: __ }) => input.ghGetReviews(),
-        createPullRequestReview: ({ cwd: _, reference: __, bodyFile }) => input.ghCreateReview({ bodyFile }),
-      }))),
+      Layer.effect(
+        GitHubCli.GitHubCli,
+        Effect.succeed(
+          GitHubCli.GitHubCli.of({
+            execute: () => Effect.die("unexpected GitHubCli.execute call"),
+            listOpenPullRequests: () => Effect.die("unexpected"),
+            getPullRequest: () => Effect.die("unexpected"),
+            getRepositoryCloneUrls: () => Effect.die("unexpected"),
+            createRepository: () => Effect.die("unexpected"),
+            createPullRequest: () => Effect.die("unexpected"),
+            getDefaultBranch: () => Effect.die("unexpected"),
+            checkoutPullRequest: () => Effect.die("unexpected"),
+            getPullRequestReviews: ({ cwd: _, reference: __ }) => input.ghGetReviews(),
+            createPullRequestReview: ({ cwd: _, reference: __, bodyFile }) =>
+              input.ghCreateReview({ bodyFile }),
+          }),
+        ),
+      ),
     ),
     Layer.provideMerge(NodeServices.layer),
   );
@@ -239,22 +245,27 @@ describe("ReviewService submitReview", () => {
 
       const error = yield* Effect.gen(function* () {
         const review = yield* ReviewService.ReviewService;
-        return yield* review.submitReview({
-          threadId: "thread-no-draft",
-          prNumber: 1,
-          cwd,
-        }).pipe(Effect.flip);
-      }).pipe(Effect.provide(makeSubmitReviewLayer({
-        cwd,
-        baseDir,
-        ghCreateReview: () => Effect.die("should not be called"),
-        ghGetReviews: () => Effect.die("should not be called"),
-      })));
+        return yield* review
+          .submitReview({
+            threadId: "thread-no-draft",
+            prNumber: 1,
+            cwd,
+          })
+          .pipe(Effect.flip);
+      }).pipe(
+        Effect.provide(
+          makeSubmitReviewLayer({
+            cwd,
+            baseDir,
+            ghCreateReview: () => Effect.die("should not be called"),
+            ghGetReviews: () => Effect.die("should not be called"),
+          }),
+        ),
+      );
 
       expect(error._tag).toBe("ChangeRequestSubmitReviewError");
       expect(error.kind).toBe("no-draft");
-    }).pipe(Effect.provide(NodeServices.layer)),
-  );
+    }).pipe(Effect.provide(NodeServices.layer)));
 
   it("submitReview posts local comments and marks them as published", () =>
     Effect.gen(function* () {
@@ -295,18 +306,22 @@ describe("ReviewService submitReview", () => {
         });
 
         return result;
-      }).pipe(Effect.provide(makeSubmitReviewLayer({
-        cwd,
-        baseDir,
-        ghCreateReview: ({ bodyFile }) =>
-          Effect.gen(function* () {
-            createReviewCalls.push({ bodyFile });
-            bodyFileContent = yield* fs.readFileString(bodyFile).pipe(
-              Effect.orElseSucceed(() => "file-read-error"),
-            );
+      }).pipe(
+        Effect.provide(
+          makeSubmitReviewLayer({
+            cwd,
+            baseDir,
+            ghCreateReview: ({ bodyFile }) =>
+              Effect.gen(function* () {
+                createReviewCalls.push({ bodyFile });
+                bodyFileContent = yield* fs
+                  .readFileString(bodyFile)
+                  .pipe(Effect.orElseSucceed(() => "file-read-error"));
+              }),
+            ghGetReviews: () => Effect.succeed({ comments: [] }),
           }),
-        ghGetReviews: () => Effect.succeed({ comments: [] }),
-      })));
+        ),
+      );
 
       // Verify gh pr review was called
       expect(createReviewCalls).toHaveLength(1);
@@ -334,18 +349,21 @@ describe("ReviewService submitReview", () => {
           prNumber: 99,
           cwd,
         });
-      }).pipe(Effect.provide(makeSubmitReviewLayer({
-        cwd,
-        baseDir,
-        ghCreateReview: () => Effect.die("should not be called again"),
-        ghGetReviews: () => Effect.succeed({ comments: [] }),
-      })));
+      }).pipe(
+        Effect.provide(
+          makeSubmitReviewLayer({
+            cwd,
+            baseDir,
+            ghCreateReview: () => Effect.die("should not be called again"),
+            ghGetReviews: () => Effect.succeed({ comments: [] }),
+          }),
+        ),
+      );
 
       expect(freshDraft?.state).toBe("published");
       expect(freshDraft?.comments).toHaveLength(3);
       expect(freshDraft?.comments[0]?.id).toBe("local-1");
-    }).pipe(Effect.provide(NodeServices.layer)),
-  );
+    }).pipe(Effect.provide(NodeServices.layer)));
 
   it("submitReview preserves draft on gh pr review failure", () =>
     Effect.gen(function* () {
@@ -365,21 +383,29 @@ describe("ReviewService submitReview", () => {
         });
 
         // Attempt to submit (will fail because gh pr review fails)
-        return yield* review.submitReview({
-          threadId: "thread-fail",
-          prNumber: 7,
-          cwd,
-        }).pipe(Effect.flip);
-      }).pipe(Effect.provide(makeSubmitReviewLayer({
-        cwd,
-        baseDir,
-        ghCreateReview: () =>
-          Effect.fail(new GitHubCli.GitHubCliError({
-            operation: "createPullRequestReview",
-            detail: "gh pr review failed: status 403",
-          })),
-        ghGetReviews: () => Effect.die("should not be called"),
-      })));
+        return yield* review
+          .submitReview({
+            threadId: "thread-fail",
+            prNumber: 7,
+            cwd,
+          })
+          .pipe(Effect.flip);
+      }).pipe(
+        Effect.provide(
+          makeSubmitReviewLayer({
+            cwd,
+            baseDir,
+            ghCreateReview: () =>
+              Effect.fail(
+                new GitHubCli.GitHubCliError({
+                  operation: "createPullRequestReview",
+                  detail: "gh pr review failed: status 403",
+                }),
+              ),
+            ghGetReviews: () => Effect.die("should not be called"),
+          }),
+        ),
+      );
 
       expect(result._tag).toBe("ChangeRequestSubmitReviewError");
       expect(result.kind).toBe("review-failed");
@@ -393,16 +419,19 @@ describe("ReviewService submitReview", () => {
           prNumber: 7,
           cwd,
         });
-      }).pipe(Effect.provide(makeSubmitReviewLayer({
-        cwd,
-        baseDir,
-        ghCreateReview: () => Effect.die("should not be called"),
-        ghGetReviews: () => Effect.succeed({ comments: [] }),
-      })));
+      }).pipe(
+        Effect.provide(
+          makeSubmitReviewLayer({
+            cwd,
+            baseDir,
+            ghCreateReview: () => Effect.die("should not be called"),
+            ghGetReviews: () => Effect.succeed({ comments: [] }),
+          }),
+        ),
+      );
 
       expect(existingDraft).not.toBeNull();
       expect(existingDraft?.state).toBe("draft");
       expect(existingDraft?.comments).toHaveLength(1);
-    }).pipe(Effect.provide(NodeServices.layer)),
-  );
+    }).pipe(Effect.provide(NodeServices.layer)));
 });

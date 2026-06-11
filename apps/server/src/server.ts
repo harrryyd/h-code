@@ -257,7 +257,9 @@ const VcsLayerLive = Layer.empty.pipe(
   Layer.provideMerge(VcsStatusBroadcaster.layer.pipe(Layer.provide(GitWorkflowLayerLive))),
 );
 
-const CheckpointStoreLayerLive = CheckpointStoreLive.pipe(Layer.provide(VcsDriverRegistryLayerLive));
+const CheckpointStoreLayerLive = CheckpointStoreLive.pipe(
+  Layer.provide(VcsDriverRegistryLayerLive),
+);
 
 const CheckpointDiffQueryLayerLive = CheckpointDiffQueryLive.pipe(
   Layer.provideMerge(CheckpointStoreLayerLive),
@@ -382,7 +384,10 @@ const ServerRuntimeStartupLayerLive = ServerRuntimeStartupLive.pipe(
   Layer.provideMerge(ProjectionSnapshotQueryLayerLive),
 );
 
-export const RuntimeServicesLive = Layer.mergeAll(RuntimeDependenciesLive, ServerRuntimeStartupLayerLive);
+export const RuntimeServicesLive = Layer.mergeAll(
+  RuntimeDependenciesLive,
+  ServerRuntimeStartupLayerLive,
+);
 
 export const makeRoutesLayer = Layer.mergeAll(
   HttpApiBuilder.layer(EnvironmentHttpApi).pipe(

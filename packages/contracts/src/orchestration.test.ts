@@ -902,10 +902,7 @@ it.effect("RuntimeMode decodes 'review' and rejects invalid values", () =>
 
 // ── changeRequest.getPrDiff RPC round-trip ────────────────────────
 
-import {
-  ChangeRequestGetPrDiffInput,
-  ChangeRequestGetPrDiffResult,
-} from "./rpc.ts";
+import { ChangeRequestGetPrDiffInput, ChangeRequestGetPrDiffResult } from "./rpc.ts";
 
 const decodePrDiffInput = Schema.decodeUnknownEffect(ChangeRequestGetPrDiffInput);
 const decodePrDiffResult = Schema.decodeUnknownEffect(ChangeRequestGetPrDiffResult);
@@ -948,7 +945,9 @@ it.effect("changeRequest.getPrDiff result decodes diff string", () =>
 
 const decodeThreadContextTrimCommand = Schema.decodeUnknownEffect(ThreadContextTrimCommand);
 const decodeContextTrimPoint = Schema.decodeUnknownEffect(ContextTrimPoint);
-const decodeThreadTrimPointCreatedPayload = Schema.decodeUnknownEffect(ThreadTrimPointCreatedPayload);
+const decodeThreadTrimPointCreatedPayload = Schema.decodeUnknownEffect(
+  ThreadTrimPointCreatedPayload,
+);
 const decodeOrchestrationThread = Schema.decodeUnknownEffect(OrchestrationThread);
 
 it.effect("decodes thread.context.trim command", () =>
@@ -1128,10 +1127,16 @@ import {
   ThreadContextCompactedPayload,
 } from "./orchestration.ts";
 
-const decodeThreadContextSummarizeCommand = Schema.decodeUnknownEffect(ThreadContextSummarizeCommand);
-const decodeThreadContextSummarizedPayload = Schema.decodeUnknownEffect(ThreadContextSummarizedPayload);
+const decodeThreadContextSummarizeCommand = Schema.decodeUnknownEffect(
+  ThreadContextSummarizeCommand,
+);
+const decodeThreadContextSummarizedPayload = Schema.decodeUnknownEffect(
+  ThreadContextSummarizedPayload,
+);
 const decodeThreadContextCompactCommand = Schema.decodeUnknownEffect(ThreadContextCompactCommand);
-const decodeThreadContextCompactedPayload = Schema.decodeUnknownEffect(ThreadContextCompactedPayload);
+const decodeThreadContextCompactedPayload = Schema.decodeUnknownEffect(
+  ThreadContextCompactedPayload,
+);
 
 it.effect("decodes thread.context.summarize command", () =>
   Effect.gen(function* () {

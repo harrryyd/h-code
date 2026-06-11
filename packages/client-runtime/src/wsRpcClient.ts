@@ -146,9 +146,7 @@ export interface WsRpcClient {
     readonly runBackgroundAgent: RpcInputStreamMethod<
       typeof WS_METHODS.changeRequestRunBackgroundAgent
     >;
-    readonly runBatchAgents: RpcInputStreamMethod<
-      typeof WS_METHODS.changeRequestRunBatchAgents
-    >;
+    readonly runBatchAgents: RpcInputStreamMethod<typeof WS_METHODS.changeRequestRunBatchAgents>;
   };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
@@ -327,17 +325,11 @@ export function createWsRpcClient(
       getReviewDraft: (input) =>
         transport.request((client) => client[WS_METHODS.changeRequestGetReviewDraft](input)),
       upsertReviewComment: (input) =>
-        transport.request((client) =>
-          client[WS_METHODS.changeRequestUpsertReviewComment](input),
-        ),
+        transport.request((client) => client[WS_METHODS.changeRequestUpsertReviewComment](input)),
       deleteReviewComment: (input) =>
-        transport.request((client) =>
-          client[WS_METHODS.changeRequestDeleteReviewComment](input),
-        ),
+        transport.request((client) => client[WS_METHODS.changeRequestDeleteReviewComment](input)),
       submitReview: (input) =>
-        transport.request((client) =>
-          client[WS_METHODS.changeRequestSubmitReview](input),
-        ),
+        transport.request((client) => client[WS_METHODS.changeRequestSubmitReview](input)),
       runBackgroundAgent: (input, listener, options) =>
         transport.subscribe(
           (client) => client[WS_METHODS.changeRequestRunBackgroundAgent](input),

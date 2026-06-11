@@ -48,14 +48,29 @@ const step = <A, E, R>(
     const ms = Date.now() - start;
     if (Exit.isSuccess(exit)) {
       if (Option.isNone(exit.value)) {
-        results.push({ name, ok: false, detail: `HANG — no response after ${timeoutSeconds}s`, ms });
+        results.push({
+          name,
+          ok: false,
+          detail: `HANG — no response after ${timeoutSeconds}s`,
+          ms,
+        });
         return undefined;
       }
       const value = exit.value.value;
-      results.push({ name, ok: true, detail: options?.describe ? options.describe(value) : "ok", ms });
+      results.push({
+        name,
+        ok: true,
+        detail: options?.describe ? options.describe(value) : "ok",
+        ms,
+      });
       return value;
     }
-    results.push({ name, ok: false, detail: Cause.pretty(exit.cause).split("\n").slice(0, 8).join("\n"), ms });
+    results.push({
+      name,
+      ok: false,
+      detail: Cause.pretty(exit.cause).split("\n").slice(0, 8).join("\n"),
+      ms,
+    });
     return undefined;
   });
 
@@ -103,7 +118,9 @@ const program = Effect.gen(function* () {
         });
         if (result.status === 404) continue;
         if (result.status !== 200 || !result.setCookie) {
-          return yield* Effect.fail(new Error(`POST ${path} -> ${result.status} ${JSON.stringify(result.body)}`));
+          return yield* Effect.fail(
+            new Error(`POST ${path} -> ${result.status} ${JSON.stringify(result.body)}`),
+          );
         }
         return { path, cookie: result.setCookie.split(";")[0]! };
       }
@@ -129,7 +146,9 @@ const program = Effect.gen(function* () {
         if (result.status === 404) continue;
         const value = result.body?.[candidate.field];
         if (result.status !== 200 || typeof value !== "string") {
-          return yield* Effect.fail(new Error(`POST ${candidate.path} -> ${result.status} ${JSON.stringify(result.body)}`));
+          return yield* Effect.fail(
+            new Error(`POST ${candidate.path} -> ${result.status} ${JSON.stringify(result.body)}`),
+          );
         }
         return { ...candidate, value };
       }
@@ -147,21 +166,18 @@ const program = Effect.gen(function* () {
       Effect.flatMap((rpcClient) =>
         Effect.gen(function* () {
           const client = rpcClient as any;
-          yield* step(
-            "getConfig",
-            client["server.getConfig"]({}),
-            {
-              describe: (cfg: any) =>
-                `providers=[${(cfg?.providers ?? [])
-                  .map((p: any) => `${p.instanceId}:${p.status}`)
-                  .join(", ")}]`,
-            },
-          );
+          yield* step("getConfig", client["server.getConfig"]({}), {
+            describe: (cfg: any) =>
+              `providers=[${(cfg?.providers ?? [])
+                .map((p: any) => `${p.instanceId}:${p.status}`)
+                .join(", ")}]`,
+          });
           yield* step(
             "subscribeServerConfig snapshot",
             client["subscribeServerConfig"]({}).pipe(Stream.take(1), Stream.runCollect),
             {
-              describe: (events: any) => `first=${Array.from(events as Iterable<any>)[0]?.type ?? "?"}`,
+              describe: (events: any) =>
+                `first=${Array.from(events as Iterable<any>)[0]?.type ?? "?"}`,
             },
           );
           yield* step(
@@ -180,7 +196,8 @@ const program = Effect.gen(function* () {
       console.log("\n===== ATTACH SMOKE RESULTS =====");
       for (const r of results) {
         console.log(`${r.ok ? "PASS" : "FAIL"}  ${r.name}  (${r.ms}ms)`);
-        if (!r.ok || r.detail !== "ok") console.log(`      ${r.detail.split("\n").join("\n      ")}`);
+        if (!r.ok || r.detail !== "ok")
+          console.log(`      ${r.detail.split("\n").join("\n      ")}`);
       }
       if (Exit.isFailure(exit)) console.log(`PROGRAM FAILURE:\n${Cause.pretty(exit.cause)}`);
       const pass = results.length > 0 && results.every((r) => r.ok) && Exit.isSuccess(exit);

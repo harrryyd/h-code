@@ -349,9 +349,9 @@ describe("resolveInitialServerAuthGateState", () => {
     });
     const { resolvePrimaryWebSocketConnectionUrl } = await import("./environments/primary");
 
-    await expect(
-      resolvePrimaryWebSocketConnectionUrl("ws://localhost:13773"),
-    ).resolves.toBe("ws://localhost:13773/ws?wsTicket=ws-ticket");
+    await expect(resolvePrimaryWebSocketConnectionUrl("ws://localhost:13773")).resolves.toBe(
+      "ws://localhost:13773/ws?wsTicket=ws-ticket",
+    );
     expect(testApi.calls.webSocketTicket).toBe(1);
   });
 

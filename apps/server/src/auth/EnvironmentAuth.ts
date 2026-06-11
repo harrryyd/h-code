@@ -207,7 +207,13 @@ function describePresentedCredentials(
     hasSessionCookie,
     hasBearerToken,
     hasDpopToken,
-    credentialSource: hasSessionCookie ? "cookie" : hasBearerToken ? "bearer" : hasDpopToken ? "dpop" : "none",
+    credentialSource: hasSessionCookie
+      ? "cookie"
+      : hasBearerToken
+        ? "bearer"
+        : hasDpopToken
+          ? "dpop"
+          : "none",
   } as const;
 }
 

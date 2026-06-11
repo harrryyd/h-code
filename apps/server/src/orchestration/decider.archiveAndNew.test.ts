@@ -28,9 +28,12 @@ const asProjectId = (value: string): ProjectId => ProjectId.make(value);
 const asThreadId = (value: string): ThreadId => ThreadId.make(value);
 const asTurnId = (value: string): TurnId => TurnId.make(value);
 
-function seedThreadEffect(readModel: OrchestrationReadModel, overrides?: {
-  archivedAt?: string | null;
-}): Effect.Effect<
+function seedThreadEffect(
+  readModel: OrchestrationReadModel,
+  overrides?: {
+    archivedAt?: string | null;
+  },
+): Effect.Effect<
   OrchestrationReadModel,
   OrchestrationProjectorDecodeError | PlatformError.PlatformError,
   Crypto.Crypto
@@ -118,9 +121,7 @@ function seedThreadEffect(readModel: OrchestrationReadModel, overrides?: {
 describe("thread.archive-and-new decider", () => {
   it.effect("emits thread.archived-and-new-created and thread.session-stop-requested", () =>
     Effect.gen(function* () {
-      const readModel = yield* seedThreadEffect(
-        createEmptyReadModel("2026-01-01T00:00:00.000Z"),
-      );
+      const readModel = yield* seedThreadEffect(createEmptyReadModel("2026-01-01T00:00:00.000Z"));
 
       const result = yield* decideOrchestrationCommand({
         command: {
@@ -147,7 +148,8 @@ describe("thread.archive-and-new decider", () => {
       if (events[1]?.type === "thread.session-stop-requested") {
         assert.strictEqual(events[1].payload.threadId, "thread-1");
       }
-    }).pipe(Effect.provide(NodeCrypto.layer)));
+    }).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 
   it.effect("rejects when thread does not exist", () =>
     Effect.gen(function* () {
@@ -167,14 +169,14 @@ describe("thread.archive-and-new decider", () => {
       );
 
       assert.strictEqual(result._tag, "Failure");
-    }).pipe(Effect.provide(NodeCrypto.layer)));
+    }).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 
   it.effect("rejects when thread is already archived", () =>
     Effect.gen(function* () {
-      const readModel = yield* seedThreadEffect(
-        createEmptyReadModel("2026-01-01T00:00:00.000Z"),
-        { archivedAt: "2026-01-01T00:30:00.000Z" },
-      );
+      const readModel = yield* seedThreadEffect(createEmptyReadModel("2026-01-01T00:00:00.000Z"), {
+        archivedAt: "2026-01-01T00:30:00.000Z",
+      });
 
       const result = yield* Effect.exit(
         decideOrchestrationCommand({
@@ -190,13 +192,12 @@ describe("thread.archive-and-new decider", () => {
       );
 
       assert.strictEqual(result._tag, "Failure");
-    }).pipe(Effect.provide(NodeCrypto.layer)));
+    }).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 
   it.effect("rejects when new thread ID already exists", () =>
     Effect.gen(function* () {
-      const readModel = yield* seedThreadEffect(
-        createEmptyReadModel("2026-01-01T00:00:00.000Z"),
-      );
+      const readModel = yield* seedThreadEffect(createEmptyReadModel("2026-01-01T00:00:00.000Z"));
 
       const modelWithCollision = yield* projectEvent(readModel, {
         sequence: readModel.snapshotSequence + 1,
@@ -240,13 +241,12 @@ describe("thread.archive-and-new decider", () => {
       );
 
       assert.strictEqual(result._tag, "Failure");
-    }).pipe(Effect.provide(NodeCrypto.layer)));
+    }).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 
   it.effect("rejects archive-and-new when thread has an active turn", () =>
     Effect.gen(function* () {
-      const readModel = yield* seedThreadEffect(
-        createEmptyReadModel("2026-01-01T00:00:00.000Z"),
-      );
+      const readModel = yield* seedThreadEffect(createEmptyReadModel("2026-01-01T00:00:00.000Z"));
 
       const modelWithActiveTurn = yield* projectEvent(readModel, {
         sequence: readModel.snapshotSequence + 1,
@@ -287,13 +287,12 @@ describe("thread.archive-and-new decider", () => {
       );
 
       assert.strictEqual(result._tag, "Failure");
-    }).pipe(Effect.provide(NodeCrypto.layer)));
+    }).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 
   it.effect("accepts archive-and-new when thread has a completed turn", () =>
     Effect.gen(function* () {
-      const readModel = yield* seedThreadEffect(
-        createEmptyReadModel("2026-01-01T00:00:00.000Z"),
-      );
+      const readModel = yield* seedThreadEffect(createEmptyReadModel("2026-01-01T00:00:00.000Z"));
 
       let model = yield* projectEvent(readModel, {
         sequence: readModel.snapshotSequence + 1,
@@ -358,13 +357,12 @@ describe("thread.archive-and-new decider", () => {
       assert.strictEqual(events.length, 2);
       assert.strictEqual(events[0]?.type, "thread.archived-and-new-created");
       assert.strictEqual(events[1]?.type, "thread.session-stop-requested");
-    }).pipe(Effect.provide(NodeCrypto.layer)));
+    }).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 
   it.effect("accepts archive-and-new when thread has no latestTurn (idle)", () =>
     Effect.gen(function* () {
-      const readModel = yield* seedThreadEffect(
-        createEmptyReadModel("2026-01-01T00:00:00.000Z"),
-      );
+      const readModel = yield* seedThreadEffect(createEmptyReadModel("2026-01-01T00:00:00.000Z"));
 
       const result = yield* decideOrchestrationCommand({
         command: {
@@ -381,5 +379,6 @@ describe("thread.archive-and-new decider", () => {
       assert.strictEqual(events.length, 2);
       assert.strictEqual(events[0]?.type, "thread.archived-and-new-created");
       assert.strictEqual(events[1]?.type, "thread.session-stop-requested");
-    }).pipe(Effect.provide(NodeCrypto.layer)));
+    }).pipe(Effect.provide(NodeCrypto.layer)),
+  );
 });

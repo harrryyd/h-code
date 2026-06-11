@@ -1,5 +1,14 @@
 import type { ReviewComment } from "@t3tools/contracts";
-import { Loader2Icon, CheckIcon, XIcon, BotIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  Loader2Icon,
+  CheckIcon,
+  XIcon,
+  BotIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import { cn } from "~/lib/utils";
 import { formatShortTimestamp } from "../timestampFormat";
@@ -64,9 +73,7 @@ function InlineCommentInput({
           }
         }}
       />
-      {error && (
-        <p className="mt-1 text-[10px] text-red-500/80">{error}</p>
-      )}
+      {error && <p className="mt-1 text-[10px] text-red-500/80">{error}</p>}
       <div className="mt-1.5 flex items-center justify-end gap-1.5">
         <button
           type="button"
@@ -137,9 +144,7 @@ function AgentResponseDisplay({
       )}
 
       {isRunning && textEvents.length === 0 && (
-        <p className="text-[10px] text-muted-foreground/50 animate-pulse">
-          Agent is working...
-        </p>
+        <p className="text-[10px] text-muted-foreground/50 animate-pulse">Agent is working...</p>
       )}
 
       {/* Error message */}
@@ -256,9 +261,7 @@ function InlineComment({
               Failed
             </span>
           )}
-          {isAgentRunning && (
-            <Loader2Icon className="size-2.5 animate-spin text-blue-400" />
-          )}
+          {isAgentRunning && <Loader2Icon className="size-2.5 animate-spin text-blue-400" />}
         </div>
         <div className="flex items-center gap-0.5">
           {/* Request AI response button */}
@@ -289,9 +292,7 @@ function InlineComment({
         {comment.body}
       </p>
       {typeof comment.line === "number" && (
-        <div className="mt-1 text-[9px] text-muted-foreground/40">
-          Line {comment.line}
-        </div>
+        <div className="mt-1 text-[9px] text-muted-foreground/40">Line {comment.line}</div>
       )}
 
       {/* Agent response events */}
@@ -376,26 +377,35 @@ export function DiffCommentPanel({
     <div className="diff-comment-panel py-1">
       {fileComments.length > 0 && (
         <div className="mx-3 mb-1 flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
-          <span>{currentComments.length} comment{currentComments.length !== 1 ? "s" : ""}</span>
+          <span>
+            {currentComments.length} comment{currentComments.length !== 1 ? "s" : ""}
+          </span>
           {outdatedComments.length > 0 && (
-            <span className="text-muted-foreground/40">
-              ({outdatedComments.length} outdated)
-            </span>
+            <span className="text-muted-foreground/40">({outdatedComments.length} outdated)</span>
           )}
           {uniqueCommentedLines.length > 0 && (
             <span>
               on line{uniqueCommentedLines.length !== 1 ? "s" : ""}{" "}
-              {uniqueCommentedLines.map((line) => (
-                <button
-                  key={line}
-                  type="button"
-                  className="inline-flex size-4 items-center justify-center rounded-sm bg-foreground/6 text-[8px] font-medium text-muted-foreground/70 hover:bg-foreground/12 hover:text-foreground/70"
-                  onClick={() => onStartEditing(filePath, line)}
-                  title={`Comment on line ${line}`}
-                >
-                  {line}
-                </button>
-              )).reduce((prev, curr) => <>{prev} {curr}</> as never)}
+              {uniqueCommentedLines
+                .map((line) => (
+                  <button
+                    key={line}
+                    type="button"
+                    className="inline-flex size-4 items-center justify-center rounded-sm bg-foreground/6 text-[8px] font-medium text-muted-foreground/70 hover:bg-foreground/12 hover:text-foreground/70"
+                    onClick={() => onStartEditing(filePath, line)}
+                    title={`Comment on line ${line}`}
+                  >
+                    {line}
+                  </button>
+                ))
+                .reduce(
+                  (prev, curr) =>
+                    (
+                      <>
+                        {prev} {curr}
+                      </>
+                    ) as never,
+                )}
             </span>
           )}
         </div>

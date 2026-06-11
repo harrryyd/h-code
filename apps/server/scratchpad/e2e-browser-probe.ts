@@ -33,7 +33,9 @@ page.on("pageerror", (error) => {
   consoleMessages.push(`[pageerror] ${error.message}`);
 });
 page.on("requestfailed", (request) => {
-  networkFailures.push(`[requestfailed] ${request.method()} ${request.url()} -> ${request.failure()?.errorText}`);
+  networkFailures.push(
+    `[requestfailed] ${request.method()} ${request.url()} -> ${request.failure()?.errorText}`,
+  );
 });
 page.on("websocket", (ws) => {
   wsEvents.push(`[ws open] ${ws.url()}`);

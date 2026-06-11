@@ -139,7 +139,10 @@ export interface CodexSessionRuntimeShape {
   readonly rollbackThread: (
     numTurns: number,
   ) => Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
-  readonly compactThread: Effect.Effect<{ summary: string; durationMs: number }, CodexSessionRuntimeError>;
+  readonly compactThread: Effect.Effect<
+    { summary: string; durationMs: number },
+    CodexSessionRuntimeError
+  >;
   readonly respondToRequest: (
     requestId: ApprovalRequestId,
     decision: ProviderApprovalDecision,
@@ -1343,7 +1346,7 @@ export const makeCodexSessionRuntime = (
                 });
                 const parsed = parseThreadSnapshot(snapshot);
                 let summary = "";
-                for (const turn of [...parsed.turns].reverse()) {
+                for (const turn of [...parsed.turns].toReversed()) {
                   for (const item of turn.items) {
                     if (typeof (item as Record<string, unknown>).type === "string") {
                       const itemType = (item as Record<string, unknown>).type as string;
@@ -1351,9 +1354,7 @@ export const makeCodexSessionRuntime = (
                         (itemType === "compaction" || itemType === "context_compaction") &&
                         "encrypted_content" in (item as Record<string, unknown>)
                       ) {
-                        summary = String(
-                          (item as Record<string, unknown>).encrypted_content ?? "",
-                        );
+                        summary = String((item as Record<string, unknown>).encrypted_content ?? "");
                         break;
                       }
                     }

@@ -485,18 +485,17 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
                     author: { login: comment.author?.login ?? "" },
                     createdAt: comment.createdAt ?? "",
                     replies:
-                      comment.replies?.nodes?.map(
-                        (reply: Record<string, unknown>) => ({
-                          id: String(reply.id ?? ""),
-                          path: reply.path ?? "",
-                          line:
-                            typeof reply.line === "number" ? reply.line : undefined,
-                          commitSHA: (reply.commit as Record<string, unknown> | undefined)?.oid ?? "",
-                          body: reply.body ?? "",
-                          author: { login: (reply.author as Record<string, unknown> | undefined)?.login ?? "" },
-                          createdAt: reply.createdAt ?? "",
-                        }),
-                      ) ?? undefined,
+                      comment.replies?.nodes?.map((reply: Record<string, unknown>) => ({
+                        id: String(reply.id ?? ""),
+                        path: reply.path ?? "",
+                        line: typeof reply.line === "number" ? reply.line : undefined,
+                        commitSHA: (reply.commit as Record<string, unknown> | undefined)?.oid ?? "",
+                        body: reply.body ?? "",
+                        author: {
+                          login: (reply.author as Record<string, unknown> | undefined)?.login ?? "",
+                        },
+                        createdAt: reply.createdAt ?? "",
+                      })) ?? undefined,
                   });
                 }
               }

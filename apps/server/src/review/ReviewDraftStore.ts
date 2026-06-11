@@ -15,10 +15,7 @@ export interface ReviewDraftStoreShape {
     prNumber: number,
   ) => Effect.Effect<Option.Option<ReviewDraft>, never>;
   readonly upsert: (draft: ReviewDraft) => Effect.Effect<void, never>;
-  readonly delete: (
-    threadId: string,
-    prNumber: number,
-  ) => Effect.Effect<void, never>;
+  readonly delete: (threadId: string, prNumber: number) => Effect.Effect<void, never>;
 }
 
 export class ReviewDraftStore extends Context.Service<ReviewDraftStore, ReviewDraftStoreShape>()(
@@ -33,9 +30,9 @@ export const make = Effect.fn("makeReviewDraftStore")(function* () {
   const persistPath = path.join(config.stateDir, "review-drafts.json");
   const drafts = new Map<string, ReviewDraft>();
 
-  yield* fs.makeDirectory(config.stateDir, { recursive: true }).pipe(
-    Effect.orElseSucceed(() => undefined),
-  );
+  yield* fs
+    .makeDirectory(config.stateDir, { recursive: true })
+    .pipe(Effect.orElseSucceed(() => undefined));
 
   const exists = yield* fs.exists(persistPath).pipe(Effect.orElseSucceed(() => false));
   if (exists) {
@@ -66,9 +63,7 @@ export const make = Effect.fn("makeReviewDraftStore")(function* () {
       } catch {
         // Best-effort persistence
       }
-    }).pipe(
-      Effect.catch(() => Effect.void),
-    );
+    }).pipe(Effect.catch(() => Effect.void));
 
   const key = (threadId: string, prNumber: number) => `${threadId}:${prNumber}`;
 

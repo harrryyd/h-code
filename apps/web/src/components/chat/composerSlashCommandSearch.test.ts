@@ -69,9 +69,7 @@ describe("searchSlashCommandItems", () => {
       Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" }>
     >;
 
-    expect(searchSlashCommandItems(items, "clear").map((item) => item.id)).toEqual([
-      "slash:clear",
-    ]);
+    expect(searchSlashCommandItems(items, "clear").map((item) => item.id)).toEqual(["slash:clear"]);
   });
 
   it("finds /clear with number suffix as prefix match", () => {
@@ -94,9 +92,7 @@ describe("searchSlashCommandItems", () => {
       Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" }>
     >;
 
-    expect(searchSlashCommandItems(items, "clear").map((item) => item.id)).toEqual([
-      "slash:clear",
-    ]);
+    expect(searchSlashCommandItems(items, "clear").map((item) => item.id)).toEqual(["slash:clear"]);
   });
 
   it("supports fuzzy provider command matches", () => {
@@ -146,8 +142,6 @@ describe("searchSlashCommandItems", () => {
       Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" }>
     >;
 
-    expect(searchSlashCommandItems(items, "new").map((item) => item.id)).toEqual([
-      "slash:new",
-    ]);
+    expect(searchSlashCommandItems(items, "new").map((item) => item.id)).toEqual(["slash:new"]);
   });
 });

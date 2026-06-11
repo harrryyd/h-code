@@ -835,7 +835,8 @@ const buildAppUnderTest = (options?: {
       ),
       Layer.provide(
         Layer.mock(ProviderMaintenanceRunner.ProviderMaintenanceRunner)({
-          updateProvider: () => Effect.die("ProviderMaintenanceRunner.updateProvider not implemented in test"),
+          updateProvider: () =>
+            Effect.die("ProviderMaintenanceRunner.updateProvider not implemented in test"),
         }),
       ),
       Layer.provide(

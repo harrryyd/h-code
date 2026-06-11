@@ -54,8 +54,7 @@ function buildPrompt(input: {
   commentLine: number | undefined;
   commentBody: string;
 }): string {
-  return AGENT_PROMPT_TEMPLATE
-    .replace("{diff}", input.diff)
+  return AGENT_PROMPT_TEMPLATE.replace("{diff}", input.diff)
     .replace("{commentFile}", input.commentFile)
     .replace(
       "{commentLine}",
@@ -123,10 +122,7 @@ const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 .pipe(Effect.ignore)
             : Effect.void;
 
-        const finalizeWithStatus = (
-          agentStatus: "completed" | "failed",
-          errorMessage?: string,
-        ) =>
+        const finalizeWithStatus = (agentStatus: "completed" | "failed", errorMessage?: string) =>
           Effect.gen(function* () {
             yield* cleanup();
             yield* review
@@ -262,18 +258,14 @@ const make = Effect.fn("makeBackgroundAgentService")(function* () {
           const runAgentProcess = Effect.callback<number, ChangeRequestRunBackgroundAgentError>(
             (resume) => {
               let resolved = false;
-              const child = child_process.spawn("opencode", [
-                "--cwd",
-                worktreePath,
-                "exec",
-                "--yes",
-                "--approval-mode",
-                "auto",
-                promptFile,
-              ], {
-                cwd: worktreePath,
-                env: { ...process.env },
-              });
+              const child = child_process.spawn(
+                "opencode",
+                ["--cwd", worktreePath, "exec", "--yes", "--approval-mode", "auto", promptFile],
+                {
+                  cwd: worktreePath,
+                  env: { ...process.env },
+                },
+              );
 
               child.stdout?.on("data", (chunk: Buffer) => {
                 const text = chunk.toString("utf-8");
@@ -314,13 +306,12 @@ const make = Effect.fn("makeBackgroundAgentService")(function* () {
 
           const exitCode = yield* runAgentProcess.pipe(
             Effect.timeout(Duration.millis(AGENT_TIMEOUT_MS)),
-            Effect.mapError(
-              (cause) =>
-                fail(
-                  "agent-failed",
-                  `Agent process failed or timed out: ${cause instanceof Error ? cause.message : String(cause)}`,
-                  cause,
-                ),
+            Effect.mapError((cause) =>
+              fail(
+                "agent-failed",
+                `Agent process failed or timed out: ${cause instanceof Error ? cause.message : String(cause)}`,
+                cause,
+              ),
             ),
           );
 
@@ -364,11 +355,7 @@ const make = Effect.fn("makeBackgroundAgentService")(function* () {
               .execute({
                 operation: "backgroundAgent.commit",
                 cwd: worktreePath,
-                args: [
-                  "commit",
-                  "-m",
-                  `Agent response to comment ${input.commentId.slice(0, 8)}`,
-                ],
+                args: ["commit", "-m", `Agent response to comment ${input.commentId.slice(0, 8)}`],
               })
               .pipe(Effect.ignore);
 
@@ -400,16 +387,11 @@ const make = Effect.fn("makeBackgroundAgentService")(function* () {
           yield* finalizeWithStatus("completed");
         });
 
-        yield* runAgent.pipe(
-          Effect.catch((error) => finalizeWithStatus("failed", error.detail)),
-        );
+        yield* runAgent.pipe(Effect.catch((error) => finalizeWithStatus("failed", error.detail)));
       }),
     );
 
-  const runBatchAgents: BackgroundAgentServiceShape["runBatchAgents"] = (
-    inputs,
-    maxConcurrent,
-  ) =>
+  const runBatchAgents: BackgroundAgentServiceShape["runBatchAgents"] = (inputs, maxConcurrent) =>
     Stream.callback<BackgroundAgentResponseEvent, ChangeRequestRunBackgroundAgentError>(
       (outputQueue) =>
         Effect.gen(function* () {

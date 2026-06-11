@@ -60,11 +60,10 @@ const STEP_TIMEOUT_SECONDS = 20;
 const BOOT_TIMEOUT_SECONDS = 45;
 
 // Optional at the start of the bisect range.
-const seededWritebackLayer: Layer.Layer<never> = await import(
-  "../src/orchestration/Layers/SeededWorkItemWriteback.ts"
-)
-  .then((m: any) => m.SeededWorkItemWritebackLive ?? Layer.empty)
-  .catch(() => Layer.empty);
+const seededWritebackLayer: Layer.Layer<never> =
+  await import("../src/orchestration/Layers/SeededWorkItemWriteback.ts")
+    .then((m: any) => m.SeededWorkItemWritebackLive ?? Layer.empty)
+    .catch(() => Layer.empty);
 
 const findFreePort = () =>
   new Promise<number>((resolve, reject) => {
@@ -245,7 +244,11 @@ const program = Effect.gen(function* () {
     pollUntilServing,
     Fiber.await(serverFiber).pipe(
       Effect.flatMap((exit) =>
-        Effect.die(new Error(`server fiber exited during boot: ${Exit.isFailure(exit) ? Cause.pretty(exit.cause) : "success"}`)),
+        Effect.die(
+          new Error(
+            `server fiber exited during boot: ${Exit.isFailure(exit) ? Cause.pretty(exit.cause) : "success"}`,
+          ),
+        ),
       ),
     ),
   );
@@ -300,7 +303,9 @@ const program = Effect.gen(function* () {
       const value = result.body?.[candidate.field];
       if (result.status !== 200 || typeof value !== "string") {
         return yield* Effect.fail(
-          new StepFailure(`POST ${candidate.path} -> ${result.status} ${JSON.stringify(result.body)}`),
+          new StepFailure(
+            `POST ${candidate.path} -> ${result.status} ${JSON.stringify(result.body)}`,
+          ),
         );
       }
       return { ...candidate, value };
@@ -336,11 +341,9 @@ const program = Effect.gen(function* () {
           // Regression coverage: todo.load was missing from the server's RPC
           // scope map, which killed the whole connection with a protocol
           // defect the moment the web UI called it.
-          yield* step(
-            "todos: todo.load round-trip",
-            client["todo.load"]({}),
-            { describe: (r: any) => `categories=${r?.categories?.length ?? "?"}` },
-          );
+          yield* step("todos: todo.load round-trip", client["todo.load"]({}), {
+            describe: (r: any) => `categories=${r?.categories?.length ?? "?"}`,
+          });
 
           yield* step(
             "subscribe: subscribeServerConfig emits snapshot",
@@ -403,7 +406,10 @@ const program = Effect.gen(function* () {
               worktreePath: null,
               createdAt: now(),
             }),
-            { describe: (r: any) => `sequence=${r?.sequence} model=${modelSelection.instanceId}/${modelSelection.model}` },
+            {
+              describe: (r: any) =>
+                `sequence=${r?.sequence} model=${modelSelection.instanceId}/${modelSelection.model}`,
+            },
           );
 
           yield* step(
@@ -462,7 +468,11 @@ const program = Effect.gen(function* () {
       }
       console.log("=======================================");
       const pass = failed.length === 0 && results.length > 0 && Exit.isSuccess(exit);
-      console.log(pass ? "RESULT: PASS" : `RESULT: FAIL (${failed.length} failed step(s), ${results.length} recorded)`);
+      console.log(
+        pass
+          ? "RESULT: PASS"
+          : `RESULT: FAIL (${failed.length} failed step(s), ${results.length} recorded)`,
+      );
       // Hard-exit: the in-process server holds handles (sqlite, watchers)
       // that would otherwise keep the loop alive.
       process.exit(pass ? 0 : 1);

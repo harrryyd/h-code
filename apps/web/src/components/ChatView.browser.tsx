@@ -851,7 +851,7 @@ function createSnapshotWithSecondaryProject(options?: {
           activities: [],
           proposedPlans: [],
           checkpoints: [],
-        contextTrimPoints: [],
+          contextTrimPoints: [],
           session: {
             threadId: "thread-secondary-project" as ThreadId,
             status: "ready",
@@ -884,7 +884,7 @@ function createSnapshotWithSecondaryProject(options?: {
           activities: [],
           proposedPlans: [],
           checkpoints: [],
-        contextTrimPoints: [],
+          contextTrimPoints: [],
           session: {
             threadId: ARCHIVED_SECONDARY_THREAD_ID,
             status: "ready",

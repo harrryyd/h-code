@@ -1,133 +1,234 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Token Usage Bug Report — ClaudeAdapter</title>
-<style>
-  :root {
-    --bg: #0d1117;
-    --fg: #c9d1d9;
-    --border: #30363d;
-    --accent: #58a6ff;
-    --green: #3fb950;
-    --red: #f85149;
-    --orange: #d2991d;
-    --code-bg: #161b22;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-    background: var(--bg);
-    color: var(--fg);
-    line-height: 1.6;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem;
-  }
-  h1 { font-size: 1.8rem; margin-bottom: 0.3rem; color: #f0f6fc; }
-  h2 { font-size: 1.3rem; margin: 2rem 0 0.8rem; color: #f0f6fc; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
-  h3 { font-size: 1.05rem; margin: 1.3rem 0 0.5rem; color: #e6edf3; }
-  p { margin-bottom: 1rem; }
-  .severity {
-    display: inline-block;
-    background: var(--red);
-    color: #fff;
-    font-weight: 700;
-    padding: 0.15rem 0.6rem;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    margin-left: 0.5rem;
-    vertical-align: middle;
-  }
-  .summary-box {
-    background: #1c2128;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1.2rem 1.5rem;
-    margin: 1.5rem 0;
-  }
-  .summary-box p { margin-bottom: 0.5rem; }
-  .summary-box strong { color: var(--accent); }
-  pre {
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1rem;
-    overflow-x: auto;
-    font-size: 0.82rem;
-    line-height: 1.5;
-    margin-bottom: 1rem;
-  }
-  code {
-    font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
-    font-size: 0.82rem;
-  }
-  p code, li code { background: var(--code-bg); padding: 0.1rem 0.35rem; border-radius: 3px; border: 1px solid var(--border); }
-  .file-ref { color: var(--accent); font-weight: 600; }
-  ul, ol { padding-left: 1.5rem; margin-bottom: 1rem; }
-  li { margin-bottom: 0.4rem; }
-  .compare {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin: 1rem 0;
-  }
-  .col-bad { background: #2d1518; border: 1px solid #5c2d33; border-radius: 6px; padding: 1rem; }
-  .col-good { background: #15261a; border: 1px solid #2d5c36; border-radius: 6px; padding: 1rem; }
-  .col-bad h3 { color: var(--red); margin-top: 0; }
-  .col-good h3 { color: var(--green); margin-top: 0; }
-  table {
-    border-collapse: collapse; width: 100%; margin: 1rem 0;
-  }
-  th, td {
-    text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--border);
-  }
-  th { background: var(--code-bg); font-weight: 600; }
-  .example-box {
-    background: #1c2128; border: 1px solid var(--border); border-radius: 6px;
-    padding: 1rem 1.2rem; margin: 1rem 0;
-  }
-  .example-box h4 { color: var(--orange); margin-bottom: 0.5rem; }
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Token Usage Bug Report — ClaudeAdapter</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --fg: #c9d1d9;
+        --border: #30363d;
+        --accent: #58a6ff;
+        --green: #3fb950;
+        --red: #f85149;
+        --orange: #d2991d;
+        --code-bg: #161b22;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.6;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem;
+      }
+      h1 {
+        font-size: 1.8rem;
+        margin-bottom: 0.3rem;
+        color: #f0f6fc;
+      }
+      h2 {
+        font-size: 1.3rem;
+        margin: 2rem 0 0.8rem;
+        color: #f0f6fc;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1.05rem;
+        margin: 1.3rem 0 0.5rem;
+        color: #e6edf3;
+      }
+      p {
+        margin-bottom: 1rem;
+      }
+      .severity {
+        display: inline-block;
+        background: var(--red);
+        color: #fff;
+        font-weight: 700;
+        padding: 0.15rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        margin-left: 0.5rem;
+        vertical-align: middle;
+      }
+      .summary-box {
+        background: #1c2128;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1.2rem 1.5rem;
+        margin: 1.5rem 0;
+      }
+      .summary-box p {
+        margin-bottom: 0.5rem;
+      }
+      .summary-box strong {
+        color: var(--accent);
+      }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1rem;
+        overflow-x: auto;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        margin-bottom: 1rem;
+      }
+      code {
+        font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+        font-size: 0.82rem;
+      }
+      p code,
+      li code {
+        background: var(--code-bg);
+        padding: 0.1rem 0.35rem;
+        border-radius: 3px;
+        border: 1px solid var(--border);
+      }
+      .file-ref {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      ul,
+      ol {
+        padding-left: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      li {
+        margin-bottom: 0.4rem;
+      }
+      .compare {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin: 1rem 0;
+      }
+      .col-bad {
+        background: #2d1518;
+        border: 1px solid #5c2d33;
+        border-radius: 6px;
+        padding: 1rem;
+      }
+      .col-good {
+        background: #15261a;
+        border: 1px solid #2d5c36;
+        border-radius: 6px;
+        padding: 1rem;
+      }
+      .col-bad h3 {
+        color: var(--red);
+        margin-top: 0;
+      }
+      .col-good h3 {
+        color: var(--green);
+        margin-top: 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 1rem 0;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--border);
+      }
+      th {
+        background: var(--code-bg);
+        font-weight: 600;
+      }
+      .example-box {
+        background: #1c2128;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1rem 1.2rem;
+        margin: 1rem 0;
+      }
+      .example-box h4 {
+        color: var(--orange);
+        margin-bottom: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Token Usage Bug Report <span class="severity">HIGH</span></h1>
+    <p style="color: #8b949e; margin-top: -0.2rem">
+      ClaudeAdapter — Context Window Occupancy Over-Reported
+    </p>
 
-<h1>Token Usage Bug Report <span class="severity">HIGH</span></h1>
-<p style="color:#8b949e; margin-top:-0.2rem;">ClaudeAdapter — Context Window Occupancy Over-Reported</p>
+    <div class="summary-box">
+      <p>
+        <strong>What:</strong> The context-window usage meter reports values that are
+        <strong>N times larger</strong> than the actual context occupancy, where N = the number of
+        API calls made during a turn.
+      </p>
+      <p>
+        <strong>Impact:</strong> After a few tool uses, the meter hits 100% even though actual
+        context may only be 20–30% full. Users believe their session is exhausted and start new ones
+        unnecessarily.
+      </p>
+      <p>
+        <strong>Root cause:</strong> The code reads token counts from sources that accumulate across
+        all API calls in a turn, but treats those accumulated totals as the current snapshot of
+        context window usage.
+      </p>
+    </div>
 
-<div class="summary-box">
-  <p><strong>What:</strong> The context-window usage meter reports values that are <strong>N times larger</strong> than the actual context occupancy, where N = the number of API calls made during a turn.</p>
-  <p><strong>Impact:</strong> After a few tool uses, the meter hits 100% even though actual context may only be 20–30% full. Users believe their session is exhausted and start new ones unnecessarily.</p>
-  <p><strong>Root cause:</strong> The code reads token counts from sources that accumulate across all API calls in a turn, but treats those accumulated totals as the current snapshot of context window usage.</p>
-</div>
+    <h2>1. What Should Happen</h2>
+    <p>
+      The context window meter should show how many tokens are <em>currently</em> in the model's
+      context window. When Claude makes an API call, the response includes per-request usage:
+      <code>input_tokens</code> + <code>cache_creation_input_tokens</code> +
+      <code>cache_read_input_tokens</code> = the number of tokens occupying the context window for
+      <em>that single request</em>.
+    </p>
+    <p>
+      These per-request numbers arrive in two stream events that the Anthropic SDK sends for every
+      API response:
+    </p>
 
-<h2>1. What Should Happen</h2>
-<p>The context window meter should show how many tokens are <em>currently</em> in the model's context window. When Claude makes an API call, the response includes per-request usage: <code>input_tokens</code> + <code>cache_creation_input_tokens</code> + <code>cache_read_input_tokens</code> = the number of tokens occupying the context window for <em>that single request</em>.</p>
-<p>These per-request numbers arrive in two stream events that the Anthropic SDK sends for every API response:</p>
+    <table>
+      <tr>
+        <th>Stream Event</th>
+        <th>Contains</th>
+        <th>Accuracy</th>
+      </tr>
+      <tr>
+        <td><code>message_start</code></td>
+        <td><code>event.message.usage</code> (BetaUsage)</td>
+        <td>Per-request input tokens at the start of the stream</td>
+      </tr>
+      <tr>
+        <td><code>message_delta</code></td>
+        <td><code>event.usage</code> (BetaMessageDeltaUsage)</td>
+        <td>Per-request cumulative usage including output, at the end of the stream</td>
+      </tr>
+    </table>
 
-<table>
-  <tr><th>Stream Event</th><th>Contains</th><th>Accuracy</th></tr>
-  <tr>
-    <td><code>message_start</code></td>
-    <td><code>event.message.usage</code> (BetaUsage)</td>
-    <td>Per-request input tokens at the start of the stream</td>
-  </tr>
-  <tr>
-    <td><code>message_delta</code></td>
-    <td><code>event.usage</code> (BetaMessageDeltaUsage)</td>
-    <td>Per-request cumulative usage including output, at the end of the stream</td>
-  </tr>
-</table>
+    <p>
+      The <strong>last</strong> <code>message_delta.usage</code> from the most recent API call
+      reflects the true context window occupancy.
+    </p>
 
-<p>The <strong>last</strong> <code>message_delta.usage</code> from the most recent API call reflects the true context window occupancy.</p>
+    <h2>2. What Actually Happens</h2>
+    <p>
+      There are <strong>three code paths</strong> that all set the token usage to an accumulated
+      total instead of the per-request snapshot:
+    </p>
 
-<h2>2. What Actually Happens</h2>
-<p>There are <strong>three code paths</strong> that all set the token usage to an accumulated total instead of the per-request snapshot:</p>
-
-<h3>Path A: task_progress events (subagents)</h3>
-<p><span class="file-ref">ClaudeAdapter.ts:2238–2256</span></p>
-<pre><code>case "task_progress":
+    <h3>Path A: task_progress events (subagents)</h3>
+    <p><span class="file-ref">ClaudeAdapter.ts:2238–2256</span></p>
+    <pre><code>case "task_progress":
   if (message.usage) {
     const normalizedUsage = normalizeClaudeTokenUsage(
       message.usage,
@@ -141,12 +242,20 @@
       });
     }
   }</code></pre>
-<p><code>task_progress.usage.total_tokens</code> is the <strong>sum of tokens across all API calls</strong> the subagent has made so far. <code>normalizeClaudeTokenUsage</code> treats this accumulated sum as the current context window size, only capping it at <code>maxTokens</code>.</p>
-<p>The same pattern exists for <code>task_notification</code> at <span class="file-ref">ClaudeAdapter.ts:2270–2289</span>.</p>
+    <p>
+      <code>task_progress.usage.total_tokens</code> is the
+      <strong>sum of tokens across all API calls</strong> the subagent has made so far.
+      <code>normalizeClaudeTokenUsage</code> treats this accumulated sum as the current context
+      window size, only capping it at <code>maxTokens</code>.
+    </p>
+    <p>
+      The same pattern exists for <code>task_notification</code> at
+      <span class="file-ref">ClaudeAdapter.ts:2270–2289</span>.
+    </p>
 
-<h3>Path B: completeTurn fallback (no subagents)</h3>
-<p><span class="file-ref">ClaudeAdapter.ts:1506–1533</span></p>
-<pre><code>// The SDK result.usage contains *accumulated* totals across all API calls
+    <h3>Path B: completeTurn fallback (no subagents)</h3>
+    <p><span class="file-ref">ClaudeAdapter.ts:1506–1533</span></p>
+    <pre><code>// The SDK result.usage contains *accumulated* totals across all API calls
 // This does NOT represent the current context window size.
 // Instead, use the last known context-window-accurate usage from task_progress
 // events and treat the accumulated total as totalProcessedTokens.    &larr; comment IS wrong
@@ -157,46 +266,69 @@ const lastGoodUsage = context.lastKnownTokenUsage;     // may be undefined if no
 const usageSnapshot = lastGoodUsage
   ? { ...lastGoodUsage, ... }   // &larr; uses task_progress value (also accumulated)
   : accumulatedSnapshot;        // &larr; fallback: uses result.usage (also accumulated)</code></pre>
-<p>When no subagents are used, <code>task_progress</code> events never fire, so <code>lastKnownTokenUsage</code> remains <code>undefined</code>. The fallback uses <code>result.usage</code>, which is accumulated across all API calls in the turn.</p>
-<p>The comment at lines 1509–1510 says "use the last known context-window-accurate usage from task_progress events" — but <strong>task_progress is also accumulated</strong>. The comment is misleading.</p>
+    <p>
+      When no subagents are used, <code>task_progress</code> events never fire, so
+      <code>lastKnownTokenUsage</code> remains <code>undefined</code>. The fallback uses
+      <code>result.usage</code>, which is accumulated across all API calls in the turn.
+    </p>
+    <p>
+      The comment at lines 1509–1510 says "use the last known context-window-accurate usage from
+      task_progress events" — but <strong>task_progress is also accumulated</strong>. The comment is
+      misleading.
+    </p>
 
-<h3>Path C: handleStreamEvent ignores the correct source</h3>
-<p><span class="file-ref">ClaudeAdapter.ts:1670–1917</span></p>
-<p>The <code>handleStreamEvent</code> function only processes three event types:</p>
-<pre><code>if (event.type === "content_block_delta")  { /* handle text/tool deltas */ }
+    <h3>Path C: handleStreamEvent ignores the correct source</h3>
+    <p><span class="file-ref">ClaudeAdapter.ts:1670–1917</span></p>
+    <p>The <code>handleStreamEvent</code> function only processes three event types:</p>
+    <pre><code>if (event.type === "content_block_delta")  { /* handle text/tool deltas */ }
 if (event.type === "content_block_start")  { /* handle text/tool blocks */ }
 if (event.type === "content_block_stop")   { /* handle completion */ }
 // &larr; message_start and message_delta events are silently ignored</code></pre>
-<p><code>message_start</code> and <code>message_delta</code> events — which carry the correct per-request token counts — are completely ignored. The function returns <code>undefined</code> for them and moves on.</p>
+    <p>
+      <code>message_start</code> and <code>message_delta</code> events — which carry the correct
+      per-request token counts — are completely ignored. The function returns
+      <code>undefined</code> for them and moves on.
+    </p>
 
-<h2>3. Walkthrough Example</h2>
+    <h2>3. Walkthrough Example</h2>
 
-<div class="example-box">
-  <h4>Scenario: A turn that makes 3 API calls</h4>
-  <ol style="margin-bottom:0;">
-    <li>First API call: reads 20,000 context tokens, produces 500 output tokens</li>
-    <li>Second API call (after tool result): reads 22,000 context tokens, produces 600 output tokens</li>
-    <li>Third API call (after second tool result): reads 23,000 context tokens, produces 700 output tokens</li>
-  </ol>
-</div>
+    <div class="example-box">
+      <h4>Scenario: A turn that makes 3 API calls</h4>
+      <ol style="margin-bottom: 0">
+        <li>First API call: reads 20,000 context tokens, produces 500 output tokens</li>
+        <li>
+          Second API call (after tool result): reads 22,000 context tokens, produces 600 output
+          tokens
+        </li>
+        <li>
+          Third API call (after second tool result): reads 23,000 context tokens, produces 700
+          output tokens
+        </li>
+      </ol>
+    </div>
 
-<div class="compare">
-  <div class="col-bad">
-    <h3>What the code reports</h3>
-    <p><code>result.usage.total_tokens</code> &asymp; <strong>67,400 tokens</strong></p>
-    <p>The meter shows 67,400 / 200,000 = <strong>33%</strong> after just 3 calls.<br>
-    After 6 calls: <strong>100%</strong> (even though real context is ~30%).</p>
-  </div>
-  <div class="col-good">
-    <h3>What should be reported</h3>
-    <p>Last <code>message_delta.usage</code>: ~<strong>23,000 tokens</strong> (actual context window occupancy)</p>
-    <p>The meter shows 23,000 / 200,000 = <strong>11.5%</strong></p>
-  </div>
-</div>
+    <div class="compare">
+      <div class="col-bad">
+        <h3>What the code reports</h3>
+        <p><code>result.usage.total_tokens</code> &asymp; <strong>67,400 tokens</strong></p>
+        <p>
+          The meter shows 67,400 / 200,000 = <strong>33%</strong> after just 3 calls.<br />
+          After 6 calls: <strong>100%</strong> (even though real context is ~30%).
+        </p>
+      </div>
+      <div class="col-good">
+        <h3>What should be reported</h3>
+        <p>
+          Last <code>message_delta.usage</code>: ~<strong>23,000 tokens</strong> (actual context
+          window occupancy)
+        </p>
+        <p>The meter shows 23,000 / 200,000 = <strong>11.5%</strong></p>
+      </div>
+    </div>
 
-<h2>4. The Root Cause Function</h2>
-<p><span class="file-ref">ClaudeAdapter.ts:345–389</span></p>
-<pre><code>function normalizeClaudeTokenUsage(value: unknown, contextWindow?: number) {
+    <h2>4. The Root Cause Function</h2>
+    <p><span class="file-ref">ClaudeAdapter.ts:345–389</span></p>
+    <pre><code>function normalizeClaudeTokenUsage(value: unknown, contextWindow?: number) {
   const inputTokens = (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
   const outputTokens = usage.output_tokens ?? 0;
   const totalProcessedTokens = usage.total_tokens ?? (inputTokens + outputTokens);
@@ -204,53 +336,81 @@ if (event.type === "content_block_stop")   { /* handle completion */ }
 
   return { usedTokens, lastUsedTokens: usedTokens, ... };
 }</code></pre>
-<p>The function uses <code>total_tokens</code> as <code>usedTokens</code> without any awareness of whether the value represents a per-request count or an accumulated total. It treats both identically.</p>
+    <p>
+      The function uses <code>total_tokens</code> as <code>usedTokens</code> without any awareness
+      of whether the value represents a per-request count or an accumulated total. It treats both
+      identically.
+    </p>
 
-<h2>5. Summary of Affected Locations</h2>
-<table>
-  <tr><th>File</th><th>Lines</th><th>Problem</th></tr>
-  <tr>
-    <td class="file-ref">ClaudeAdapter.ts</td>
-    <td>1670–1917</td>
-    <td><code>handleStreamEvent</code> ignores <code>message_start</code>/<code>message_delta</code> events that carry per-request usage</td>
-  </tr>
-  <tr>
-    <td class="file-ref">ClaudeAdapter.ts</td>
-    <td>2238–2256</td>
-    <td><code>task_progress</code> handler stores accumulated total as current context window usage</td>
-  </tr>
-  <tr>
-    <td class="file-ref">ClaudeAdapter.ts</td>
-    <td>2270–2289</td>
-    <td><code>task_notification</code> handler — same bug as task_progress</td>
-  </tr>
-  <tr>
-    <td class="file-ref">ClaudeAdapter.ts</td>
-    <td>1506–1533</td>
-    <td><code>completeTurn</code> falls back to accumulated <code>result.usage</code> or accumulated <code>lastKnownTokenUsage</code></td>
-  </tr>
-  <tr>
-    <td class="file-ref">ClaudeAdapter.ts</td>
-    <td>1509–1510</td>
-    <td>Misleading comment claiming task_progress is "context-window-accurate"</td>
-  </tr>
-  <tr>
-    <td class="file-ref">ClaudeAdapter.ts</td>
-    <td>345–389</td>
-    <td><code>normalizeClaudeTokenUsage</code> doesn't distinguish per-request vs. accumulated totals</td>
-  </tr>
-  <tr>
-    <td class="file-ref">ClaudeAdapter.test.ts</td>
-    <td>1729</td>
-    <td>Test validates the buggy behavior: emitting <code>thread.token-usage.updated</code> from <code>task_progress</code></td>
-  </tr>
-</table>
+    <h2>5. Summary of Affected Locations</h2>
+    <table>
+      <tr>
+        <th>File</th>
+        <th>Lines</th>
+        <th>Problem</th>
+      </tr>
+      <tr>
+        <td class="file-ref">ClaudeAdapter.ts</td>
+        <td>1670–1917</td>
+        <td>
+          <code>handleStreamEvent</code> ignores <code>message_start</code>/<code
+            >message_delta</code
+          >
+          events that carry per-request usage
+        </td>
+      </tr>
+      <tr>
+        <td class="file-ref">ClaudeAdapter.ts</td>
+        <td>2238–2256</td>
+        <td>
+          <code>task_progress</code> handler stores accumulated total as current context window
+          usage
+        </td>
+      </tr>
+      <tr>
+        <td class="file-ref">ClaudeAdapter.ts</td>
+        <td>2270–2289</td>
+        <td><code>task_notification</code> handler — same bug as task_progress</td>
+      </tr>
+      <tr>
+        <td class="file-ref">ClaudeAdapter.ts</td>
+        <td>1506–1533</td>
+        <td>
+          <code>completeTurn</code> falls back to accumulated <code>result.usage</code> or
+          accumulated <code>lastKnownTokenUsage</code>
+        </td>
+      </tr>
+      <tr>
+        <td class="file-ref">ClaudeAdapter.ts</td>
+        <td>1509–1510</td>
+        <td>Misleading comment claiming task_progress is "context-window-accurate"</td>
+      </tr>
+      <tr>
+        <td class="file-ref">ClaudeAdapter.ts</td>
+        <td>345–389</td>
+        <td>
+          <code>normalizeClaudeTokenUsage</code> doesn't distinguish per-request vs. accumulated
+          totals
+        </td>
+      </tr>
+      <tr>
+        <td class="file-ref">ClaudeAdapter.test.ts</td>
+        <td>1729</td>
+        <td>
+          Test validates the buggy behavior: emitting <code>thread.token-usage.updated</code> from
+          <code>task_progress</code>
+        </td>
+      </tr>
+    </table>
 
-<h2>6. How to Fix</h2>
+    <h2>6. How to Fix</h2>
 
-<h3>Step 1: Capture per-request usage from stream events</h3>
-<p>In <code>handleStreamEvent</code>, add handling for <code>message_start</code> and <code>message_delta</code>:</p>
-<pre><code>if (event.type === "message_start") {
+    <h3>Step 1: Capture per-request usage from stream events</h3>
+    <p>
+      In <code>handleStreamEvent</code>, add handling for <code>message_start</code> and
+      <code>message_delta</code>:
+    </p>
+    <pre><code>if (event.type === "message_start") {
   const usage = event.message?.usage;
   if (usage &amp;&amp; typeof usage === "object") {
     const normalized = normalizeClaudeTokenUsage(usage, context.lastKnownContextWindow);
@@ -267,30 +427,51 @@ if (event.type === "message_delta") {
   }
   return;
 }</code></pre>
-<p>This populates <code>lastKnownTokenUsage</code> with the correct per-request numbers during normal streaming.</p>
+    <p>
+      This populates <code>lastKnownTokenUsage</code> with the correct per-request numbers during
+      normal streaming.
+    </p>
 
-<h3>Step 2: Remove context-window side effects from task progress/notification</h3>
-<p>In both <code>task_progress</code> and <code>task_notification</code> handlers, remove:</p>
-<ul>
-  <li>The <code>context.lastKnownTokenUsage = normalizedUsage</code> assignment</li>
-  <li>The <code>thread.token-usage.updated</code> event emission</li>
-</ul>
-<p>Keep the <code>task.progress</code> and <code>task.completed</code> events needed for subagent UI.</p>
+    <h3>Step 2: Remove context-window side effects from task progress/notification</h3>
+    <p>In both <code>task_progress</code> and <code>task_notification</code> handlers, remove:</p>
+    <ul>
+      <li>The <code>context.lastKnownTokenUsage = normalizedUsage</code> assignment</li>
+      <li>The <code>thread.token-usage.updated</code> event emission</li>
+    </ul>
+    <p>
+      Keep the <code>task.progress</code> and <code>task.completed</code> events needed for subagent
+      UI.
+    </p>
 
-<h3>Step 3: Fix the misleading comment</h3>
-<p>Replace lines 1509–1510:</p>
-<pre><code>// Instead, use per-request usage captured from message_start/message_delta
+    <h3>Step 3: Fix the misleading comment</h3>
+    <p>Replace lines 1509–1510:</p>
+    <pre><code>// Instead, use per-request usage captured from message_start/message_delta
 // stream events. task_progress.total_tokens is also accumulated and not suitable.</code></pre>
 
-<h3>Step 4: Update tests</h3>
-<p>Update the test at <span class="file-ref">ClaudeAdapter.test.ts:1729</span> to verify that <code>task_progress</code> no longer emits <code>thread.token-usage.updated</code>. Add a new test verifying that <code>message_delta</code> stream events correctly set <code>lastKnownTokenUsage</code>.</p>
+    <h3>Step 4: Update tests</h3>
+    <p>
+      Update the test at <span class="file-ref">ClaudeAdapter.test.ts:1729</span> to verify that
+      <code>task_progress</code> no longer emits <code>thread.token-usage.updated</code>. Add a new
+      test verifying that <code>message_delta</code> stream events correctly set
+      <code>lastKnownTokenUsage</code>.
+    </p>
 
-<h2 style="margin-top: 2.5rem;">Conclusion</h2>
-<div class="summary-box">
-  <p><strong>The bug is confirmed and present in the current codebase.</strong></p>
-  <p>The core problem is that <code>handleStreamEvent</code> ignores <code>message_start</code> and <code>message_delta</code> events — the only source of per-API-call token usage. Instead, the code reads token counts from accumulated sources (<code>task_progress.total_tokens</code>, <code>result.usage</code>) and presents them as current context window occupancy. This causes the context meter to grow at N&times; the real rate, where N is the number of API calls per turn.</p>
-  <p>The fix is small and surgical: add <code>message_start</code>/<code>message_delta</code> handling to <code>handleStreamEvent</code>, remove the incorrect token-usage updates from <code>task_progress</code>/<code>task_notification</code>, and fix the comment.</p>
-</div>
-
-</body>
+    <h2 style="margin-top: 2.5rem">Conclusion</h2>
+    <div class="summary-box">
+      <p><strong>The bug is confirmed and present in the current codebase.</strong></p>
+      <p>
+        The core problem is that <code>handleStreamEvent</code> ignores
+        <code>message_start</code> and <code>message_delta</code> events — the only source of
+        per-API-call token usage. Instead, the code reads token counts from accumulated sources
+        (<code>task_progress.total_tokens</code>, <code>result.usage</code>) and presents them as
+        current context window occupancy. This causes the context meter to grow at N&times; the real
+        rate, where N is the number of API calls per turn.
+      </p>
+      <p>
+        The fix is small and surgical: add <code>message_start</code>/<code>message_delta</code>
+        handling to <code>handleStreamEvent</code>, remove the incorrect token-usage updates from
+        <code>task_progress</code>/<code>task_notification</code>, and fix the comment.
+      </p>
+    </div>
+  </body>
 </html>

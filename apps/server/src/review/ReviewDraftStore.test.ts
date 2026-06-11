@@ -39,8 +39,7 @@ describe("ReviewDraftStore", () => {
       const store = yield* ReviewDraftStore.ReviewDraftStore;
       const result = yield* store.get("unknown", 1);
       expect(Option.isNone(result)).toBe(true);
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 
   it("round-trip: upsert then get", () =>
     Effect.gen(function* () {
@@ -49,8 +48,7 @@ describe("ReviewDraftStore", () => {
 
       const result = yield* store.get("thread-1", 42);
       expect(Option.getOrNull(result)).toEqual(testDraft);
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 
   it("delete removes a draft", () =>
     Effect.gen(function* () {
@@ -60,8 +58,7 @@ describe("ReviewDraftStore", () => {
 
       const result = yield* store.get("thread-1", 42);
       expect(Option.isNone(result)).toBe(true);
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 
   it("upsert overwrites existing draft", () =>
     Effect.gen(function* () {
@@ -92,6 +89,5 @@ describe("ReviewDraftStore", () => {
       expect(value?.prHeadSHA).toBe("def456");
       expect(value?.comments).toHaveLength(1);
       expect(value?.comments[0]?.id).toBe("comment-2");
-    }).pipe(Effect.provide(makeLayer())),
-  );
+    }).pipe(Effect.provide(makeLayer())));
 });

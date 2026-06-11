@@ -1561,7 +1561,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                       hasPendingApprovals: row.pendingApprovalCount > 0,
                       hasPendingUserInput: row.pendingUserInputCount > 0,
                       hasActionableProposedPlan: row.hasActionableProposedPlan > 0,
-                      ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
+                      ...(row.managerMetadata !== null
+                        ? { managerMetadata: row.managerMetadata }
+                        : {}),
                     } as OrchestrationThreadShell)
                   : Result.failVoid,
               ),

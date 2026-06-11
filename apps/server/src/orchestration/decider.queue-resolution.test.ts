@@ -16,9 +16,8 @@ import { NodeCrypto } from "@effect/platform-node";
 
 import { decideOrchestrationCommand as decideOrchestrationCommandRaw } from "./decider.ts";
 
-const decideOrchestrationCommand = (
-  input: Parameters<typeof decideOrchestrationCommandRaw>[0],
-) => decideOrchestrationCommandRaw(input).pipe(Effect.provide(NodeCrypto.layer));
+const decideOrchestrationCommand = (input: Parameters<typeof decideOrchestrationCommandRaw>[0]) =>
+  decideOrchestrationCommandRaw(input).pipe(Effect.provide(NodeCrypto.layer));
 import { createEmptyReadModel, projectEvent } from "./projector.ts";
 
 const asCommandId = (value: string): CommandId => CommandId.make(value);

@@ -10,7 +10,12 @@ import {
   DEFAULT_MAX_CONCURRENT_AGENTS,
 } from "./BackgroundAgentService.ts";
 import { GitWorkflowService } from "../git/GitWorkflowService.ts";
-import { GitVcsDriver, type ExecuteGitInput, type ExecuteGitResult, type GitVcsDriverShape } from "../vcs/GitVcsDriver.ts";
+import {
+  GitVcsDriver,
+  type ExecuteGitInput,
+  type ExecuteGitResult,
+  type GitVcsDriverShape,
+} from "../vcs/GitVcsDriver.ts";
 import { ReviewService } from "./ReviewService.ts";
 
 vi.mock("node:fs/promises", () => ({
@@ -84,9 +89,21 @@ function makeBaseGit(gitDiff: string, gitStatus: string) {
     execute: (args: ExecuteGitInput) => {
       const argStr = args.args.join(" ");
       if (argStr.includes("status --porcelain")) {
-        return Effect.succeed({ stdout: gitStatus, stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult);
+        return Effect.succeed({
+          stdout: gitStatus,
+          stderr: "",
+          exitCode: 0,
+          stdoutTruncated: false,
+          stderrTruncated: false,
+        } as ExecuteGitResult);
       }
-      return Effect.succeed({ stdout: "", stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult);
+      return Effect.succeed({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      } as ExecuteGitResult);
     },
     getPrDiff: () => Effect.succeed(gitDiff),
     getReviewDiffPreview: () => Effect.die("unexpected"),
@@ -123,11 +140,16 @@ function makeLayer(options: {
   const updateMutation = options.updateMutation ?? vi.fn();
   return {
     layer: Layer.mergeAll(
-      Layer.succeed(GitWorkflowService, makeBaseGitWorkflow({
-        createWorktreePath: options.createWorktreePath,
-        createWorktreeRefName: options.createWorktreeRefName,
-        ...("createWorktreeError" in options ? { createWorktreeError: options.createWorktreeError } : {}),
-      })),
+      Layer.succeed(
+        GitWorkflowService,
+        makeBaseGitWorkflow({
+          createWorktreePath: options.createWorktreePath,
+          createWorktreeRefName: options.createWorktreeRefName,
+          ...("createWorktreeError" in options
+            ? { createWorktreeError: options.createWorktreeError }
+            : {}),
+        }),
+      ),
       Layer.succeed(GitVcsDriver, makeBaseGit(options.gitDiff, options.gitStatus)),
       Layer.succeed(ReviewService, makeBaseReview(updateMutation)),
     ),
@@ -153,7 +175,9 @@ function runAndCollect(options: {
     yield* Effect.promise(() => new Promise<unknown>((r) => setTimeout(r, 10)));
     options.fakeChild._emitClose(options.exitCode);
 
-    const events = yield* Effect.promise<ReadonlyArray<BackgroundAgentResponseEvent>>(() => collectEffect);
+    const events = yield* Effect.promise<ReadonlyArray<BackgroundAgentResponseEvent>>(
+      () => collectEffect,
+    );
     return Array.from(events);
   });
 }
@@ -170,7 +194,9 @@ describe("BackgroundAgentService", () => {
   it("runs agent on success path, commits changes, and completes", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(
+        fakeChild as unknown as ReturnType<typeof child_process.spawn>,
+      );
 
       const { layer } = makeLayer({
         gitDiff: "diff --git a/test.ts b/test.ts\n+test change",
@@ -211,9 +237,7 @@ describe("BackgroundAgentService", () => {
       const doneEvents = eventsArray.filter((e) => e.type === "done");
       expect(doneEvents.length).toBe(1);
 
-      const titles = eventsArray
-        .filter((e) => e.type === "detail")
-        .map((e) => e.title);
+      const titles = eventsArray.filter((e) => e.type === "detail").map((e) => e.title);
 
       expect(titles).toContain("PR Diff Context");
       expect(titles).toContain("Agent Prompt");
@@ -222,20 +246,23 @@ describe("BackgroundAgentService", () => {
       expect(titles).toContain("Pushed");
 
       expect(fs.writeFile).toHaveBeenCalled();
-    }).pipe(Effect.provide(
-      makeLayer({
-        gitDiff: "diff --git a/test.ts b/test.ts\n+test change",
-        gitStatus: "M test.ts\n",
-        createWorktreePath: "/tmp/t3-test-worktree",
-        createWorktreeRefName: "t3/agent-response-abc12345",
-      }).layer,
-    )),
-  );
+    }).pipe(
+      Effect.provide(
+        makeLayer({
+          gitDiff: "diff --git a/test.ts b/test.ts\n+test change",
+          gitStatus: "M test.ts\n",
+          createWorktreePath: "/tmp/t3-test-worktree",
+          createWorktreeRefName: "t3/agent-response-abc12345",
+        }).layer,
+      ),
+    ));
 
   it("updates agentStatus to completed on success", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(
+        fakeChild as unknown as ReturnType<typeof child_process.spawn>,
+      );
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -271,20 +298,23 @@ describe("BackgroundAgentService", () => {
         expect.objectContaining({ agentStatus: "completed" }),
       );
       expect(updateMutation).toHaveBeenCalledTimes(2);
-    }).pipe(Effect.provide(
-      makeLayer({
-        gitDiff: "test diff",
-        gitStatus: "M test.ts\n",
-        createWorktreePath: "/tmp/test",
-        createWorktreeRefName: "test-branch",
-      }).layer,
-    )),
-  );
+    }).pipe(
+      Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "M test.ts\n",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      ),
+    ));
 
   it("handles no changes from agent (no commits)", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(
+        fakeChild as unknown as ReturnType<typeof child_process.spawn>,
+      );
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -313,9 +343,7 @@ describe("BackgroundAgentService", () => {
         exitCode: 0,
       });
 
-      const titles = eventsArray
-        .filter((e) => e.type === "detail")
-        .map((e) => e.title);
+      const titles = eventsArray.filter((e) => e.type === "detail").map((e) => e.title);
 
       expect(titles).toContain("No Changes");
       expect(titles).not.toContain("Changes Detected");
@@ -324,20 +352,23 @@ describe("BackgroundAgentService", () => {
       expect(updateMutation).toHaveBeenCalledWith(
         expect.objectContaining({ agentStatus: "completed" }),
       );
-    }).pipe(Effect.provide(
-      makeLayer({
-        gitDiff: "test diff",
-        gitStatus: "",
-        createWorktreePath: "/tmp/test",
-        createWorktreeRefName: "test-branch",
-      }).layer,
-    )),
-  );
+    }).pipe(
+      Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      ),
+    ));
 
   it("updates agentStatus to failed on createWorktree error", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(
+        fakeChild as unknown as ReturnType<typeof child_process.spawn>,
+      );
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -381,21 +412,24 @@ describe("BackgroundAgentService", () => {
       expect(updateMutation).toHaveBeenCalledWith(
         expect.objectContaining({ agentStatus: "failed" }),
       );
-    }).pipe(Effect.provide(
-      makeLayer({
-        gitDiff: "test diff",
-        gitStatus: "M test.ts\n",
-        createWorktreePath: "/tmp/test",
-        createWorktreeRefName: "test-branch",
-        createWorktreeError: new Error("Failed to create worktree"),
-      }).layer,
-    )),
-  );
+    }).pipe(
+      Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "M test.ts\n",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+          createWorktreeError: new Error("Failed to create worktree"),
+        }).layer,
+      ),
+    ));
 
   it("updates agentStatus to failed when agent exits with non-zero code", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(
+        fakeChild as unknown as ReturnType<typeof child_process.spawn>,
+      );
 
       const updateMutation = vi.fn();
       const { layer } = makeLayer({
@@ -428,26 +462,36 @@ describe("BackgroundAgentService", () => {
       expect(updateMutation).toHaveBeenCalledWith(
         expect.objectContaining({ agentStatus: "running" }),
       );
-    }).pipe(Effect.provide(
-      makeLayer({
-        gitDiff: "test diff",
-        gitStatus: "",
-        createWorktreePath: "/tmp/test",
-        createWorktreeRefName: "test-branch",
-      }).layer,
-    )),
-  );
+    }).pipe(
+      Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      ),
+    ));
 
   it("uses origin/HEAD as base ref for PR diff", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
-      vi.mocked(child_process.spawn).mockReturnValue(fakeChild as unknown as ReturnType<typeof child_process.spawn>);
+      vi.mocked(child_process.spawn).mockReturnValue(
+        fakeChild as unknown as ReturnType<typeof child_process.spawn>,
+      );
 
       let capturedBaseRef = "";
       let capturedHeadRef = "";
 
       const gitWithSpy = GitVcsDriver.of({
-        execute: () => Effect.succeed({ stdout: "", stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult),
+        execute: () =>
+          Effect.succeed({
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+            stdoutTruncated: false,
+            stderrTruncated: false,
+          } as ExecuteGitResult),
         getPrDiff: (cwd: string, baseRef: string, headRef: string) => {
           capturedBaseRef = baseRef;
           capturedHeadRef = headRef;
@@ -464,10 +508,13 @@ describe("BackgroundAgentService", () => {
       } as unknown as GitVcsDriverShape);
 
       const layer = Layer.mergeAll(
-        Layer.succeed(GitWorkflowService, makeBaseGitWorkflow({
-          createWorktreePath: "/tmp/test",
-          createWorktreeRefName: "test-branch",
-        })),
+        Layer.succeed(
+          GitWorkflowService,
+          makeBaseGitWorkflow({
+            createWorktreePath: "/tmp/test",
+            createWorktreeRefName: "test-branch",
+          }),
+        ),
         Layer.succeed(GitVcsDriver, gitWithSpy),
         Layer.succeed(ReviewService, makeBaseReview()),
       );
@@ -492,34 +539,45 @@ describe("BackgroundAgentService", () => {
 
       expect(capturedBaseRef).toBe("origin/HEAD");
       expect(capturedHeadRef).toBe("refs/t3/pr/1/head");
-    }).pipe(Effect.provide(
-      Layer.mergeAll(
-        Layer.succeed(GitWorkflowService, makeBaseGitWorkflow({
-          createWorktreePath: "/tmp/test",
-          createWorktreeRefName: "test-branch",
-        })),
-        Layer.succeed(
-          GitVcsDriver,
-          GitVcsDriver.of({
-            execute: () => Effect.succeed({ stdout: "", stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false } as ExecuteGitResult),
-            getPrDiff: (cwd: string, baseRef: string, headRef: string) => {
-              expect(baseRef).toBe("origin/HEAD");
-              expect(headRef).toBe("refs/t3/pr/1/head");
-              return Effect.succeed("test diff");
-            },
-            getReviewDiffPreview: () => Effect.die("unexpected"),
-            listRefs: () => Effect.die("unexpected"),
-            createWorktree: () => Effect.die("unexpected"),
-            removeWorktree: () => Effect.die("unexpected"),
-            createRef: () => Effect.die("unexpected"),
-            switchRef: () => Effect.die("unexpected"),
-            pullCurrentBranch: () => Effect.die("unexpected"),
-            renameBranch: () => Effect.die("unexpected"),
-          } as unknown as GitVcsDriverShape),
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.succeed(
+            GitWorkflowService,
+            makeBaseGitWorkflow({
+              createWorktreePath: "/tmp/test",
+              createWorktreeRefName: "test-branch",
+            }),
+          ),
+          Layer.succeed(
+            GitVcsDriver,
+            GitVcsDriver.of({
+              execute: () =>
+                Effect.succeed({
+                  stdout: "",
+                  stderr: "",
+                  exitCode: 0,
+                  stdoutTruncated: false,
+                  stderrTruncated: false,
+                } as ExecuteGitResult),
+              getPrDiff: (cwd: string, baseRef: string, headRef: string) => {
+                expect(baseRef).toBe("origin/HEAD");
+                expect(headRef).toBe("refs/t3/pr/1/head");
+                return Effect.succeed("test diff");
+              },
+              getReviewDiffPreview: () => Effect.die("unexpected"),
+              listRefs: () => Effect.die("unexpected"),
+              createWorktree: () => Effect.die("unexpected"),
+              removeWorktree: () => Effect.die("unexpected"),
+              createRef: () => Effect.die("unexpected"),
+              switchRef: () => Effect.die("unexpected"),
+              pullCurrentBranch: () => Effect.die("unexpected"),
+              renameBranch: () => Effect.die("unexpected"),
+            } as unknown as GitVcsDriverShape),
+          ),
         ),
       ),
-    )),
-  );
+    ));
 
   describe("runBatchAgents", () => {
     function createBatchFakeChildrenSpawnMock() {
@@ -582,9 +640,7 @@ describe("BackgroundAgentService", () => {
 
         // @effect-diagnostics-next-line runEffectInsideEffect:off
         const collectPromise = Effect.runPromise(
-          service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(
-            Stream.runCollect,
-          ),
+          service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(Stream.runCollect),
         );
 
         // @effect-diagnostics-next-line globalTimers:off
@@ -615,22 +671,21 @@ describe("BackgroundAgentService", () => {
 
         // Each comment should get a done event
         for (const commentId of ["comment-1", "comment-2", "comment-3"]) {
-          const hasDone = eventsArray.some(
-            (e) => e.commentId === commentId && e.type === "done",
-          );
+          const hasDone = eventsArray.some((e) => e.commentId === commentId && e.type === "done");
           expect(hasDone).toBe(true);
         }
 
         expect(updateMutation).toHaveBeenCalledTimes(6); // 2 per comment (running + completed)
-      }).pipe(Effect.provide(
-        makeLayer({
-          gitDiff: "test diff",
-          gitStatus: "",
-          createWorktreePath: "/tmp/test",
-          createWorktreeRefName: "test-branch",
-        }).layer,
-      )),
-    );
+      }).pipe(
+        Effect.provide(
+          makeLayer({
+            gitDiff: "test diff",
+            gitStatus: "",
+            createWorktreePath: "/tmp/test",
+            createWorktreeRefName: "test-branch",
+          }).layer,
+        ),
+      ));
 
     it("single agent failure does not block other agents", () =>
       Effect.gen(function* () {
@@ -649,9 +704,7 @@ describe("BackgroundAgentService", () => {
 
         // @effect-diagnostics-next-line runEffectInsideEffect:off
         const collectPromise = Effect.runPromise(
-          service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(
-            Stream.runCollect,
-          ),
+          service.runBatchAgents([batchInput1, batchInput2, batchInput3]).pipe(Stream.runCollect),
         );
 
         // @effect-diagnostics-next-line globalTimers:off
@@ -667,9 +720,7 @@ describe("BackgroundAgentService", () => {
         const eventsArray = Array.from(events);
 
         // comment-2 and comment-3 should complete
-        const doneIds = eventsArray
-          .filter((e) => e.type === "done")
-          .map((e) => e.commentId);
+        const doneIds = eventsArray.filter((e) => e.type === "done").map((e) => e.commentId);
         expect(doneIds).toContain("comment-2");
         expect(doneIds).toContain("comment-3");
 
@@ -684,15 +735,16 @@ describe("BackgroundAgentService", () => {
         expect(allIds.has("comment-1")).toBe(true);
         expect(allIds.has("comment-2")).toBe(true);
         expect(allIds.has("comment-3")).toBe(true);
-      }).pipe(Effect.provide(
-        makeLayer({
-          gitDiff: "test diff",
-          gitStatus: "",
-          createWorktreePath: "/tmp/test",
-          createWorktreeRefName: "test-branch",
-        }).layer,
-      )),
-    );
+      }).pipe(
+        Effect.provide(
+          makeLayer({
+            gitDiff: "test diff",
+            gitStatus: "",
+            createWorktreePath: "/tmp/test",
+            createWorktreeRefName: "test-branch",
+          }).layer,
+        ),
+      ));
 
     it("respects concurrency limit", () =>
       Effect.gen(function* () {
@@ -750,15 +802,16 @@ describe("BackgroundAgentService", () => {
 
         // Verify spawn was called for all 5
         expect(child_process.spawn).toHaveBeenCalledTimes(5);
-      }).pipe(Effect.provide(
-        makeLayer({
-          gitDiff: "test diff",
-          gitStatus: "",
-          createWorktreePath: "/tmp/test",
-          createWorktreeRefName: "test-branch",
-        }).layer,
-      )),
-    );
+      }).pipe(
+        Effect.provide(
+          makeLayer({
+            gitDiff: "test diff",
+            gitStatus: "",
+            createWorktreePath: "/tmp/test",
+            createWorktreeRefName: "test-branch",
+          }).layer,
+        ),
+      ));
 
     it("runBatchAgents with empty inputs completes immediately", () =>
       Effect.gen(function* () {
@@ -773,27 +826,25 @@ describe("BackgroundAgentService", () => {
 
         const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
 
-        const events = yield* service.runBatchAgents([]).pipe(
-          Stream.runCollect,
-        );
+        const events = yield* service.runBatchAgents([]).pipe(Stream.runCollect);
 
         const eventsArray = Array.from(events);
         expect(eventsArray).toHaveLength(0);
         expect(child_process.spawn).not.toHaveBeenCalled();
-      }).pipe(Effect.provide(
-        makeLayer({
-          gitDiff: "test diff",
-          gitStatus: "",
-          createWorktreePath: "/tmp/test",
-          createWorktreeRefName: "test-branch",
-        }).layer,
-      )),
-    );
+      }).pipe(
+        Effect.provide(
+          makeLayer({
+            gitDiff: "test diff",
+            gitStatus: "",
+            createWorktreePath: "/tmp/test",
+            createWorktreeRefName: "test-branch",
+          }).layer,
+        ),
+      ));
 
     it("uses DEFAULT_MAX_CONCURRENT_AGENTS when maxConcurrent is not specified", () =>
       Effect.gen(function* () {
         expect(DEFAULT_MAX_CONCURRENT_AGENTS).toBe(3);
-      }),
-    );
+      }));
   });
 });

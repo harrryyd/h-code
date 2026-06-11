@@ -122,20 +122,14 @@ it.effect("getPrDiff computes valid unified diff for a real git repo", () =>
       yield* runGit(tempDir, ["config", "user.email", "test@test.com"]);
       yield* runGit(tempDir, ["config", "user.name", "Test"]);
 
-      yield* fileSystem.writeFileString(
-        path.join(tempDir, "hello.txt"),
-        "Hello, world!\n",
-      );
+      yield* fileSystem.writeFileString(path.join(tempDir, "hello.txt"), "Hello, world!\n");
       yield* runGit(tempDir, ["add", "hello.txt"]);
       yield* runGit(tempDir, ["commit", "-m", "initial commit"]);
       yield* runGit(tempDir, ["branch", "-M", "main"]);
 
       yield* runGit(tempDir, ["checkout", "-b", "feature-branch"]);
 
-      yield* fileSystem.writeFileString(
-        path.join(tempDir, "hello.txt"),
-        "Hello, review world!\n",
-      );
+      yield* fileSystem.writeFileString(path.join(tempDir, "hello.txt"), "Hello, review world!\n");
       yield* runGit(tempDir, ["add", "hello.txt"]);
       yield* runGit(tempDir, ["commit", "-m", "feature changes"]);
 
@@ -151,11 +145,7 @@ it.effect("getPrDiff computes valid unified diff for a real git repo", () =>
 
       yield* fileSystem.remove(tempDir, { recursive: true }).pipe(Effect.ignore);
     }).pipe(
-      Effect.onError(() =>
-        fileSystem.remove(tempDir, { recursive: true }).pipe(Effect.ignore),
-      ),
+      Effect.onError(() => fileSystem.remove(tempDir, { recursive: true }).pipe(Effect.ignore)),
     );
-  }).pipe(
-    Effect.provide(GitContractLayer),
-  ),
+  }).pipe(Effect.provide(GitContractLayer)),
 );

@@ -491,14 +491,11 @@ export const WsChangeRequestGetReviewDraftInput = Schema.Struct({
 });
 export type WsChangeRequestGetReviewDraftInput = typeof WsChangeRequestGetReviewDraftInput.Type;
 
-export const WsChangeRequestGetReviewDraftRpc = Rpc.make(
-  WS_METHODS.changeRequestGetReviewDraft,
-  {
-    payload: WsChangeRequestGetReviewDraftInput,
-    success: Schema.NullOr(ReviewDraft),
-    error: EnvironmentAuthorizationError,
-  },
-);
+export const WsChangeRequestGetReviewDraftRpc = Rpc.make(WS_METHODS.changeRequestGetReviewDraft, {
+  payload: WsChangeRequestGetReviewDraftInput,
+  success: Schema.NullOr(ReviewDraft),
+  error: EnvironmentAuthorizationError,
+});
 
 export const WsChangeRequestUpsertReviewCommentInput = Schema.Struct({
   threadId: ThreadId,
@@ -612,15 +609,12 @@ export const WsChangeRequestRunBatchAgentsInput = Schema.Struct({
 });
 export type WsChangeRequestRunBatchAgentsInput = typeof WsChangeRequestRunBatchAgentsInput.Type;
 
-export const WsChangeRequestRunBatchAgentsRpc = Rpc.make(
-  WS_METHODS.changeRequestRunBatchAgents,
-  {
-    payload: WsChangeRequestRunBatchAgentsInput,
-    success: BackgroundAgentResponseEvent,
-    error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
-    stream: true,
-  },
-);
+export const WsChangeRequestRunBatchAgentsRpc = Rpc.make(WS_METHODS.changeRequestRunBatchAgents, {
+  payload: WsChangeRequestRunBatchAgentsInput,
+  success: BackgroundAgentResponseEvent,
+  error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
+  stream: true,
+});
 
 export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<ChangeRequestSubmitReviewError>()(
   "ChangeRequestSubmitReviewError",
@@ -642,14 +636,11 @@ export const WsChangeRequestSubmitReviewInput = Schema.Struct({
 });
 export type WsChangeRequestSubmitReviewInput = typeof WsChangeRequestSubmitReviewInput.Type;
 
-export const WsChangeRequestSubmitReviewRpc = Rpc.make(
-  WS_METHODS.changeRequestSubmitReview,
-  {
-    payload: WsChangeRequestSubmitReviewInput,
-    success: ReviewDraft,
-    error: Schema.Union([ChangeRequestSubmitReviewError, EnvironmentAuthorizationError]),
-  },
-);
+export const WsChangeRequestSubmitReviewRpc = Rpc.make(WS_METHODS.changeRequestSubmitReview, {
+  payload: WsChangeRequestSubmitReviewInput,
+  success: ReviewDraft,
+  error: Schema.Union([ChangeRequestSubmitReviewError, EnvironmentAuthorizationError]),
+});
 
 export const TodosLoadResult = Schema.Struct({
   categories: Schema.Array(TodoCategory),

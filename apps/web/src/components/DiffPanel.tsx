@@ -194,7 +194,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   } = useReviewComments({
     environmentId: activeThread?.environmentId ?? null,
     threadId: activeThreadId,
-    prNumber: isReviewMode ? (Number(prNumberInput.trim()) || null) : null,
+    prNumber: isReviewMode ? Number(prNumberInput.trim()) || null : null,
     prHeadSHA,
   });
   const [prDiffRefreshKey, setPrDiffRefreshKey] = useState(0);
@@ -520,27 +520,31 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     let cancelled = false;
     setPrDiffPending(true);
     setPrDiffError(null);
-    api.changeRequest
-      .getPrDiff({ threadId: activeThread.id, prNumber })
-      .then(
-        (result) => {
-          if (!cancelled) {
-            setPrDiffText(result.diff);
-            setPrHeadSHA(result.prHeadSHA);
-            setPrDiffPending(false);
-          }
-        },
-        (error) => {
-          if (!cancelled) {
-            setPrDiffError(error instanceof Error ? error.message : "Failed to load PR diff");
-            setPrDiffPending(false);
-          }
-        },
-      );
+    api.changeRequest.getPrDiff({ threadId: activeThread.id, prNumber }).then(
+      (result) => {
+        if (!cancelled) {
+          setPrDiffText(result.diff);
+          setPrHeadSHA(result.prHeadSHA);
+          setPrDiffPending(false);
+        }
+      },
+      (error) => {
+        if (!cancelled) {
+          setPrDiffError(error instanceof Error ? error.message : "Failed to load PR diff");
+          setPrDiffPending(false);
+        }
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [shouldFetchPrDiff, activeThread?.id, prNumberInput, activeThread?.environmentId, prDiffRefreshKey]);
+  }, [
+    shouldFetchPrDiff,
+    activeThread?.id,
+    prNumberInput,
+    activeThread?.environmentId,
+    prDiffRefreshKey,
+  ]);
 
   // Poll for PR head SHA changes every 30 seconds to detect push-based staleness
   useEffect(() => {
@@ -708,14 +712,13 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                 ? "Posting..."
                 : `Post ${draftCommentCount} comment${draftCommentCount !== 1 ? "s" : ""}`}
             </button>
-            {submitError && (
-              <span className="text-[10px] text-red-500/80">{submitError}</span>
-            )}
+            {submitError && <span className="text-[10px] text-red-500/80">{submitError}</span>}
             {showSubmitConfirm && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60">
                 <div className="w-80 rounded-lg border border-border bg-card p-4 shadow-lg">
                   <p className="mb-3 text-[12px] font-medium text-foreground/90">
-                    Post {draftCommentCount} comment{draftCommentCount !== 1 ? "s" : ""} as a GitHub review?
+                    Post {draftCommentCount} comment{draftCommentCount !== 1 ? "s" : ""} as a GitHub
+                    review?
                   </p>
                   <label className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground/80 cursor-pointer">
                     <input

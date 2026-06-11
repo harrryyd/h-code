@@ -30,12 +30,14 @@ function CaptureComponent(props: {
   return null;
 }
 
-function renderCapture(options: {
-  environmentId?: EnvironmentId | null;
-  threadId?: ThreadId | null;
-  prNumber?: number | null;
-  prHeadSHA?: string | null;
-} = {}) {
+function renderCapture(
+  options: {
+    environmentId?: EnvironmentId | null;
+    threadId?: ThreadId | null;
+    prNumber?: number | null;
+    prHeadSHA?: string | null;
+  } = {},
+) {
   capturedResult = null;
   renderToStaticMarkup(
     React.createElement(CaptureComponent, {

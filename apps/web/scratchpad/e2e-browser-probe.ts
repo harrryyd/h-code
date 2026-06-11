@@ -43,7 +43,8 @@ await page.addInitScript(() => {
       const originalSend = this.send.bind(this);
       this.send = (data: any) => {
         sent += 1;
-        if (sent <= 5) log(`#${socketId} +${Date.now() - t0}ms send[${sent}]: ${String(data).slice(0, 200)}`);
+        if (sent <= 5)
+          log(`#${socketId} +${Date.now() - t0}ms send[${sent}]: ${String(data).slice(0, 200)}`);
         return originalSend(data);
       };
       const originalClose = this.close.bind(this);
@@ -55,7 +56,9 @@ await page.addInitScript(() => {
       this.addEventListener("message", (event: MessageEvent) => {
         received += 1;
         if (received <= 5)
-          log(`#${socketId} +${Date.now() - t0}ms recv[${received}]: ${String(event.data).slice(0, 200)}`);
+          log(
+            `#${socketId} +${Date.now() - t0}ms recv[${received}]: ${String(event.data).slice(0, 200)}`,
+          );
       });
       this.addEventListener("close", (event: CloseEvent) =>
         log(
@@ -80,7 +83,9 @@ page.on("pageerror", (error) => {
   consoleMessages.push(`[pageerror] ${error.message}`);
 });
 page.on("requestfailed", (request) => {
-  networkFailures.push(`[requestfailed] ${request.method()} ${request.url()} -> ${request.failure()?.errorText}`);
+  networkFailures.push(
+    `[requestfailed] ${request.method()} ${request.url()} -> ${request.failure()?.errorText}`,
+  );
 });
 page.on("response", (response) => {
   if (response.status() >= 400) {
@@ -92,7 +97,9 @@ page.on("response", (response) => {
         );
       })
       .catch(() => {
-        networkFailures.push(`[http ${response.status()}] ${response.request().method()} ${response.url()}`);
+        networkFailures.push(
+          `[http ${response.status()}] ${response.request().method()} ${response.url()}`,
+        );
       });
   }
 });
