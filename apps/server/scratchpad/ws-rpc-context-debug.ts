@@ -51,10 +51,7 @@ const program = Effect.gen(function* () {
 
   const runtimeContext = yield* Layer.build(
     debugWsRuntimeLayer.pipe(Layer.provide(Layer.succeed(ServerConfig, config))),
-  ).pipe(
-    Effect.scoped,
-    Effect.timeoutOption(Duration.seconds(3)),
-  );
+  ).pipe(Effect.scoped, Effect.timeoutOption(Duration.seconds(3)));
 
   if (Option.isNone(runtimeContext)) {
     yield* Effect.logError("[DEBUG-ws-rpc-harness] runtime layer build timed out", {

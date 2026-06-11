@@ -217,19 +217,11 @@ export function createWsRpcProtocolLayer(
     Socket.WebSocketConstructor,
     (socketUrl, protocols) => {
       lifecycle.onAttempt(socketUrl);
-      console.debug("[wsRpcProtocol] socket attempt", {
-        socketUrl,
-        protocols,
-      });
       const socket = new globalThis.WebSocket(socketUrl, protocols);
 
       socket.addEventListener(
         "open",
         () => {
-          console.debug("[wsRpcProtocol] socket open", {
-            socketUrl,
-            readyState: socket.readyState,
-          });
           lifecycle.onOpen();
         },
         { once: true },
@@ -237,10 +229,6 @@ export function createWsRpcProtocolLayer(
       socket.addEventListener(
         "error",
         () => {
-          console.debug("[wsRpcProtocol] socket error", {
-            socketUrl,
-            readyState: socket.readyState,
-          });
           lifecycle.onError("Unable to connect to the T3 server WebSocket.");
         },
         { once: true },
@@ -258,12 +246,6 @@ export function createWsRpcProtocolLayer(
       socket.addEventListener(
         "close",
         (event) => {
-          console.debug("[wsRpcProtocol] socket close", {
-            socketUrl,
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-          });
           lifecycle.onClose(
             {
               code: event.code,

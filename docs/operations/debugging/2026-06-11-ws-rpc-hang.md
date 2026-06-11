@@ -7,6 +7,7 @@
 ## User-visible symptoms
 
 After a series of large, unvalidated merge commits, the app was broken:
+
 - **Providers settings** stuck on "Checking provider status — Waiting for the server to report installation and authentication details"
 - **Model picker** empty — couldn't select a model
 - **Unable to send messages** after creating a project or thread
@@ -41,6 +42,7 @@ The HEAD commit `8fc126cf` ("WS RPC hang — nested Effect.gen deadlock") was li
 ### Verified end-to-end
 
 Headless-browser probe against the real dev stack confirmed:
+
 - Providers populating (Codex authenticated, OpenCode authenticated, Claude "Not found")
 - Todos loading
 - Single stable WebSocket connection (no reconnect loop)
@@ -50,6 +52,7 @@ Headless-browser probe against the real dev stack confirmed:
 ### Web typecheck repairs (`fc96be3e`)
 
 Fixed 23 remaining `apps/web` typecheck errors from the merge series, including 3 real runtime bugs:
+
 - **`DiffPanel.tsx`**: `isReviewMode` TDZ crash (used before declaration)
 - **`ChatView.tsx`**: invalid route `"/thread/$threadId"` (route does not exist)
 - **`DiffCommentPanel.tsx`**: invalid `"iso"` time-format argument
@@ -61,18 +64,21 @@ Also fixed: `localApi.test.ts` was corrupted by merge damage (did not parse); mo
 The merge splice had hidden 449 typecheck errors. All were pre-existing — they existed at the committed HEAD `8fc126cf`. Partitioned and fixed across three commits:
 
 **`e13221dc`** — ~210 errors across orchestration deciders, BackgroundAgentService, ProviderCommandReactor, CodexSessionRuntime, EnvironmentAuth, and review/sourceControl providers. Key fixes:
+
 - Effect v4 API migration: `Effect.catchAll` → `Effect.catch`, `Option.fromNullable` → `Option.fromNullishOr`, `Effect.async` → `Effect.callback`
 - `PlannedOrchestrationEvent` construction using proper constructors
 - Crypto service dependency threading in decider tests
 - `compactThread` stubs on provider adapters
 
 **`a87ef7af`** — 26 errors in `ws.ts`. After the RPC route layer refactor (commit `c3351374` replaced the `WsAppServices` indirection with `WsRpcGroup.toLayer()`), the raw error types of handlers became visible to the RPC framework. Fix:
+
 - Added `EnvironmentAuthorizationError` to fork-added RPC contracts (mcp, todos) — matching the pattern used by all 30 upstream methods
 - Converted persistence infrastructure errors (`PersistenceDecodeError | PersistenceSqlError`) to defects via `Effect.orDie` in `changeRequest` handlers that query `getThreadShellById`
 - Provided `FileSystem` service in todo handler scope
 - Fixed readonly-array vs mutable-array `TodosData` conversion
 
 **`86220f63`** — Remaining 275 errors + 53 test failures across `server.test.ts`, `BackgroundAgentService.test.ts`, `ReviewDraftStore.ts`, `SourceControlProviderRegistry.ts`, `GitHubCli.ts`, and orchestration test fixtures. Key fixes:
+
 - `contextTrimPoints: []` on all thread projection fixtures (new required field from `/compact`)
 - `Layer.mock()` for 3 new production services missing from test harnesses
 - Missing `getPullRequestReviews`/`createPullRequestReview` stubs for unsupported source control providers
@@ -93,14 +99,14 @@ Applied Prettier auto-formatting from `vp check --fix` across 44 files.
 
 ## Verification results
 
-| Gate | Result |
-|------|--------|
-| `vp check` | 0 errors, 26 pre-existing warnings |
-| `vp run typecheck` | 0 failures across all 15 packages |
-| Server tests (`apps/server`) | 147 passed, 1 skipped |
-| Web tests (`apps/web`) | 105 passed |
-| `e2e-smoke.ts` | PASS (all 10 RPC steps) |
-| Browser probe | PASS (providers populated, no stuck state) |
+| Gate                         | Result                                     |
+| ---------------------------- | ------------------------------------------ |
+| `vp check`                   | 0 errors, 26 pre-existing warnings         |
+| `vp run typecheck`           | 0 failures across all 15 packages          |
+| Server tests (`apps/server`) | 147 passed, 1 skipped                      |
+| Web tests (`apps/web`)       | 105 passed                                 |
+| `e2e-smoke.ts`               | PASS (all 10 RPC steps)                    |
+| Browser probe                | PASS (providers populated, no stuck state) |
 
 ## Known issues (not fixed)
 
