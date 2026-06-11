@@ -3,8 +3,10 @@ import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -84,7 +86,7 @@ import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import { redactServerSettingsForClient, ServerSettingsService } from "./serverSettings.ts";
 import { applyMutations, archiveDoneItems } from "@t3tools/shared/todoStore";
-import { appendToArchive, readTodos, writeTodos } from "./todoPersistence.ts";
+import { appendToArchive, readTodos, type TodosData, writeTodos } from "./todoPersistence.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries.ts";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem.ts";
@@ -1217,14 +1219,19 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
         [WS_METHODS.todosLoad]: (_payload) =>
           observeRpcEffect(
             WS_METHODS.todosLoad,
-            readTodos.pipe(
-              Effect.mapError(
-                (cause) =>
-                  new TodosLoadError({
-                    kind: "io-failure",
-                    detail: `Failed to load todos: ${cause}`,
-                    cause,
-                  }),
+            Effect.gen(function* () {
+              yield* FileSystem.FileSystem;
+              return yield* readTodos;
+            }).pipe(
+              Effect.catch(
+                (cause: unknown) =>
+                  Schema.is(TodosLoadError)(cause)
+                    ? cause
+                    : new TodosLoadError({
+                        kind: "io-failure",
+                        detail: `Failed to load todos: ${cause}`,
+                        cause,
+                      }),
               ),
             ),
             {
@@ -1235,11 +1242,13 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(
             WS_METHODS.todosMutate,
             Effect.gen(function* () {
+              yield* FileSystem.FileSystem;
+              yield* Path.Path;
               const current = yield* readTodos;
               const next = applyMutations(
                 {
-                  categories: current.categories,
-                  items: current.items,
+                  categories: [...current.categories],
+                  items: [...current.items],
                   jiraBaseUrl: current.jiraBaseUrl,
                 },
                 input.mutations,
@@ -1248,24 +1257,18 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
               if (archived.length > 0) {
                 yield* appendToArchive(archived);
               }
-              yield* writeTodos({
-                categories: deduped.categories,
-                items: deduped.items,
-                jiraBaseUrl: deduped.jiraBaseUrl,
-              });
-              return {
-                categories: deduped.categories,
-                items: deduped.items,
-                jiraBaseUrl: deduped.jiraBaseUrl,
-              };
+              yield* writeTodos(deduped as unknown as TodosData);
+              return deduped;
             }).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new TodosMutateError({
-                    kind: "io-failure",
-                    detail: `Failed to mutate todos: ${cause}`,
-                    cause,
-                  }),
+              Effect.catch(
+                (cause: unknown) =>
+                  Schema.is(TodosMutateError)(cause)
+                    ? cause
+                    : new TodosMutateError({
+                        kind: "io-failure",
+                        detail: `Failed to mutate todos: ${cause}`,
+                        cause,
+                      }),
               ),
             ),
             {
@@ -1518,7 +1521,9 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(
             WS_METHODS.changeRequestGetReviewDraft,
             Effect.gen(function* () {
-              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              const thread = yield* projectionSnapshotQuery
+                .getThreadShellById(input.threadId)
+                .pipe(Effect.orDie);
               const cwd = Option.match(thread, {
                 onNone: () => undefined,
                 onSome: (t) => t.worktreePath ?? undefined,
@@ -1543,7 +1548,9 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(
             WS_METHODS.changeRequestGetPrDiff,
             Effect.gen(function* () {
-              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              const thread = yield* projectionSnapshotQuery
+                .getThreadShellById(input.threadId)
+                .pipe(Effect.orDie);
               if (Option.isNone(thread)) {
                 return yield* new ChangeRequestGetPrDiffError({
                   kind: "not-a-repo",
@@ -1614,7 +1621,9 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(
             WS_METHODS.changeRequestSubmitReview,
             Effect.gen(function* () {
-              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              const thread = yield* projectionSnapshotQuery
+                .getThreadShellById(input.threadId)
+                .pipe(Effect.orDie);
               if (Option.isNone(thread)) {
                 return yield* new ChangeRequestSubmitReviewError({
                   kind: "not-a-repo",
@@ -1636,7 +1645,9 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           observeRpcStreamEffect(
             WS_METHODS.changeRequestRunBackgroundAgent,
             Effect.gen(function* () {
-              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              const thread = yield* projectionSnapshotQuery
+                .getThreadShellById(input.threadId)
+                .pipe(Effect.orDie);
               if (Option.isNone(thread)) {
                 return yield* Effect.fail(
                   new ChangeRequestRunBackgroundAgentError({
@@ -1713,7 +1724,9 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           observeRpcStreamEffect(
             WS_METHODS.changeRequestRunBatchAgents,
             Effect.gen(function* () {
-              const thread = yield* projectionSnapshotQuery.getThreadShellById(input.threadId);
+              const thread = yield* projectionSnapshotQuery
+                .getThreadShellById(input.threadId)
+                .pipe(Effect.orDie);
               if (Option.isNone(thread)) {
                 return yield* Effect.fail(
                   new ChangeRequestRunBackgroundAgentError({

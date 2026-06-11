@@ -393,13 +393,13 @@ export const WsFilesystemBrowseRpc = Rpc.make(WS_METHODS.filesystemBrowse, {
 export const WsMcpListServersRpc = Rpc.make(WS_METHODS.mcpListServers, {
   payload: WsMcpListServersInput,
   success: WsMcpListServersResult,
-  error: McpToggleError,
+  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
 });
 
 export const WsMcpToggleServerRpc = Rpc.make(WS_METHODS.mcpToggleServer, {
   payload: WsMcpToggleServerInput,
   success: WsMcpToggleServerResult,
-  error: McpToggleError,
+  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
 });
 
 export const WsSubscribeVcsStatusRpc = Rpc.make(WS_METHODS.subscribeVcsStatus, {
@@ -671,7 +671,7 @@ export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("T
 export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
   payload: Schema.Struct({}),
   success: TodosLoadResult,
-  error: TodosLoadError,
+  error: Schema.Union([TodosLoadError, EnvironmentAuthorizationError]),
 });
 
 export const TodoMutationType = Schema.Literals([
@@ -826,7 +826,7 @@ export class TodosMutateError extends Schema.TaggedErrorClass<TodosMutateError>(
 export const WsTodosMutateRpc = Rpc.make(WS_METHODS.todosMutate, {
   payload: TodosMutateInput,
   success: TodosLoadResult,
-  error: TodosMutateError,
+  error: Schema.Union([TodosMutateError, EnvironmentAuthorizationError]),
 });
 
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
