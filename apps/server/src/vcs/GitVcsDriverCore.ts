@@ -2282,7 +2282,14 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     runGitStdout(
       "GitVcsDriver.getPrDiff",
       cwd,
-      ["diff", "--patch", "--no-color", "--no-ext-diff", "--no-textconv", `${baseRef}...${headRef}`],
+      [
+        "diff",
+        "--patch",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        `${baseRef}...${headRef}`,
+      ],
       false,
     );
 

@@ -52,9 +52,7 @@ function toChangeRequest(summary: GitHubCli.GitHubPullRequestSummary): ChangeReq
   };
 }
 
-function toReviewComment(
-  comment: GitHubCli.GitHubPullRequestReviewComment,
-): ReviewComment {
+function toReviewComment(comment: GitHubCli.GitHubPullRequestReviewComment): ReviewComment {
   return {
     id: comment.id,
     file: comment.path,
@@ -223,12 +221,10 @@ export const make = Effect.fn("makeGitHubSourceControlProvider")(function* () {
         .checkoutPullRequest(input)
         .pipe(Effect.mapError((error) => providerError("checkoutChangeRequest", error))),
     getPullRequestReviews: (input) =>
-      github
-        .getPullRequestReviews(input)
-        .pipe(
-          Effect.map((review) => review.comments.map(toReviewComment)),
-          Effect.mapError((error) => providerError("getPullRequestReviews", error)),
-        ),
+      github.getPullRequestReviews(input).pipe(
+        Effect.map((review) => review.comments.map(toReviewComment)),
+        Effect.mapError((error) => providerError("getPullRequestReviews", error)),
+      ),
     createPullRequestReview: (input) =>
       github
         .createPullRequestReview(input)

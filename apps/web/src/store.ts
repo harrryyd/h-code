@@ -261,6 +261,7 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     worktreePath: thread.worktreePath,
     turnDiffSummaries: thread.checkpoints.map(mapTurnDiffSummary),
     activities: thread.activities.map((activity) => ({ ...activity })),
+    contextTrimPoints: thread.contextTrimPoints,
   };
 }
 
@@ -1289,6 +1290,7 @@ function applyEnvironmentOrchestrationEvent(
           proposedPlans: [],
           activities: [],
           checkpoints: [],
+          contextTrimPoints: [],
           session: null,
         },
         environmentId,

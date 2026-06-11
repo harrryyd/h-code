@@ -1,8 +1,8 @@
 import "../../index.css";
 
 import { EnvironmentId, ThreadId, type McpServerSnapshot } from "@t3tools/contracts";
-import { page } from "vitest/browser";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { page } from "vite-plus/test/browser";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { render } from "vitest-browser-react";
 
 const LOADING_INDICATOR_DELAY_MS = 150;

@@ -1,9 +1,11 @@
 import type { ReviewComment } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
+import { randomUUID } from "~/lib/utils";
+
 function createComment(overrides: Partial<ReviewComment> = {}): ReviewComment {
   return {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     file: "src/app.ts",
     line: 42,
     commitSHA: "abc123def456",

@@ -16,6 +16,7 @@ import type {
   ProviderDriverKind,
   ProviderInstanceId,
   CheckpointRef,
+  ContextTrimPoint,
   ProviderInteractionMode,
   RuntimeMode,
 } from "@t3tools/contracts";
@@ -119,6 +120,7 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
+  contextTrimPoints: ReadonlyArray<ContextTrimPoint>;
 }
 
 export interface ThreadShell {

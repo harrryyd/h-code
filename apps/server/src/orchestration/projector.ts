@@ -726,9 +726,7 @@ export function projectEvent(
           event.type,
           "payload",
         );
-        const oldThread = nextBase.threads.find(
-          (entry) => entry.id === payload.archivedThreadId,
-        );
+        const oldThread = nextBase.threads.find((entry) => entry.id === payload.archivedThreadId);
         if (!oldThread) {
           return nextBase;
         }

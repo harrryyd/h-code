@@ -82,6 +82,7 @@ export async function writeWorkspaceStateToFile(
   state: ManagerWorkspaceState,
 ): Promise<void> {
   const serialized = serializeWorkspaceState(state);
+  // @effect-diagnostics-next-line cryptoRandomUUID:off
   const tmpPath = `${filePath}.${crypto.randomUUID()}.tmp`;
   await fs.writeFile(tmpPath, serialized, "utf-8");
   await fs.rename(tmpPath, filePath);

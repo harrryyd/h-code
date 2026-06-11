@@ -240,90 +240,94 @@ export const make = Effect.fn("makeSessionStore")(function* () {
     });
 
   const markConnected: SessionStoreShape["markConnected"] = (sessionId) =>
-    Effect.logDebug("session.markConnected start", { sessionId }).pipe(
-      Effect.andThen(
-        Ref.modify(connectedSessionsRef, (current) => {
-          const next = new Map(current);
-          const wasDisconnected = !next.has(sessionId);
-          next.set(sessionId, (next.get(sessionId) ?? 0) + 1);
-          return [wasDisconnected, next] as const;
-        }),
-      ),
-    ).pipe(
-      Effect.tap((wasDisconnected) =>
-        Effect.logDebug("session.markConnected state updated", {
-          sessionId,
-          wasDisconnected,
-        }),
-      ),
-      Effect.flatMap((wasDisconnected) =>
-        wasDisconnected
-          ? DateTime.now.pipe(
-              Effect.flatMap((lastConnectedAt) =>
-                authSessions.setLastConnectedAt({
-                  sessionId,
-                  lastConnectedAt,
-                }),
-              ),
-            )
-          : Effect.void,
-      ),
-      Effect.flatMap(() => loadActiveSession(sessionId)),
-      Effect.tap((session) =>
-        Effect.logDebug("session.markConnected loaded active session", {
-          sessionId,
-          hasActiveSession: Option.isSome(session),
-        }),
-      ),
-      Effect.flatMap((session) =>
-        Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
-      ),
-      Effect.catchCause((cause) =>
-        Effect.logError("Failed to publish connected-session auth update.").pipe(
-          Effect.annotateLogs({
-            sessionId,
-            cause,
+    Effect.logDebug("session.markConnected start", { sessionId })
+      .pipe(
+        Effect.andThen(
+          Ref.modify(connectedSessionsRef, (current) => {
+            const next = new Map(current);
+            const wasDisconnected = !next.has(sessionId);
+            next.set(sessionId, (next.get(sessionId) ?? 0) + 1);
+            return [wasDisconnected, next] as const;
           }),
         ),
-      ),
-      Effect.withSpan("SessionStore.markConnected"),
-    );
+      )
+      .pipe(
+        Effect.tap((wasDisconnected) =>
+          Effect.logDebug("session.markConnected state updated", {
+            sessionId,
+            wasDisconnected,
+          }),
+        ),
+        Effect.flatMap((wasDisconnected) =>
+          wasDisconnected
+            ? DateTime.now.pipe(
+                Effect.flatMap((lastConnectedAt) =>
+                  authSessions.setLastConnectedAt({
+                    sessionId,
+                    lastConnectedAt,
+                  }),
+                ),
+              )
+            : Effect.void,
+        ),
+        Effect.flatMap(() => loadActiveSession(sessionId)),
+        Effect.tap((session) =>
+          Effect.logDebug("session.markConnected loaded active session", {
+            sessionId,
+            hasActiveSession: Option.isSome(session),
+          }),
+        ),
+        Effect.flatMap((session) =>
+          Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
+        ),
+        Effect.catchCause((cause) =>
+          Effect.logError("Failed to publish connected-session auth update.").pipe(
+            Effect.annotateLogs({
+              sessionId,
+              cause,
+            }),
+          ),
+        ),
+        Effect.withSpan("SessionStore.markConnected"),
+      );
 
   const markDisconnected: SessionStoreShape["markDisconnected"] = (sessionId) =>
-    Effect.logDebug("session.markDisconnected start", { sessionId }).pipe(
-      Effect.andThen(
-        Ref.update(connectedSessionsRef, (current) => {
-          const next = new Map(current);
-          const remaining = (next.get(sessionId) ?? 0) - 1;
-          if (remaining > 0) {
-            next.set(sessionId, remaining);
-          } else {
-            next.delete(sessionId);
-          }
-          return next;
-        }),
-      ),
-    ).pipe(
-      Effect.flatMap(() => loadActiveSession(sessionId)),
-      Effect.tap((session) =>
-        Effect.logDebug("session.markDisconnected loaded active session", {
-          sessionId,
-          hasActiveSession: Option.isSome(session),
-        }),
-      ),
-      Effect.flatMap((session) =>
-        Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
-      ),
-      Effect.catchCause((cause) =>
-        Effect.logError("Failed to publish disconnected-session auth update.").pipe(
-          Effect.annotateLogs({
-            sessionId,
-            cause,
+    Effect.logDebug("session.markDisconnected start", { sessionId })
+      .pipe(
+        Effect.andThen(
+          Ref.update(connectedSessionsRef, (current) => {
+            const next = new Map(current);
+            const remaining = (next.get(sessionId) ?? 0) - 1;
+            if (remaining > 0) {
+              next.set(sessionId, remaining);
+            } else {
+              next.delete(sessionId);
+            }
+            return next;
           }),
         ),
-      ),
-      Effect.withSpan("SessionStore.markDisconnected"),
-    );
+      )
+      .pipe(
+        Effect.flatMap(() => loadActiveSession(sessionId)),
+        Effect.tap((session) =>
+          Effect.logDebug("session.markDisconnected loaded active session", {
+            sessionId,
+            hasActiveSession: Option.isSome(session),
+          }),
+        ),
+        Effect.flatMap((session) =>
+          Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
+        ),
+        Effect.catchCause((cause) =>
+          Effect.logError("Failed to publish disconnected-session auth update.").pipe(
+            Effect.annotateLogs({
+              sessionId,
+              cause,
+            }),
+          ),
+        ),
+        Effect.withSpan("SessionStore.markDisconnected"),
+      );
 
   const encodeClaims = Schema.encodeEffect(Schema.fromJsonString(SessionClaims));
   const issue: SessionStoreShape["issue"] = Effect.fn("SessionStore.issue")(

@@ -23,6 +23,7 @@ type WritebackRequestedEvent = Extract<
 >;
 
 const serverCommandId = (tag: string): CommandId =>
+  // @effect-diagnostics-next-line cryptoRandomUUID:off
   CommandId.make(`server:${tag}:${crypto.randomUUID()}`);
 const isSeededWorkItemWritebackError = Schema.is(SeededWorkItemWritebackError);
 
@@ -54,6 +55,7 @@ const make = Effect.gen(function* () {
       commandId: serverCommandId("seeded-work-item-writeback-activity"),
       threadId: input.threadId,
       activity: {
+        // @effect-diagnostics-next-line cryptoRandomUUID:off
         id: EventId.make(crypto.randomUUID()),
         tone: input.tone,
         kind: input.kind,

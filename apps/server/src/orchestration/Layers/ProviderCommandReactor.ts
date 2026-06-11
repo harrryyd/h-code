@@ -960,11 +960,11 @@ const make = Effect.gen(function* () {
     // Attempt provider compaction
     const compactResult = yield* providerService.compactThread({ threadId }).pipe(
       Effect.map((result) => ({ _tag: "success" as const, ...result })),
-      Effect.catchAll((cause) =>
+      Effect.catch((error) =>
         Effect.gen(function* () {
           yield* Effect.logWarning("provider compaction failed, proceeding with trim-only", {
             threadId: String(threadId),
-            cause: Cause.pretty(cause),
+            cause: Cause.pretty(Cause.fail(error)),
           });
           return { _tag: "failure" as const };
         }),

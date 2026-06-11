@@ -95,6 +95,7 @@ export function applyThreadDetailEvent(
           proposedPlans: [],
           activities: [],
           checkpoints: [],
+          contextTrimPoints: [],
           session: null,
         },
       };

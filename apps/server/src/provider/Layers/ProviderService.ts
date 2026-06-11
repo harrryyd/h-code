@@ -1005,7 +1005,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
             ? cause
             : new ProviderValidationError({
                 operation: "ProviderService.compactThread",
-                issue: Cause.pretty(cause),
+                issue: Cause.pretty(Cause.fail(cause)),
               }),
         ),
       );

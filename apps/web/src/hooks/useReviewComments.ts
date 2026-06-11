@@ -1,6 +1,12 @@
-import type { ReviewComment, ReviewDraft } from "@t3tools/contracts";
+import type {
+  BackgroundAgentResponseEvent,
+  ReviewComment,
+  ReviewDraft,
+  ThreadId,
+} from "@t3tools/contracts";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { readEnvironmentApi } from "../environmentApi";
+import { randomUUID } from "../lib/utils";
 import type { EnvironmentId } from "@t3tools/contracts";
 
 export interface EditingCommentState {
@@ -9,18 +15,11 @@ export interface EditingCommentState {
   prefillBody: string;
 }
 
-export interface BackgroundAgentEvent {
-  type: "text" | "detail" | "status" | "done" | "error";
-  commentId: string;
-  content?: string;
-  agentStatus?: string;
-  title?: string;
-  message?: string;
-}
+export type BackgroundAgentEvent = BackgroundAgentResponseEvent;
 
 export interface UseReviewCommentsOptions {
   environmentId: EnvironmentId | null;
-  threadId: string | null;
+  threadId: ThreadId | null;
   prNumber: number | null;
   prHeadSHA: string | null;
 }
@@ -47,9 +46,7 @@ export interface UseReviewCommentsResult {
   agentRunning: Set<string>;
 }
 
-export function useReviewComments(
-  options: UseReviewCommentsOptions,
-): UseReviewCommentsResult {
+export function useReviewComments(options: UseReviewCommentsOptions): UseReviewCommentsResult {
   const { environmentId, threadId, prNumber, prHeadSHA } = options;
   const [reviewDraft, setReviewDraft] = useState<ReviewDraft | null>(null);
   const [draftPending, setDraftPending] = useState(false);
@@ -69,18 +66,16 @@ export function useReviewComments(
     if (!api) return;
     setDraftPending(true);
     setDraftError(null);
-    api.changeRequest
-      .getReviewDraft({ threadId, prNumber })
-      .then(
-        (draft) => {
-          setReviewDraft(draft);
-          setDraftPending(false);
-        },
-        (error) => {
-          setDraftError(error instanceof Error ? error.message : "Failed to load review draft");
-          setDraftPending(false);
-        },
-      );
+    api.changeRequest.getReviewDraft({ threadId, prNumber }).then(
+      (draft) => {
+        setReviewDraft(draft);
+        setDraftPending(false);
+      },
+      (error) => {
+        setDraftError(error instanceof Error ? error.message : "Failed to load review draft");
+        setDraftPending(false);
+      },
+    );
   }, [environmentId, threadId, prNumber]);
 
   useEffect(() => {
@@ -108,7 +103,7 @@ export function useReviewComments(
       if (!api) return;
       setSavePending(true);
       setSaveError(null);
-      const id = crypto.randomUUID();
+      const id = randomUUID();
       const comment: ReviewComment = {
         id,
         file: editingComment.filePath,
@@ -155,29 +150,26 @@ export function useReviewComments(
     [environmentId, threadId, prNumber],
   );
 
-  const submitReview = useCallback(
-    async (): Promise<ReviewDraft | null> => {
-      if (!environmentId || !threadId || !prNumber) return null;
-      const api = readEnvironmentApi(environmentId);
-      if (!api) return null;
-      setSubmitting(true);
-      setSubmitError(null);
-      try {
-        const updatedDraft = await api.changeRequest.submitReview({
-          threadId,
-          prNumber,
-        });
-        setReviewDraft(updatedDraft);
-        setSubmitting(false);
-        return updatedDraft;
-      } catch (error) {
-        setSubmitError(error instanceof Error ? error.message : "Failed to submit review");
-        setSubmitting(false);
-        return null;
-      }
-    },
-    [environmentId, threadId, prNumber],
-  );
+  const submitReview = useCallback(async (): Promise<ReviewDraft | null> => {
+    if (!environmentId || !threadId || !prNumber) return null;
+    const api = readEnvironmentApi(environmentId);
+    if (!api) return null;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const updatedDraft = await api.changeRequest.submitReview({
+        threadId,
+        prNumber,
+      });
+      setReviewDraft(updatedDraft);
+      setSubmitting(false);
+      return updatedDraft;
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Failed to submit review");
+      setSubmitting(false);
+      return null;
+    }
+  }, [environmentId, threadId, prNumber]);
 
   const submitReviewWithBatchAgents = useCallback(() => {
     if (!environmentId || !threadId || !prNumber) return;
@@ -291,7 +283,9 @@ export function useReviewComments(
               return {
                 ...prev,
                 comments: prev.comments.map((c) =>
-                  c.id === commentId ? { ...c, agentStatus: event.agentStatus as ReviewComment["agentStatus"] } : c,
+                  c.id === commentId
+                    ? { ...c, agentStatus: event.agentStatus as ReviewComment["agentStatus"] }
+                    : c,
                 ),
               };
             });

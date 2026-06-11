@@ -1229,6 +1229,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                 activities: activitiesByThread.get(row.threadId) ?? [],
                 checkpoints: checkpointsByThread.get(row.threadId) ?? [],
+                contextTrimPoints: [],
                 session: sessionsByThread.get(row.threadId) ?? null,
               }));
 
@@ -1430,6 +1431,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                   activities: [],
                   checkpoints: [],
+                  contextTrimPoints: [],
                   session: sessionByThread.get(row.threadId) ?? null,
                 });
               }
@@ -1559,7 +1561,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                       hasPendingApprovals: row.pendingApprovalCount > 0,
                       hasPendingUserInput: row.pendingUserInputCount > 0,
                       hasActionableProposedPlan: row.hasActionableProposedPlan > 0,
-                      ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
+                      ...(row.managerMetadata !== null
+                        ? { managerMetadata: row.managerMetadata }
+                        : {}),
                     } as OrchestrationThreadShell)
                   : Result.failVoid,
               ),

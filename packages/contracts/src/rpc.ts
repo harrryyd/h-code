@@ -393,13 +393,13 @@ export const WsFilesystemBrowseRpc = Rpc.make(WS_METHODS.filesystemBrowse, {
 export const WsMcpListServersRpc = Rpc.make(WS_METHODS.mcpListServers, {
   payload: WsMcpListServersInput,
   success: WsMcpListServersResult,
-  error: McpToggleError,
+  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
 });
 
 export const WsMcpToggleServerRpc = Rpc.make(WS_METHODS.mcpToggleServer, {
   payload: WsMcpToggleServerInput,
   success: WsMcpToggleServerResult,
-  error: McpToggleError,
+  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
 });
 
 export const WsSubscribeVcsStatusRpc = Rpc.make(WS_METHODS.subscribeVcsStatus, {
@@ -491,14 +491,11 @@ export const WsChangeRequestGetReviewDraftInput = Schema.Struct({
 });
 export type WsChangeRequestGetReviewDraftInput = typeof WsChangeRequestGetReviewDraftInput.Type;
 
-export const WsChangeRequestGetReviewDraftRpc = Rpc.make(
-  WS_METHODS.changeRequestGetReviewDraft,
-  {
-    payload: WsChangeRequestGetReviewDraftInput,
-    success: Schema.NullOr(ReviewDraft),
-    error: EnvironmentAuthorizationError,
-  },
-);
+export const WsChangeRequestGetReviewDraftRpc = Rpc.make(WS_METHODS.changeRequestGetReviewDraft, {
+  payload: WsChangeRequestGetReviewDraftInput,
+  success: Schema.NullOr(ReviewDraft),
+  error: EnvironmentAuthorizationError,
+});
 
 export const WsChangeRequestUpsertReviewCommentInput = Schema.Struct({
   threadId: ThreadId,
@@ -612,15 +609,12 @@ export const WsChangeRequestRunBatchAgentsInput = Schema.Struct({
 });
 export type WsChangeRequestRunBatchAgentsInput = typeof WsChangeRequestRunBatchAgentsInput.Type;
 
-export const WsChangeRequestRunBatchAgentsRpc = Rpc.make(
-  WS_METHODS.changeRequestRunBatchAgents,
-  {
-    payload: WsChangeRequestRunBatchAgentsInput,
-    success: BackgroundAgentResponseEvent,
-    error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
-    stream: true,
-  },
-);
+export const WsChangeRequestRunBatchAgentsRpc = Rpc.make(WS_METHODS.changeRequestRunBatchAgents, {
+  payload: WsChangeRequestRunBatchAgentsInput,
+  success: BackgroundAgentResponseEvent,
+  error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
+  stream: true,
+});
 
 export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<ChangeRequestSubmitReviewError>()(
   "ChangeRequestSubmitReviewError",
@@ -642,14 +636,11 @@ export const WsChangeRequestSubmitReviewInput = Schema.Struct({
 });
 export type WsChangeRequestSubmitReviewInput = typeof WsChangeRequestSubmitReviewInput.Type;
 
-export const WsChangeRequestSubmitReviewRpc = Rpc.make(
-  WS_METHODS.changeRequestSubmitReview,
-  {
-    payload: WsChangeRequestSubmitReviewInput,
-    success: ReviewDraft,
-    error: Schema.Union([ChangeRequestSubmitReviewError, EnvironmentAuthorizationError]),
-  },
-);
+export const WsChangeRequestSubmitReviewRpc = Rpc.make(WS_METHODS.changeRequestSubmitReview, {
+  payload: WsChangeRequestSubmitReviewInput,
+  success: ReviewDraft,
+  error: Schema.Union([ChangeRequestSubmitReviewError, EnvironmentAuthorizationError]),
+});
 
 export const TodosLoadResult = Schema.Struct({
   categories: Schema.Array(TodoCategory),
@@ -671,7 +662,7 @@ export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("T
 export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
   payload: Schema.Struct({}),
   success: TodosLoadResult,
-  error: TodosLoadError,
+  error: Schema.Union([TodosLoadError, EnvironmentAuthorizationError]),
 });
 
 export const TodoMutationType = Schema.Literals([
@@ -826,7 +817,7 @@ export class TodosMutateError extends Schema.TaggedErrorClass<TodosMutateError>(
 export const WsTodosMutateRpc = Rpc.make(WS_METHODS.todosMutate, {
   payload: TodosMutateInput,
   success: TodosLoadResult,
-  error: TodosMutateError,
+  error: Schema.Union([TodosMutateError, EnvironmentAuthorizationError]),
 });
 
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {

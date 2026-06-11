@@ -54,7 +54,7 @@ layer("031_AuthAuthorizationScopes", (it) => {
         )
       `;
 
-      yield* runMigrations({ toMigrationInclusive: 31 });
+      yield* runMigrations({ toMigrationInclusive: 34 });
 
       const pairingColumns = yield* sql<{ readonly name: string }>`
         PRAGMA table_info(auth_pairing_links)

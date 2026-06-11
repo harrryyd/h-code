@@ -58,8 +58,10 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       upsertReviewComment: rpcClient.changeRequest.upsertReviewComment,
       deleteReviewComment: rpcClient.changeRequest.deleteReviewComment,
       submitReview: rpcClient.changeRequest.submitReview,
-      runBackgroundAgent: rpcClient.changeRequest.runBackgroundAgent,
-      runBatchAgents: rpcClient.changeRequest.runBatchAgents,
+      runBackgroundAgent: (input, callback, options) =>
+        rpcClient.changeRequest.runBackgroundAgent(input, callback, options),
+      runBatchAgents: (input, callback, options) =>
+        rpcClient.changeRequest.runBatchAgents(input, callback, options),
     },
     orchestration: {
       dispatchCommand: rpcClient.orchestration.dispatchCommand,
