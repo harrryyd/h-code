@@ -1,8 +1,6 @@
 import { EnvironmentHttpApi } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Duration from "effect/Duration";
-import * as Option from "effect/Option";
 import { FetchHttpClient, HttpRouter, HttpServer } from "effect/unstable/http";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 
@@ -16,7 +14,7 @@ import {
   browserApiCorsLayer,
 } from "./http.ts";
 import { fixPath } from "./os-jank.ts";
-import { debugBuildWsRpcContext, debugWsRpcContextRouteLayer, websocketRpcRouteLayer, wsAppServicesLayer } from "./ws.ts";
+import { websocketRpcRouteLayer } from "./ws.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import { layerConfig as SqlitePersistenceLayerLive } from "./persistence/Layers/Sqlite.ts";
 import { ServerLifecycleEventsLive } from "./serverLifecycleEvents.ts";
@@ -384,14 +382,7 @@ const ServerRuntimeStartupLayerLive = ServerRuntimeStartupLive.pipe(
   Layer.provideMerge(ProjectionSnapshotQueryLayerLive),
 );
 
-const RuntimeServicesLive = Layer.mergeAll(RuntimeDependenciesLive, ServerRuntimeStartupLayerLive);
-
-export const debugWsRuntimeLayer = RuntimeServicesLive.pipe(
-  Layer.provide(ObservabilityLive),
-  Layer.provideMerge(FetchHttpClient.layer),
-  Layer.provideMerge(VcsProcess.layer),
-  Layer.provideMerge(PlatformServicesLive),
-);
+export const RuntimeServicesLive = Layer.mergeAll(RuntimeDependenciesLive, ServerRuntimeStartupLayerLive);
 
 export const makeRoutesLayer = Layer.mergeAll(
   HttpApiBuilder.layer(EnvironmentHttpApi).pipe(
@@ -406,7 +397,6 @@ export const makeRoutesLayer = Layer.mergeAll(
   projectFaviconRouteLayer,
   staticAndDevRouteLayer,
   websocketRpcRouteLayer,
-  debugWsRpcContextRouteLayer,
 ).pipe(Layer.provide(browserApiCorsLayer));
 
 export const makeServerLayer = Layer.unwrap(
@@ -515,28 +505,6 @@ export const makeServerLayer = Layer.unwrap(
         );
       }),
     );
-    const debugWsRpcContextSelfTestLayer =
-      process.env.T3CODE_DEBUG_WS_CONTEXT_SELFTEST === "1"
-        ? Layer.effectDiscard(
-            Effect.gen(function* () {
-              yield* Effect.logWarning("[DEBUG-ws-rpc] self-test start");
-              const result = yield* debugBuildWsRpcContext({
-                sessionId: "debug-session",
-                subject: "debug-subject",
-                method: "browser-session-cookie",
-                scopes: [],
-              }).pipe(Effect.timeoutOption(Duration.seconds(5)));
-
-              if (Option.isNone(result)) {
-                yield* Effect.logError("[DEBUG-ws-rpc] self-test timed out");
-                return;
-              }
-
-              yield* Effect.logWarning("[DEBUG-ws-rpc] self-test built context");
-            }),
-          )
-        : Layer.empty;
-
     const serverApplicationLayer = Layer.mergeAll(
       HttpRouter.serve(makeRoutesLayer, {
         disableLogger: !config.logWebSocketEvents,
@@ -545,11 +513,9 @@ export const makeServerLayer = Layer.unwrap(
       runtimeStateLayer,
       tailscaleServeLayer,
       cloudDesiredLinkReconcileLayer,
-      debugWsRpcContextSelfTestLayer,
     );
 
     return serverApplicationLayer.pipe(
-      Layer.provide(wsAppServicesLayer),
       Layer.provideMerge(RuntimeServicesLive),
       Layer.provideMerge(HttpServerLive),
       Layer.provide(ObservabilityLive),

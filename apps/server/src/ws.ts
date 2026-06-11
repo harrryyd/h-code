@@ -1,5 +1,4 @@
 import * as Cause from "effect/Cause";
-import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
@@ -58,7 +57,7 @@ import {
   WsRpcGroup,
 } from "@t3tools/contracts";
 import { clamp } from "effect/Number";
-import { HttpRouter, HttpServerRequest, HttpServerRespondable, HttpServerResponse } from "effect/unstable/http";
+import { HttpRouter, HttpServerRequest, HttpServerRespondable } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
 
 import { CheckpointDiffQuery } from "./checkpointing/Services/CheckpointDiffQuery.ts";
@@ -117,10 +116,6 @@ const isMcpToggleError = Schema.is(McpToggleError);
 const isProviderUnsupportedError = Schema.is(ProviderUnsupportedError);
 const isProviderAdapterSessionNotFoundError = Schema.is(ProviderAdapterSessionNotFoundError);
 const isProviderAdapterProcessError = Schema.is(ProviderAdapterProcessError);
-
-export class WsAppServices extends Context.Service<WsAppServices, Context.Context<never>>()(
-  "t3code/server/WsAppServices",
-) {}
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
@@ -253,17 +248,17 @@ function toAuthAccessStreamEvent(
 const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
   Effect.gen(function* () {
     const currentSessionId = currentSession.sessionId;
-    yield* Effect.logWarning("[DEBUG-ws-rpc] ws.rpc layer init start", {
+    yield* Effect.logDebug("ws.rpc handlers init start", {
       sessionId: currentSessionId,
     });
     const loadService = <A, E, R>(label: string, effect: Effect.Effect<A, E, R>) =>
-      Effect.logWarning("[DEBUG-ws-rpc] service start", {
+      Effect.logDebug("ws.rpc service start", {
         sessionId: currentSessionId,
         service: label,
       }).pipe(
         Effect.andThen(effect),
         Effect.tap(() =>
-          Effect.logWarning("[DEBUG-ws-rpc] service ready", {
+          Effect.logDebug("ws.rpc service ready", {
             sessionId: currentSessionId,
             service: label,
           }),
@@ -1199,13 +1194,11 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
             readTodos.pipe(
               Effect.mapError(
                 (cause) =>
-                  cause instanceof TodosLoadError
-                    ? cause
-                    : new TodosLoadError({
-                        kind: "io-failure",
-                        detail: `Failed to load todos: ${cause}`,
-                        cause,
-                      }),
+                  new TodosLoadError({
+                    kind: "io-failure",
+                    detail: `Failed to load todos: ${cause}`,
+                    cause,
+                  }),
               ),
             ),
             {
@@ -1929,68 +1922,12 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
       });
     });
 
-const makeWsRpcContext = (currentSession: AuthenticatedSession) => {
-  const sessionId = currentSession.sessionId;
-  return Effect.logWarning("[DEBUG-ws-rpc] ws.rpc context start", { sessionId }).pipe(
-    Effect.andThen(WsAppServices),
-    Effect.tap(() =>
-      Effect.logWarning("[DEBUG-ws-rpc] ws.rpc context services ready", { sessionId }),
-    ),
-    Effect.tap(() =>
-      Effect.logWarning("[DEBUG-ws-rpc] ws.rpc handlers build start", { sessionId }),
-    ),
-    Effect.flatMap((services) =>
-      makeWsRpcHandlers(currentSession).pipe(
-        Effect.tap(() =>
-          Effect.logWarning("[DEBUG-ws-rpc] ws.rpc handlers built", { sessionId }),
-        ),
-        Effect.map((handlers) => {
-          const contextMap = new Map<string, unknown>();
-          for (const [tag, handler] of Object.entries(handlers)) {
-            const rpc = (WsRpcGroup as any).requests.get(tag);
-            contextMap.set(rpc.key, {
-              tag: rpc._tag,
-              handler,
-              context: services,
-            });
-          }
-          return Context.makeUnsafe(contextMap);
-        }),
-      ),
-    ),
-  );
-};
-
-export const debugBuildWsRpcContext = makeWsRpcContext;
-
-export const wsAppServicesLayer = Layer.effect(
-  WsAppServices,
-  Effect.context<never>(),
-);
-
-export const debugWsRpcContextRouteLayer = process.env.T3CODE_DEBUG_WS_CONTEXT_SELFTEST === "1"
-  ? Layer.unwrap(Effect.succeed(
-      HttpRouter.add(
-        "GET",
-        "/debug/ws-rpc-context",
-        Effect.gen(function* () {
-          yield* Effect.logWarning("[DEBUG-ws-rpc] in-request test start");
-          const rpcServices = yield* makeWsRpcContext({
-            sessionId: "debug-request-session",
-            subject: "debug-request-subject",
-            method: "browser-session-cookie",
-            scopes: [],
-          }).pipe(Effect.timeout(Duration.seconds(5)));
-          yield* Effect.logWarning("[DEBUG-ws-rpc] in-request test built context");
-          return HttpServerResponse.text("ok\n");
-        }),
-      )
-    ))
-  : Layer.empty;
+const makeWsRpcHandlersLayer = (currentSession: AuthenticatedSession) =>
+  WsRpcGroup.toLayer(makeWsRpcHandlers(currentSession));
 
 export const websocketRpcRouteLayer = Layer.unwrap(
-  Effect.succeed(
-    HttpRouter.add(
+  Effect.sync(() => {
+    return HttpRouter.add(
       "GET",
       "/ws",
       Effect.gen(function* () {
@@ -2015,74 +1952,16 @@ export const websocketRpcRouteLayer = Layer.unwrap(
           sessionMethod: session.method,
           scopeCount: session.scopes.length,
         });
-        yield* Effect.logDebug("ws.rpc effect building", {
-          path: request.originalUrl,
-          sessionId: session.sessionId,
-        });
-        yield* Effect.logDebug("[DEBUG-ws-rpc] ws.rpc layer build start", {
-          path: request.originalUrl,
-          sessionId: session.sessionId,
-        });
-        const rpcServices = yield* makeWsRpcContext(session).pipe(
-          Effect.tap(() =>
-            Effect.logDebug("[DEBUG-ws-rpc] ws.rpc layer built", {
-              path: request.originalUrl,
-              sessionId: session.sessionId,
-            }),
-          ),
-        );
-        yield* Effect.logDebug("[DEBUG-ws-rpc] ws.rpc server build start", {
-          path: request.originalUrl,
-          sessionId: session.sessionId,
-        });
         const rpcWebSocketHttpEffect = yield* RpcServer.toHttpEffectWebsocket(WsRpcGroup, {
           disableTracing: true,
         }).pipe(
-          Effect.provide(rpcServices),
+          Effect.provide(makeWsRpcHandlersLayer(session)),
           Effect.provideService(RpcSerialization.RpcSerialization, RpcSerialization.json),
-          Effect.tap(() =>
-            Effect.logDebug("[DEBUG-ws-rpc] ws.rpc server built", {
-              path: request.originalUrl,
-              sessionId: session.sessionId,
-            }),
-          ),
         );
-        yield* Effect.logDebug("ws.rpc effect prepared", {
-          path: request.originalUrl,
-          sessionId: session.sessionId,
-        });
         return yield* Effect.acquireUseRelease(
-          sessions.markConnected(session.sessionId).pipe(
-            Effect.tap(() =>
-              Effect.logDebug("ws.session marked connected", {
-                sessionId: session.sessionId,
-              }),
-            ),
-          ),
-          () =>
-            Effect.logDebug("ws.rpc effect starting", {
-              sessionId: session.sessionId,
-              path: request.originalUrl,
-            }).pipe(
-              Effect.andThen(
-                rpcWebSocketHttpEffect.pipe(
-                  Effect.ensuring(
-                    Effect.logDebug("ws.rpc effect ended", {
-                      sessionId: session.sessionId,
-                      path: request.originalUrl,
-                    }),
-                  ),
-                ),
-              ),
-            ),
-          () =>
-            sessions.markDisconnected(session.sessionId).pipe(
-              Effect.tap(() =>
-                Effect.logDebug("ws.session marked disconnected", {
-                  sessionId: session.sessionId,
-                }),
-              ),
-            ),
+          sessions.markConnected(session.sessionId),
+          () => rpcWebSocketHttpEffect,
+          () => sessions.markDisconnected(session.sessionId),
         );
       }).pipe(
         Effect.catchTags({
@@ -2090,6 +1969,6 @@ export const websocketRpcRouteLayer = Layer.unwrap(
           EnvironmentInternalError: HttpServerRespondable.toResponse,
         }),
       ),
-    ),
-  ),
+    );
+  }),
 );
