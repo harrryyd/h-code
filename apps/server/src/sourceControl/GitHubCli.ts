@@ -43,6 +43,21 @@ export interface GitHubPullRequestSummary {
   readonly headRepositoryOwnerLogin?: string | null;
 }
 
+export interface GitHubPullRequestReviewComment {
+  readonly id: string;
+  readonly path: string;
+  readonly line?: number;
+  readonly commitSHA: string;
+  readonly body: string;
+  readonly author: { readonly login: string };
+  readonly createdAt: string;
+  readonly replies?: ReadonlyArray<GitHubPullRequestReviewComment>;
+}
+
+export interface GitHubPullRequestReview {
+  readonly comments: ReadonlyArray<GitHubPullRequestReviewComment>;
+}
+
 export interface GitHubRepositoryCloneUrls {
   readonly nameWithOwner: string;
   readonly url: string;
@@ -95,6 +110,17 @@ export interface GitHubCliShape {
     readonly reference: string;
     readonly force?: boolean;
   }) => Effect.Effect<void, GitHubCliError>;
+
+  readonly getPullRequestReviews: (input: {
+    readonly cwd: string;
+    readonly reference: string;
+  }) => Effect.Effect<GitHubPullRequestReview, GitHubCliError>;
+
+  readonly createPullRequestReview: (input: {
+    readonly cwd: string;
+    readonly reference: string;
+    readonly bodyFile: string;
+  }) => Effect.Effect<void, GitHubCliError>;
 }
 
 export class GitHubCli extends Context.Service<GitHubCli, GitHubCliShape>()(
@@ -125,7 +151,6 @@ function isUnsupportedLabelsJsonFieldError(error: GitHubCliError): boolean {
   const lower = error.detail.toLowerCase();
   return (
     lower.includes("labels") &&
-    lower.includes("json") &&
     (lower.includes("unknown field") ||
       lower.includes("unknown json field") ||
       lower.includes("invalid field"))
@@ -435,6 +460,54 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
       execute({
         cwd: input.cwd,
         args: ["pr", "checkout", input.reference, ...(input.force ? ["--force"] : [])],
+      }).pipe(Effect.asVoid),
+    getPullRequestReviews: (input) =>
+      execute({
+        cwd: input.cwd,
+        args: ["pr", "view", input.reference, "--json", "reviews"],
+      }).pipe(
+        Effect.map((result) => result.stdout.trim()),
+        Effect.flatMap((raw) =>
+          Effect.sync(() => {
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            const parsed = JSON.parse(raw);
+            const reviews = Array.isArray(parsed.reviews) ? parsed.reviews : [];
+            const comments: Array<GitHubPullRequestReviewComment> = [];
+            for (const review of reviews) {
+              if (review.comments && Array.isArray(review.comments)) {
+                for (const comment of review.comments) {
+                  comments.push({
+                    id: String(comment.id ?? ""),
+                    path: comment.path ?? "",
+                    line: typeof comment.line === "number" ? comment.line : undefined,
+                    commitSHA: comment.commit?.oid ?? "",
+                    body: comment.body ?? "",
+                    author: { login: comment.author?.login ?? "" },
+                    createdAt: comment.createdAt ?? "",
+                    replies:
+                      comment.replies?.nodes?.map((reply: Record<string, unknown>) => ({
+                        id: String(reply.id ?? ""),
+                        path: reply.path ?? "",
+                        line: typeof reply.line === "number" ? reply.line : undefined,
+                        commitSHA: (reply.commit as Record<string, unknown> | undefined)?.oid ?? "",
+                        body: reply.body ?? "",
+                        author: {
+                          login: (reply.author as Record<string, unknown> | undefined)?.login ?? "",
+                        },
+                        createdAt: reply.createdAt ?? "",
+                      })) ?? undefined,
+                  });
+                }
+              }
+            }
+            return { comments };
+          }),
+        ),
+      ),
+    createPullRequestReview: (input) =>
+      execute({
+        cwd: input.cwd,
+        args: ["pr", "review", input.reference, "--comment", "--body-file", input.bodyFile],
       }).pipe(Effect.asVoid),
   });
 });

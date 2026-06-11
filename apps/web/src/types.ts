@@ -14,6 +14,7 @@ import type {
   ProviderDriverKind,
   ProviderInstanceId,
   CheckpointRef,
+  ContextTrimPoint,
   ProviderInteractionMode,
   RuntimeMode,
   ContextTrimPoint,
@@ -117,6 +118,7 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
+  contextTrimPoints: ReadonlyArray<ContextTrimPoint>;
 }
 
 export interface ThreadShell {

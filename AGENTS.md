@@ -31,6 +31,30 @@ The script auto-derives a unique `T3CODE_HOME` per worktree/path, so multiple wo
 - To run a single test file, run `bun run test <path-to-test-file>` from the owning package directory such as `apps/web`, `apps/server`, `packages/contracts`, or `packages/shared`.
 - Run web test files from `apps/web` so the app-local Vitest config and path aliases such as `~/*` are applied.
 
+### Test suites
+
+| Suite                   | Package                   | Command                                                      | Coverage                                                                                                                                                                                                                                                                                |
+| ----------------------- | ------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit tests              | `apps/server`             | `bun run test` (from `apps/server`)                          | 147 test files — persistence, auth, orchestration deciders, provider registry, WS RPC scopes                                                                                                                                                                                            |
+| Unit tests              | `apps/web`                | `bun run test` (from `apps/web`)                             | 105 test files — component logic, hooks, store, sidebar, chat composer, local API                                                                                                                                                                                                       |
+| Unit tests              | `packages/contracts`      | `bun run test` (from `packages/contracts`)                   | 12 test files — schema round-trips, RPC contract types                                                                                                                                                                                                                                  |
+| Unit tests              | `packages/shared`         | `bun run test` (from `packages/shared`)                      | 29 test files — todo store, keybindings, git utilities                                                                                                                                                                                                                                  |
+| Unit tests              | `packages/client-runtime` | `bun run test` (from `packages/client-runtime`)              | 24 test files — WS RPC protocol, thread detail reducer, remote API                                                                                                                                                                                                                      |
+| WS RPC scope regression | `apps/server`             | `bun run test src/wsRpcScopes.test.ts`                       | Asserts every `WsRpcGroup` method has a declared authorization scope in `RPC_REQUIRED_SCOPE`. Missing entries cause connection-level protocol defects.                                                                                                                                  |
+| E2E smoke               | `apps/server`             | `node scratchpad/e2e-smoke.ts`                               | Boots the real server in-process (temp `baseDir`, desktop bootstrap token), authenticates, opens a real `/ws` connection, and exercises `getConfig`, `todo.load`, `subscribeServerConfig`, `project.create`, `thread.create`, `thread.turn.start`, and `subscribeShell`. Exit 0 = pass. |
+| Attach smoke            | `apps/server`             | `node scratchpad/attach-smoke.ts <serverUrl> <pairingToken>` | Same RPC checks as e2e-smoke against an already-running server.                                                                                                                                                                                                                         |
+| Browser probe           | `apps/web`                | `node scratchpad/e2e-browser-probe.ts "<pairingUrl>"`        | Playwright headless probe of the real dev pairing flow. Navigates to `/settings/providers`, asserts no stuck "Checking provider status" text, and dumps console/network/WS-frame diagnostics. Requires `playwright` installed.                                                          |
+
+E2E smoke harnesses exercise the full WebSocket RPC stack end-to-end. They catch contract-implementation drift that unit tests miss (e.g. a method absent from `RPC_REQUIRED_SCOPE` tears down the entire WebSocket, but unit tests of individual deciders or services pass). Consider adding a smoke gate to CI so "merged without booting" cannot recur.
+
+Mint pairing tokens for the dev DB with:
+
+```bash
+node apps/server/src/bin.ts auth pairing create --base-dir <T3CODE_HOME> --dev-url http://localhost:<webPort>
+```
+
+Note: `--dev-url` selects the `dev/` state subdirectory; omit it to write to `userdata/`. The CLI and dev server must agree on the subdirectory or tokens will be silently invalid.
+
 ## Project Snapshot
 
 T3 Code is a minimal web GUI for using coding agents like Codex and Claude.

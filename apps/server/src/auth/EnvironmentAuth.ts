@@ -174,7 +174,9 @@ export interface EnvironmentAuthShape {
     ServerAuthInvalidCredentialError | ServerAuthInternalError
   >;
   readonly issueWebSocketTicket: (
-    session: Pick<AuthenticatedSession, "sessionId">,
+    session: Pick<AuthenticatedSession, "sessionId" | "method"> & {
+      readonly scopes: ReadonlyArray<AuthEnvironmentScope> | ReadonlySet<AuthEnvironmentScope>;
+    },
   ) => Effect.Effect<AuthWebSocketTicketResult, ServerAuthInternalError>;
   readonly issueStartupPairingUrl: (
     baseUrl: string,
@@ -193,6 +195,27 @@ type BootstrapExchangeResult = {
 const AUTHORIZATION_PREFIX = "Bearer ";
 const DPOP_AUTHORIZATION_PREFIX = "DPoP ";
 const WEBSOCKET_TICKET_QUERY_PARAM = "wsTicket";
+
+function describePresentedCredentials(
+  request: HttpServerRequest.HttpServerRequest,
+  sessionCookieName: string,
+) {
+  const hasSessionCookie = typeof request.cookies[sessionCookieName] === "string";
+  const hasBearerToken = parseBearerToken(request) !== null;
+  const hasDpopToken = parseDpopToken(request) !== null;
+  return {
+    hasSessionCookie,
+    hasBearerToken,
+    hasDpopToken,
+    credentialSource: hasSessionCookie
+      ? "cookie"
+      : hasBearerToken
+        ? "bearer"
+        : hasDpopToken
+          ? "dpop"
+          : "none",
+  } as const;
+}
 
 const bySessionPriority = (left: AuthClientSession, right: AuthClientSession) => {
   const leftCanManage = left.scopes.includes(AuthAccessWriteScope);
@@ -300,10 +323,27 @@ export const make = Effect.fn("makeEnvironmentAuth")(function* () {
     const bearerToken = parseBearerToken(request);
     const dpopToken = parseDpopToken(request);
     const credential = cookieToken ?? bearerToken ?? dpopToken;
+    const presentedCredentials = describePresentedCredentials(request, sessions.cookieName);
     if (!credential) {
-      return Effect.fail(new ServerAuthInvalidCredentialError({ reason: "missing_credential" }));
+      return Effect.logDebug("auth.request missing credential", {
+        path: request.originalUrl,
+        ...presentedCredentials,
+      }).pipe(
+        Effect.andThen(
+          Effect.fail(new ServerAuthInvalidCredentialError({ reason: "missing_credential" })),
+        ),
+      );
     }
     return authenticateToken(credential).pipe(
+      Effect.tap((session) =>
+        Effect.logDebug("auth.request authenticated", {
+          path: request.originalUrl,
+          ...presentedCredentials,
+          sessionId: session.sessionId,
+          sessionMethod: session.method,
+          scopeCount: session.scopes.length,
+        }),
+      ),
       Effect.flatMap((session) => {
         if (session.proofKeyThumbprint) {
           if (!dpopToken || dpopToken !== credential) {
@@ -396,6 +436,13 @@ export const make = Effect.fn("makeEnvironmentAuth")(function* () {
             } satisfies AuthBrowserSessionResult,
             sessionToken: session.token,
           }) satisfies BootstrapExchangeResult,
+      ),
+      Effect.tap((result) =>
+        Effect.logDebug("auth.browserSession issued", {
+          sessionMethod: result.response.sessionMethod,
+          scopeCount: result.response.scopes.length,
+          expiresAt: DateTime.formatIso(result.response.expiresAt),
+        }),
       ),
       Effect.withSpan("EnvironmentAuth.createBrowserSession"),
     );
@@ -657,6 +704,14 @@ export const make = Effect.fn("makeEnvironmentAuth")(function* () {
             expiresAt: DateTime.toUtc(issued.expiresAt),
           }) satisfies AuthWebSocketTicketResult,
       ),
+      Effect.tap((issued) =>
+        Effect.logDebug("auth.webSocketTicket issued", {
+          sessionId: session.sessionId,
+          sessionMethod: session.method,
+          scopeCount: "size" in session.scopes ? session.scopes.size : session.scopes.length,
+          expiresAt: DateTime.formatIso(issued.expiresAt),
+        }),
+      ),
       Effect.withSpan("EnvironmentAuth.issueWebSocketTicket"),
     );
 
@@ -669,6 +724,9 @@ export const make = Effect.fn("makeEnvironmentAuth")(function* () {
       if (Option.isSome(requestUrl)) {
         const websocketTicket = requestUrl.value.searchParams.get(WEBSOCKET_TICKET_QUERY_PARAM);
         if (websocketTicket && websocketTicket.trim().length > 0) {
+          yield* Effect.logDebug("auth.websocket upgrade using ticket", {
+            path: request.originalUrl,
+          });
           return yield* sessions.verifyWebSocketToken(websocketTicket).pipe(
             Effect.map((session) => ({
               sessionId: session.sessionId,
@@ -677,11 +735,23 @@ export const make = Effect.fn("makeEnvironmentAuth")(function* () {
               scopes: session.scopes,
               ...(session.expiresAt ? { expiresAt: session.expiresAt } : {}),
             })),
+            Effect.tap((session) =>
+              Effect.logDebug("auth.websocket ticket authenticated", {
+                path: request.originalUrl,
+                sessionId: session.sessionId,
+                sessionMethod: session.method,
+                scopeCount: session.scopes.length,
+              }),
+            ),
             mapSessionVerificationErrors,
           );
         }
       }
 
+      yield* Effect.logDebug("auth.websocket upgrade falling back to request auth", {
+        path: request.originalUrl,
+        ...describePresentedCredentials(request, sessions.cookieName),
+      });
       return yield* authenticateRequest(request);
     });
 

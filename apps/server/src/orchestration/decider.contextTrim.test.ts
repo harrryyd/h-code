@@ -4,6 +4,7 @@ import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
   EventId,
+  MessageId,
   ProjectId,
   ProviderInstanceId,
   ThreadId,
@@ -14,22 +15,20 @@ import {
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import { NodeCrypto } from "@effect/platform-node";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { decideOrchestrationCommand } from "./decider.ts";
 import { createEmptyReadModel, projectEvent } from "./projector.ts";
 
 const runDecide = (input: Parameters<typeof decideOrchestrationCommand>[0]) =>
-  Effect.runPromise(
-    decideOrchestrationCommand(input).pipe(Effect.provide(NodeCrypto.layer)),
-  );
+  Effect.runPromise(decideOrchestrationCommand(input).pipe(Effect.provide(NodeCrypto.layer)));
 
 const asCommandId = (value: string): CommandId => CommandId.make(value);
 const asEventId = (value: string): EventId => EventId.make(value);
 const asProjectId = (value: string): ProjectId => ProjectId.make(value);
 const asThreadId = (value: string): ThreadId => ThreadId.make(value);
 const asTurnId = (value: string): TurnId => TurnId.make(value);
-const asMessageId = (value: string) => value;
+const asMessageId = (value: string): MessageId => MessageId.make(value);
 
 type PlannedEvent = Omit<OrchestrationEvent, "sequence">;
 
@@ -56,7 +55,7 @@ function makeMessageEvent(input: {
     metadata: {},
     payload: {
       threadId: input.threadId,
-      messageId: input.messageId,
+      messageId: asMessageId(input.messageId),
       role: input.role,
       text: input.text,
       turnId: input.turnId,
@@ -243,14 +242,14 @@ describe("thread.context.trim decider", () => {
     const readModel = await seedThreadWithMessages();
 
     const result = await runDecide({
-        command: {
-          type: "thread.context.trim",
-          commandId: asCommandId("cmd-trim-all"),
-          threadId: asThreadId("thread-trim"),
-          createdAt: "2026-01-02T00:00:00.000Z",
-        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-        readModel,
-      });
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-all"),
+        threadId: asThreadId("thread-trim"),
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel,
+    });
 
     const events = Array.isArray(result) ? result : [result];
     expect(events.map((e) => e.type)).toEqual([
@@ -321,14 +320,14 @@ describe("thread.context.trim decider", () => {
     );
 
     const result = await runDecide({
-        command: {
-          type: "thread.context.trim",
-          commandId: asCommandId("cmd-trim-empty"),
-          threadId: asThreadId("thread-empty"),
-          createdAt: "2026-01-02T00:00:00.000Z",
-        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-        readModel: model,
-      });
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-empty"),
+        threadId: asThreadId("thread-empty"),
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel: model,
+    });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
@@ -340,37 +339,35 @@ describe("thread.context.trim decider", () => {
     const readModel = await seedThreadWithMessages();
 
     const result = await runDecide({
-        command: {
-          type: "thread.context.trim",
-          commandId: asCommandId("cmd-trim-3"),
-          threadId: asThreadId("thread-trim"),
-          keepLastNTurns: 2,
-          createdAt: "2026-01-02T00:00:00.000Z",
-        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-        readModel,
-      });
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-3"),
+        threadId: asThreadId("thread-trim"),
+        keepLastNTurns: 2,
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel,
+    });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
     const normalized = normalizeTrimEvents(trimEvent!);
-    expect(normalized[0]?.payload.trimPoint.prunedTurnIds).toEqual([
-      asTurnId("turn-1"),
-    ]);
+    expect(normalized[0]?.payload.trimPoint.prunedTurnIds).toEqual([asTurnId("turn-1")]);
   });
 
   it("survives all turns when keepLastNTurns >= total turns", async () => {
     const readModel = await seedThreadWithMessages();
 
     const result = await runDecide({
-        command: {
-          type: "thread.context.trim",
-          commandId: asCommandId("cmd-trim-99"),
-          threadId: asThreadId("thread-trim"),
-          keepLastNTurns: 99,
-          createdAt: "2026-01-02T00:00:00.000Z",
-        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-        readModel,
-      });
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-99"),
+        threadId: asThreadId("thread-trim"),
+        keepLastNTurns: 99,
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel,
+    });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
@@ -397,14 +394,14 @@ describe("thread.context.trim decider", () => {
     const readModel = await seedThreadWithMessages();
 
     const result = await runDecide({
-        command: {
-          type: "thread.context.trim",
-          commandId: asCommandId("cmd-trim-clear-all"),
-          threadId: asThreadId("thread-trim"),
-          createdAt: "2026-01-02T00:00:00.000Z",
-        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-        readModel,
-      });
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-clear-all"),
+        threadId: asThreadId("thread-trim"),
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel,
+    });
 
     const events = Array.isArray(result) ? result : [result];
     const trimEvent = events.find((e) => e.type === "thread.trim-point-created");
@@ -503,14 +500,14 @@ describe("thread.context.trim decider", () => {
 
     await expect(
       runDecide({
-          command: {
-            type: "thread.context.trim",
-            commandId: asCommandId("cmd-trim-active"),
-            threadId: asThreadId("thread-active"),
-            createdAt: "2026-01-02T00:00:00.000Z",
-          } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-          readModel: model,
-        }),
+        command: {
+          type: "thread.context.trim",
+          commandId: asCommandId("cmd-trim-active"),
+          threadId: asThreadId("thread-active"),
+          createdAt: "2026-01-02T00:00:00.000Z",
+        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+        readModel: model,
+      }),
     ).rejects.toBeDefined();
   });
 
@@ -573,14 +570,14 @@ describe("thread.context.trim decider", () => {
     );
 
     const result = await runDecide({
-        command: {
-          type: "thread.context.trim",
-          commandId: asCommandId("cmd-trim-idle"),
-          threadId: asThreadId("thread-idle"),
-          createdAt: "2026-01-02T00:00:00.000Z",
-        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-        readModel: model,
-      });
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-idle"),
+        threadId: asThreadId("thread-idle"),
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel: model,
+    });
 
     const events = Array.isArray(result) ? result : [result];
     expect(events.map((e) => e.type)).toEqual([
@@ -700,14 +697,14 @@ describe("thread.context.trim decider", () => {
     );
 
     const result = await runDecide({
-        command: {
-          type: "thread.context.trim",
-          commandId: asCommandId("cmd-trim-done"),
-          threadId: asThreadId("thread-done"),
-          createdAt: "2026-01-02T00:00:00.000Z",
-        } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
-        readModel: model,
-      });
+      command: {
+        type: "thread.context.trim",
+        commandId: asCommandId("cmd-trim-done"),
+        threadId: asThreadId("thread-done"),
+        createdAt: "2026-01-02T00:00:00.000Z",
+      } as Extract<OrchestrationCommand, { type: "thread.context.trim" }>,
+      readModel: model,
+    });
 
     const events = Array.isArray(result) ? result : [result];
     expect(events.map((e) => e.type)).toEqual([
