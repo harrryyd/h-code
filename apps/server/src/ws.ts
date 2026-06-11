@@ -203,7 +203,33 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.subscribeServerConfig, AuthOrchestrationReadScope],
   [WS_METHODS.subscribeServerLifecycle, AuthOrchestrationReadScope],
   [WS_METHODS.subscribeAuthAccess, AuthAccessReadScope],
+  [WS_METHODS.projectsList, AuthOrchestrationReadScope],
+  [WS_METHODS.projectsAdd, AuthOrchestrationOperateScope],
+  [WS_METHODS.projectsRemove, AuthOrchestrationOperateScope],
+  [WS_METHODS.mcpListServers, AuthOrchestrationReadScope],
+  [WS_METHODS.mcpToggleServer, AuthOrchestrationOperateScope],
+  [WS_METHODS.changeRequestRunBatchAgents, AuthReviewWriteScope],
+  [WS_METHODS.todosLoad, AuthOrchestrationReadScope],
+  [WS_METHODS.todosMutate, AuthOrchestrationOperateScope],
 ]);
+
+/**
+ * Returns the tags of WS RPC methods served by {@link WsRpcGroup} that have no
+ * entry in {@link RPC_REQUIRED_SCOPE}. Must always be empty: an undeclared
+ * method throws at request time, which surfaces as a connection-level protocol
+ * defect and tears down the entire WebSocket (taking every in-flight
+ * subscription with it). Validated at boot in {@link websocketRpcRouteLayer}
+ * and by a regression test.
+ */
+export const missingRpcScopeDeclarations = (): ReadonlyArray<string> => {
+  const missing: string[] = [];
+  for (const tag of WsRpcGroup.requests.keys()) {
+    if (!RPC_REQUIRED_SCOPE.has(tag)) {
+      missing.push(tag);
+    }
+  }
+  return missing;
+};
 
 function toAuthAccessStreamEvent(
   change: PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange,
@@ -1927,6 +1953,15 @@ const makeWsRpcHandlersLayer = (currentSession: AuthenticatedSession) =>
 
 export const websocketRpcRouteLayer = Layer.unwrap(
   Effect.sync(() => {
+    // Fail fast at boot instead of throwing per-request (a request-time throw
+    // becomes a protocol-level defect that kills the whole WebSocket).
+    const missingScopes = missingRpcScopeDeclarations();
+    if (missingScopes.length > 0) {
+      throw new Error(
+        `WS RPC methods missing authorization scope declarations: ${missingScopes.join(", ")}. ` +
+          "Add entries to RPC_REQUIRED_SCOPE in apps/server/src/ws.ts.",
+      );
+    }
     return HttpRouter.add(
       "GET",
       "/ws",
