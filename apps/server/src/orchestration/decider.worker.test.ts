@@ -10,9 +10,15 @@ import {
   ProviderInstanceId,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
-import { decideOrchestrationCommand } from "./decider.ts";
+import { NodeCrypto } from "@effect/platform-node";
+
+import { decideOrchestrationCommand as decideOrchestrationCommandRaw } from "./decider.ts";
+
+const decideOrchestrationCommand = (
+  input: Parameters<typeof decideOrchestrationCommandRaw>[0],
+) => decideOrchestrationCommandRaw(input).pipe(Effect.provide(NodeCrypto.layer));
 import { createEmptyReadModel, projectEvent } from "./projector.ts";
 
 const asCommandId = (value: string): CommandId => CommandId.make(value);

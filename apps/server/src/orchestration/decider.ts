@@ -37,6 +37,12 @@ import { projectEvent } from "./projector.ts";
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
+const randomEventId: Effect.Effect<EventId, PlatformError.PlatformError, Crypto.Crypto> =
+  Crypto.Crypto.pipe(
+    Effect.flatMap((crypto) => crypto.randomUUIDv4),
+    Effect.map(EventId.make),
+  );
+
 function withEventBase(
   input: Pick<OrchestrationCommand, "commandId"> & {
     readonly aggregateKind: OrchestrationEvent["aggregateKind"];
@@ -101,13 +107,12 @@ const decideCommandSequence = Effect.fn("decideCommandSequence")(function* ({
         ...nextEvent,
         sequence: nextSequence,
       }).pipe(
-        Effect.catch(() =>
-          Effect.fail(
+        Effect.mapError(
+          () =>
             new OrchestrationCommandInvariantError({
               commandType: nextCommand.type,
               detail: `Projection error in command sequence.`,
             }),
-          ),
         ),
       );
     }
@@ -186,12 +191,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
 
       return [
         {
-          ...withEventBase({
+          ...(yield* withEventBase({
             aggregateKind: "project",
             aggregateId: command.projectId,
             occurredAt: command.createdAt,
             commandId: command.commandId,
-          }),
+          })),
           type: "project.created",
           payload: {
             projectId: command.projectId,
@@ -207,12 +212,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           },
         },
         {
-          ...withEventBase({
+          ...(yield* withEventBase({
             aggregateKind: "thread",
             aggregateId: command.threadId,
             occurredAt: command.createdAt,
             commandId: command.commandId,
-          }),
+          })),
           type: "thread.created",
           payload: {
             threadId: command.threadId,
@@ -257,12 +262,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       });
 
       return {
-        ...withEventBase({
+        ...(yield* withEventBase({
           aggregateKind: "thread",
           aggregateId: command.threadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-        }),
+        })),
         type: "thread.seeded-work-items-upserted",
         payload: {
           threadId: command.threadId,
@@ -289,12 +294,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       }
 
       return {
-        ...withEventBase({
+        ...(yield* withEventBase({
           aggregateKind: "thread",
           aggregateId: command.threadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-        }),
+        })),
         type: "thread.seeded-work-item-writeback-requested",
         payload: {
           threadId: command.threadId,
@@ -363,12 +368,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       });
 
       return {
-        ...withEventBase({
+        ...(yield* withEventBase({
           aggregateKind: "thread",
           aggregateId: command.threadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-        }),
+        })),
         type: "thread.created",
         payload: {
           threadId: command.threadId,
@@ -454,12 +459,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
 
       return [
         {
-          ...withEventBase({
+          ...(yield* withEventBase({
             aggregateKind: "thread",
             aggregateId: managerThreadId,
             occurredAt: command.createdAt,
             commandId: command.commandId,
-          }),
+          })),
           type: "thread.seeded-work-items-upserted",
           payload: {
             threadId: managerThreadId,
@@ -470,17 +475,17 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         ...(nextSeededWorkItem.delegationStatus === "requested"
           ? [
               {
-                ...withEventBase({
+                ...(yield* withEventBase({
                   aggregateKind: "thread" as const,
                   aggregateId: managerThreadId,
                   occurredAt: command.createdAt,
                   commandId: command.commandId,
-                }),
+                })),
                 type: "thread.activity-appended" as const,
                 payload: {
                   threadId: managerThreadId,
                   activity: {
-                    id: crypto.randomUUID() as OrchestrationEvent["eventId"],
+                    id: yield* randomEventId,
                     tone: "info" as const,
                     kind: "manager.delegation.requested",
                     summary: `Auto-requested worker delegation for '${seededWorkItem.title}'.`,
@@ -550,12 +555,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       });
 
       return {
-        ...withEventBase({
+        ...(yield* withEventBase({
           aggregateKind: "thread",
           aggregateId: command.workerThreadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-        }),
+        })),
         type: "thread.created",
         payload: {
           threadId: command.workerThreadId,
@@ -1088,7 +1093,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
 
       const messagesByTurn = new Map<
         string,
-        { turnId: string; messages: typeof thread.messages }
+        { turnId: string; messages: Array<(typeof thread.messages)[number]> }
       >();
       for (const msg of thread.messages) {
         if (msg.turnId === null) continue;
@@ -1142,7 +1147,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       prunedMessageCount += unkeyedMessages.length;
 
       const occurredAt = yield* nowIso;
-      const trimPointId = EventId.make(crypto.randomUUID());
+      const trimPointId = yield* randomEventId;
       const trimPoint: ContextTrimPoint = {
         id: trimPointId,
         createdAt: occurredAt,
@@ -1218,7 +1223,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       });
       yield* requireTurnNotActive({ thread, command });
       const occurredAt = yield* nowIso;
-      const trimPointId = EventId.make(crypto.randomUUID());
+      const trimPointId = yield* randomEventId;
       return [
         {
           ...(yield* withEventBase({
@@ -1467,12 +1472,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       const managerQueueItems = [...existingQueueItems, newQueueItem];
 
       return {
-        ...withEventBase({
+        ...(yield* withEventBase({
           aggregateKind: "thread",
           aggregateId: managerThreadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-        }),
+        })),
         type: "thread.manager-queue-items-upserted",
         payload: {
           threadId: managerThreadId,
@@ -1535,12 +1540,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
 
       return [
         {
-          ...withEventBase({
+          ...(yield* withEventBase({
             aggregateKind: "thread" as const,
             aggregateId: managerConsole.id,
             occurredAt: command.createdAt,
             commandId: command.commandId,
-          }),
+          })),
           type: "thread.manager-queue-items-upserted" as const,
           payload: {
             threadId: managerConsole.id,
@@ -1549,17 +1554,17 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           },
         },
         {
-          ...withEventBase({
+          ...(yield* withEventBase({
             aggregateKind: "thread" as const,
             aggregateId: queueItem.escalationThreadId,
             occurredAt: command.createdAt,
             commandId: command.commandId,
-          }),
+          })),
           type: "thread.activity-appended" as const,
           payload: {
             threadId: escalatedThreadId,
             activity: {
-              id: crypto.randomUUID() as OrchestrationEvent["eventId"],
+              id: yield* randomEventId,
               tone: "info" as const,
               kind: "manager.queue-item.resolved",
               summary: command.instruction,
@@ -1612,12 +1617,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       ];
 
       return {
-        ...withEventBase({
+        ...(yield* withEventBase({
           aggregateKind: "thread" as const,
           aggregateId: managerConsole.id,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-        }),
+        })),
         type: "thread.manager-queue-items-upserted" as const,
         payload: {
           threadId: managerConsole.id,

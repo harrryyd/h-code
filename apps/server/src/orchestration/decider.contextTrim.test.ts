@@ -4,6 +4,7 @@ import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
   EventId,
+  MessageId,
   ProjectId,
   ProviderInstanceId,
   ThreadId,
@@ -14,7 +15,7 @@ import {
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import { NodeCrypto } from "@effect/platform-node";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { decideOrchestrationCommand } from "./decider.ts";
 import { createEmptyReadModel, projectEvent } from "./projector.ts";
@@ -29,7 +30,7 @@ const asEventId = (value: string): EventId => EventId.make(value);
 const asProjectId = (value: string): ProjectId => ProjectId.make(value);
 const asThreadId = (value: string): ThreadId => ThreadId.make(value);
 const asTurnId = (value: string): TurnId => TurnId.make(value);
-const asMessageId = (value: string) => value;
+const asMessageId = (value: string): MessageId => MessageId.make(value);
 
 type PlannedEvent = Omit<OrchestrationEvent, "sequence">;
 
@@ -56,7 +57,7 @@ function makeMessageEvent(input: {
     metadata: {},
     payload: {
       threadId: input.threadId,
-      messageId: input.messageId,
+      messageId: asMessageId(input.messageId),
       role: input.role,
       text: input.text,
       turnId: input.turnId,

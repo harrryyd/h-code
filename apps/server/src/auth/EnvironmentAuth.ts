@@ -174,7 +174,9 @@ export interface EnvironmentAuthShape {
     ServerAuthInvalidCredentialError | ServerAuthInternalError
   >;
   readonly issueWebSocketTicket: (
-    session: Pick<AuthenticatedSession, "sessionId">,
+    session: Pick<AuthenticatedSession, "sessionId" | "method"> & {
+      readonly scopes: ReadonlyArray<AuthEnvironmentScope> | ReadonlySet<AuthEnvironmentScope>;
+    },
   ) => Effect.Effect<AuthWebSocketTicketResult, ServerAuthInternalError>;
   readonly issueStartupPairingUrl: (
     baseUrl: string,
@@ -700,7 +702,7 @@ export const make = Effect.fn("makeEnvironmentAuth")(function* () {
         Effect.logDebug("auth.webSocketTicket issued", {
           sessionId: session.sessionId,
           sessionMethod: session.method,
-          scopeCount: session.scopes.length,
+          scopeCount: "size" in session.scopes ? session.scopes.size : session.scopes.length,
           expiresAt: DateTime.formatIso(issued.expiresAt),
         }),
       ),

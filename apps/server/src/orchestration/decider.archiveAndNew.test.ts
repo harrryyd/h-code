@@ -14,10 +14,14 @@ import { assert, describe, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import type * as PlatformError from "effect/PlatformError";
 import { NodeCrypto } from "@effect/platform-node";
 
 import { decideOrchestrationCommand } from "./decider.ts";
+import type { OrchestrationProjectorDecodeError } from "./Errors.ts";
 import { createEmptyReadModel, projectEvent } from "./projector.ts";
+
+const randomEventId = Crypto.Crypto.pipe(Effect.flatMap((crypto) => crypto.randomUUIDv4));
 
 const asCommandId = (value: string): CommandId => CommandId.make(value);
 const asProjectId = (value: string): ProjectId => ProjectId.make(value);
@@ -26,7 +30,11 @@ const asTurnId = (value: string): TurnId => TurnId.make(value);
 
 function seedThreadEffect(readModel: OrchestrationReadModel, overrides?: {
   archivedAt?: string | null;
-}): Effect.Effect<OrchestrationReadModel, never, Crypto.Crypto> {
+}): Effect.Effect<
+  OrchestrationReadModel,
+  OrchestrationProjectorDecodeError | PlatformError.PlatformError,
+  Crypto.Crypto
+> {
   return Effect.gen(function* () {
     const now = "2026-01-01T00:00:00.000Z";
     let model = readModel;
@@ -34,7 +42,7 @@ function seedThreadEffect(readModel: OrchestrationReadModel, overrides?: {
     if (!model.projects.some((p) => p.id === asProjectId("project-1"))) {
       model = yield* projectEvent(model, {
         sequence: model.snapshotSequence + 1,
-        eventId: CommandId.make(crypto.randomUUID()) as unknown as never,
+        eventId: CommandId.make(yield* randomEventId) as unknown as never,
         aggregateKind: "project",
         aggregateId: asProjectId("project-1"),
         type: "project.created",
@@ -57,7 +65,7 @@ function seedThreadEffect(readModel: OrchestrationReadModel, overrides?: {
 
     model = yield* projectEvent(model, {
       sequence: model.snapshotSequence + 1,
-      eventId: CommandId.make(crypto.randomUUID()) as unknown as never,
+      eventId: CommandId.make(yield* randomEventId) as unknown as never,
       aggregateKind: "thread",
       aggregateId: asThreadId("thread-1"),
       type: "thread.created",
@@ -86,7 +94,7 @@ function seedThreadEffect(readModel: OrchestrationReadModel, overrides?: {
     if (overrides?.archivedAt) {
       model = yield* projectEvent(model, {
         sequence: model.snapshotSequence + 1,
-        eventId: CommandId.make(crypto.randomUUID()) as unknown as never,
+        eventId: CommandId.make(yield* randomEventId) as unknown as never,
         aggregateKind: "thread",
         aggregateId: asThreadId("thread-1"),
         type: "thread.archived",
@@ -192,7 +200,7 @@ describe("thread.archive-and-new decider", () => {
 
       const modelWithCollision = yield* projectEvent(readModel, {
         sequence: readModel.snapshotSequence + 1,
-        eventId: CommandId.make(crypto.randomUUID()) as unknown as never,
+        eventId: CommandId.make(yield* randomEventId) as unknown as never,
         aggregateKind: "thread",
         aggregateId: asThreadId("thread-new"),
         type: "thread.created",
