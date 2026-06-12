@@ -14,11 +14,17 @@ import { sharedServerCommandFlags } from "./cli/config.ts";
 import { projectCommand } from "./cli/project.ts";
 import { runServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { SeededWorkItemWritebackLive } from "./orchestration/Layers/SeededWorkItemWriteback.ts";
+import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 
 const CliRuntimeLayer = Layer.mergeAll(
   NodeServices.layer,
   NetService.layer,
   SeededWorkItemWritebackLive,
+  Layer.succeed(ServerRuntimeStartup, {
+    awaitCommandReady: Effect.void,
+    markHttpListening: Effect.void,
+    enqueueCommand: <A, E>(effect: Effect.Effect<A, E>) => effect,
+  }),
 );
 
 const cloudPublicConfigMissingMessage =

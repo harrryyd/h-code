@@ -111,6 +111,7 @@ const RelayClientLive = Layer.unwrap(
 
 const HttpServerLive = Layer.unwrap(
   Effect.gen(function* () {
+    yield* ServerRuntimeStartup;
     const config = yield* ServerConfig;
     if (typeof Bun !== "undefined") {
       const BunHttpServer = yield* Effect.promise(
