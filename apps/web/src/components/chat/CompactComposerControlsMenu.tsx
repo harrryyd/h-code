@@ -72,6 +72,7 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
           <MenuRadioItem value="approval-required">Supervised</MenuRadioItem>
           <MenuRadioItem value="auto-accept-edits">Auto-accept edits</MenuRadioItem>
           <MenuRadioItem value="full-access">Full access</MenuRadioItem>
+          <MenuRadioItem value="review">Review</MenuRadioItem>
         </MenuRadioGroup>
         {props.activePlan ? (
           <>

@@ -1180,7 +1180,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
         [WS_METHODS.todosLoad]: (_payload) =>
           observeRpcEffect(
             WS_METHODS.todosLoad,
-            readTodos.pipe(
+            readTodos(config.todosDir).pipe(
               Effect.mapError(
                 (cause) =>
                   new TodosLoadError({
@@ -1198,7 +1198,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
           observeRpcEffect(
             WS_METHODS.todosMutate,
             Effect.gen(function* () {
-              const current = yield* readTodos;
+              const current = yield* readTodos(config.todosDir);
               const next = applyMutations(
                 {
                   categories: current.categories,
@@ -1209,9 +1209,9 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
               );
               const { state: deduped, archived } = archiveDoneItems(next);
               if (archived.length > 0) {
-                yield* appendToArchive(archived);
+                yield* appendToArchive(config.todosDir, archived);
               }
-              yield* writeTodos({
+              yield* writeTodos(config.todosDir, {
                 categories: deduped.categories,
                 items: deduped.items,
                 jiraBaseUrl: deduped.jiraBaseUrl,

@@ -1,12 +1,7 @@
 import * as FileSystem from "effect/FileSystem";
 import * as Effect from "effect/Effect";
-import * as Os from "node:os";
-import type { TodoCategory, TodoItem } from "@t3tools/contracts";
+import { type TodoCategory, type TodoItem } from "@t3tools/contracts";
 import { writeFileStringAtomically } from "./atomicWrite.ts";
-
-export const T3CODE_DIR = Os.homedir() + "/.t3code";
-export const TODOS_PATH = T3CODE_DIR + "/todos.json";
-export const TODOS_ARCHIVE_PATH = T3CODE_DIR + "/todos-archive.json";
 
 export interface TodosData {
   categories: TodoCategory[];
@@ -14,39 +9,45 @@ export interface TodosData {
   jiraBaseUrl?: string;
 }
 
-export const readTodos = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
+const todosPath = (todoDir: string) => todoDir + "/todos.json";
+const todosArchivePath = (todoDir: string) => todoDir + "/todos-archive.json";
 
-  yield* fs.makeDirectory(T3CODE_DIR, { recursive: true });
+export const readTodos = (todoDir: string) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
 
-  const exists = yield* fs.exists(TODOS_PATH);
-  if (!exists) {
-    return { categories: [], items: [] } as TodosData;
-  }
+    yield* fs.makeDirectory(todoDir, { recursive: true });
 
-  const raw = yield* fs.readFileString(TODOS_PATH);
-  // @effect-diagnostics-next-line preferSchemaOverJson:off
-  return JSON.parse(raw) as TodosData;
-});
+    const path = todosPath(todoDir);
+    const exists = yield* fs.exists(path);
+    if (!exists) {
+      return { categories: [], items: [] } as TodosData;
+    }
 
-export const writeTodos = (data: TodosData) => {
+    const raw = yield* fs.readFileString(path);
+    // @effect-diagnostics-next-line preferSchemaOverJson:off
+    return JSON.parse(raw) as TodosData;
+  });
+
+export const writeTodos = (todoDir: string, data: TodosData) => {
   const contents = JSON.stringify(data, null, 2);
   return writeFileStringAtomically({
-    filePath: TODOS_PATH,
+    filePath: todosPath(todoDir),
     contents,
   });
 };
 
-export const appendToArchive = (items: TodoItem[]) =>
+export const appendToArchive = (todoDir: string, items: TodoItem[]) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
 
-    yield* fs.makeDirectory(T3CODE_DIR, { recursive: true });
+    yield* fs.makeDirectory(todoDir, { recursive: true });
 
-    const archiveExists = yield* fs.exists(TODOS_ARCHIVE_PATH);
+    const archivePath = todosArchivePath(todoDir);
+    const archiveExists = yield* fs.exists(archivePath);
     let existing: TodoItem[] = [];
     if (archiveExists) {
-      const raw = yield* fs.readFileString(TODOS_ARCHIVE_PATH);
+      const raw = yield* fs.readFileString(archivePath);
       // @effect-diagnostics-next-line preferSchemaOverJson:off
       existing = JSON.parse(raw) as TodoItem[];
     }
@@ -55,7 +56,7 @@ export const appendToArchive = (items: TodoItem[]) =>
     // @effect-diagnostics-next-line preferSchemaOverJson:off
     const contents = JSON.stringify(updated, null, 2);
     yield* writeFileStringAtomically({
-      filePath: TODOS_ARCHIVE_PATH,
+      filePath: archivePath,
       contents,
     });
   });
