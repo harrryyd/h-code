@@ -164,10 +164,7 @@ function setupBaseMocks(overrides: {
 
   vi.doMock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
-    useParams: () =>
-      mockThread
-        ? { environmentId: "env-1", threadId: "thread-1" }
-        : null,
+    useParams: () => (mockThread ? { environmentId: "env-1", threadId: "thread-1" } : null),
     useSearch: () => overrides.diffSearch ?? { diff: "1" },
   }));
 }
