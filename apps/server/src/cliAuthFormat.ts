@@ -29,6 +29,7 @@ export function formatIssuedPairingCredential(
   options?: {
     readonly json?: boolean;
     readonly baseUrl?: string;
+    readonly stateDir?: string;
   },
 ): string {
   const pairUrl =
@@ -50,6 +51,7 @@ export function formatIssuedPairingCredential(
         scopes: credential.scopes,
         expiresAt: toIsoString(credential.expiresAt),
         ...(pairUrl ? { pairUrl } : {}),
+        ...(options?.stateDir ? { stateDir: options.stateDir } : {}),
       },
       null,
       2,
@@ -62,6 +64,7 @@ export function formatIssuedPairingCredential(
       `Token: ${credential.credential}`,
       ...(pairUrl ? [`Pair URL: ${pairUrl}`] : []),
       `Expires at: ${credential.expiresAt}`,
+      ...(options?.stateDir ? [`State directory: ${options.stateDir}`] : []),
     ].join(newline) + newline
   );
 }
