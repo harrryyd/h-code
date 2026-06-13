@@ -135,6 +135,8 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   );
   const [diffSourceMode, setDiffSourceMode] = useState<"checkpoint" | "pr">("checkpoint");
   const [prNumberInput, setPrNumberInput] = useState("1");
+  const [reviewModeEnabled, setReviewModeEnabled] = useState(false);
+  const prNumberInputEditedRef = useRef(false);
   const [prDiffText, setPrDiffText] = useState<string | null>(null);
   const [prDiffPending, setPrDiffPending] = useState(false);
   const [prDiffError, setPrDiffError] = useState<string | null>(null);
@@ -169,8 +171,8 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     cwd: activeCwd ?? null,
   });
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
-  const runtimeMode = activeThread?.runtimeMode;
-  const isReviewMode = runtimeMode === "review";
+  const detectedPrNumber = gitStatusQuery.data?.pr?.number ?? null;
+  const isReviewMode = reviewModeEnabled;
   const {
     comments,
     reviewDraft,
@@ -373,6 +375,22 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     });
   }, [renderableFiles]);
 
+  const prRenderablePatch = useMemo(
+    () => getRenderablePatch(prDiffText ?? undefined, `pr-diff:${resolvedTheme}`),
+    [prDiffText, resolvedTheme],
+  );
+  const prRenderableFiles = useMemo(() => {
+    if (!prRenderablePatch || prRenderablePatch.kind !== "files") {
+      return [];
+    }
+    return prRenderablePatch.files.toSorted((left, right) =>
+      resolveFileDiffPath(left).localeCompare(resolveFileDiffPath(right), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    );
+  }, [prRenderablePatch]);
+
   useEffect(() => {
     if (diffOpen && !previousDiffOpenRef.current) {
       setDiffWordWrap(settings.diffWordWrap);
@@ -506,8 +524,16 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   useEffect(() => {
     if (isReviewMode) {
       setDiffSourceMode("pr");
+    } else {
+      setDiffSourceMode("checkpoint");
     }
   }, [isReviewMode]);
+
+  useEffect(() => {
+    if (detectedPrNumber != null && !prNumberInputEditedRef.current) {
+      setPrNumberInput(String(detectedPrNumber));
+    }
+  }, [detectedPrNumber]);
 
   useEffect(() => {
     if (!shouldFetchPrDiff || !activeThread) {
@@ -658,6 +684,20 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1 [-webkit-app-region:no-drag]">
+        <button
+          type="button"
+          className={cn(
+            "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[10px] font-medium transition-colors",
+            reviewModeEnabled
+              ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
+              : "border-border/70 bg-background/70 text-muted-foreground/70 hover:border-border hover:text-foreground/80",
+          )}
+          onClick={() => setReviewModeEnabled((v) => !v)}
+          title={reviewModeEnabled ? "Exit PR review mode" : "Enter PR review mode"}
+        >
+          <GitBranchIcon className="size-3" />
+          Review
+        </button>
         {isReviewMode && (
           <>
             <ToggleGroup
@@ -686,7 +726,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                 step="1"
                 className="h-7 w-16 rounded-md border border-border/70 bg-background/70 px-1.5 text-[11px] text-foreground/80 [-webkit-app-region:no-drag]"
                 value={prNumberInput}
-                onChange={(e) => setPrNumberInput(e.target.value)}
+                onChange={(e) => {
+                  setPrNumberInput(e.target.value);
+                  prNumberInputEditedRef.current = true;
+                }}
                 placeholder="PR #"
                 aria-label="PR number"
               />
@@ -836,6 +879,129 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
               <p>No changes in this PR.</p>
             </div>
+          ) : prRenderableFiles.length > 0 ? (
+            <>
+              {isStale && (
+                <div className="px-2 pt-2">
+                  <StaleBanner
+                    outdatedCommentCount={outdatedCommentCount}
+                    onRefresh={refreshPrDiff}
+                  />
+                </div>
+              )}
+              <Virtualizer
+                className="diff-render-surface h-full min-h-0 overflow-auto px-2 pb-2"
+                config={{
+                  overscrollSize: 600,
+                  intersectionObserverMargin: 1200,
+                }}
+              >
+                {prRenderableFiles.map((fileDiff) => {
+                  const filePath = resolveFileDiffPath(fileDiff);
+                  const fileKey = buildFileDiffRenderKey(fileDiff);
+                  const themedFileKey = `${fileKey}:${resolvedTheme}`;
+                  const collapsed = collapsedDiffFileKeys.has(fileKey);
+                  return (
+                    <div
+                      key={themedFileKey}
+                      data-diff-file-path={filePath}
+                      className="diff-render-file group/diff-file mb-2 rounded-md first:mt-2 last:mb-0"
+                      onClickCapture={(event) => {
+                        const nativeEvent = event.nativeEvent as MouseEvent;
+                        const composedPath = nativeEvent.composedPath?.() ?? [];
+                        const clickedHeader = composedPath.some((node) => {
+                          if (!(node instanceof Element)) return false;
+                          return node.hasAttribute("data-title");
+                        });
+                        if (!clickedHeader) return;
+                        if (isReviewMode) {
+                          startEditing(filePath, null);
+                        }
+                      }}
+                    >
+                      <FileDiff
+                        fileDiff={fileDiff}
+                        renderHeaderPrefix={() => (
+                          <button
+                            type="button"
+                            className={cn(
+                              "inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 transition-colors hover:bg-foreground/10 focus-visible:outline-hidden",
+                              getDiffCollapseIconClassName(fileDiff),
+                            )}
+                            aria-label={collapsed ? `Expand ${filePath}` : `Collapse ${filePath}`}
+                            aria-expanded={!collapsed}
+                            title={collapsed ? "Expand diff" : "Collapse diff"}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleDiffFileCollapsed(fileKey);
+                            }}
+                          >
+                            {collapsed ? (
+                              <ChevronRightIcon className="size-4" />
+                            ) : (
+                              <ChevronDownIcon className="size-4" />
+                            )}
+                          </button>
+                        )}
+                        renderHeaderMetadata={() => {
+                          const fileCommentCount = comments.filter(
+                            (c) => c.file === filePath,
+                          ).length;
+                          if (fileCommentCount === 0) return null;
+                          return (
+                            <span className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-primary/15 text-[9px] font-medium text-primary/80 select-none">
+                              {fileCommentCount}
+                            </span>
+                          );
+                        }}
+                        options={{
+                          collapsed,
+                          diffStyle: diffRenderMode === "split" ? "split" : "unified",
+                          lineDiffType: "none",
+                          overflow: diffWordWrap ? "wrap" : "scroll",
+                          theme: resolveDiffThemeName(resolvedTheme),
+                          themeType: resolvedTheme as DiffThemeType,
+                          unsafeCSS: DIFF_PANEL_UNSAFE_CSS,
+                          ...(isReviewMode
+                            ? {
+                                onLineNumberClick: (props) => {
+                                  const lineNumber =
+                                    props.annotationSide === "additions"
+                                      ? props.lineNumber
+                                      : undefined;
+                                  startEditing(
+                                    filePath,
+                                    lineNumber ?? props.lineNumber,
+                                  );
+                                },
+                              }
+                            : {}),
+                        }}
+                      />
+                      {isReviewMode && (
+                        <DiffCommentPanel
+                          filePath={filePath}
+                          comments={comments}
+                          editingComment={editingComment}
+                          onStartEditing={startEditing}
+                          onCancelEditing={cancelEditing}
+                          onSaveComment={saveComment}
+                          onDeleteComment={deleteComment}
+                          savePending={savePending}
+                          saveError={saveError}
+                          onRequestAgent={runBackgroundAgent}
+                          agentEvents={agentEvents}
+                          agentRunning={agentRunning}
+                          currentPrHeadSHA={prHeadSHA}
+                          storedPrHeadSHA={storedPrHeadSHA}
+                          modifiedFiles={modifiedFilesFromDiff}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </Virtualizer>
+            </>
           ) : (
             <div className="h-full overflow-auto p-2">
               {isStale && (
