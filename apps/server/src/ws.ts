@@ -1213,7 +1213,7 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           WS_METHODS.todosLoad,
           Effect.gen(function* () {
             yield* FileSystem.FileSystem;
-            return yield* readTodos;
+            return yield* readTodos(config.todosDir);
           }).pipe(
             Effect.catch((cause: unknown) =>
               Schema.is(TodosLoadError)(cause)
@@ -1235,7 +1235,7 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
           Effect.gen(function* () {
             yield* FileSystem.FileSystem;
             yield* Path.Path;
-            const current = yield* readTodos;
+            const current = yield* readTodos(config.todosDir);
             const next = applyMutations(
               {
                 categories: [...current.categories],
@@ -1246,9 +1246,9 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
             );
             const { state: deduped, archived } = archiveDoneItems(next);
             if (archived.length > 0) {
-              yield* appendToArchive(archived);
+              yield* appendToArchive(config.todosDir, archived);
             }
-            yield* writeTodos(deduped as unknown as TodosData);
+            yield* writeTodos(config.todosDir, deduped as unknown as TodosData);
             return deduped;
           }).pipe(
             Effect.catch((cause: unknown) =>
