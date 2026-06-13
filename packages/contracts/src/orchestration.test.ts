@@ -888,14 +888,11 @@ it.effect("ModelSelection encodes to the canonical instanceId wire form", () =>
   }),
 );
 
-it.effect("RuntimeMode decodes 'review' and rejects invalid values", () =>
+it.effect("RuntimeMode rejects invalid values", () =>
   Effect.gen(function* () {
     const decode = Schema.decodeUnknownEffect(RuntimeMode);
 
-    const accept = yield* decode("review");
-    assert.strictEqual(accept, "review");
-
-    const reject = yield* Effect.exit(decode("not-a-mode"));
+    const reject = yield* Effect.exit(decode("review"));
     assert.strictEqual(reject._tag, "Failure");
   }),
 );
