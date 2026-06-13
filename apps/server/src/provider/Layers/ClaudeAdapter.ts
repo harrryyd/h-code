@@ -1506,8 +1506,9 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     // The SDK result.usage contains *accumulated* totals across all API calls
     // (input_tokens, cache_read_input_tokens, etc. summed over every request).
     // This does NOT represent the current context window size.
-    // Instead, use the last known context-window-accurate usage from task_progress
-    // events and treat the accumulated total as totalProcessedTokens.
+    // Instead, use per-request usage captured from message_start/message_delta
+    // stream events. If none were captured (e.g. no streaming), fall back to
+    // the accumulated total, treating it as totalProcessedTokens.
     const accumulatedSnapshot = normalizeClaudeTokenUsage(
       result?.usage,
       resultContextWindow ?? context.lastKnownContextWindow,
@@ -1676,6 +1677,28 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
 
     const { event } = message;
+
+    if (event.type === "message_start") {
+      const usage = event.message?.usage;
+      if (usage && typeof usage === "object") {
+        const normalized = normalizeClaudeTokenUsage(usage, context.lastKnownContextWindow);
+        if (normalized) {
+          context.lastKnownTokenUsage = normalized;
+        }
+      }
+      return;
+    }
+
+    if (event.type === "message_delta") {
+      const usage = event.usage;
+      if (usage && typeof usage === "object") {
+        const normalized = normalizeClaudeTokenUsage(usage, context.lastKnownContextWindow);
+        if (normalized) {
+          context.lastKnownTokenUsage = normalized;
+        }
+      }
+      return;
+    }
 
     if (event.type === "content_block_delta") {
       if (
@@ -2236,25 +2259,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         });
         return;
       case "task_progress":
-        if (message.usage) {
-          const normalizedUsage = normalizeClaudeTokenUsage(
-            message.usage,
-            context.lastKnownContextWindow,
-          );
-          if (normalizedUsage) {
-            context.lastKnownTokenUsage = normalizedUsage;
-            const usageStamp = yield* makeEventStamp();
-            yield* offerRuntimeEvent({
-              ...base,
-              eventId: usageStamp.eventId,
-              createdAt: usageStamp.createdAt,
-              type: "thread.token-usage.updated",
-              payload: {
-                usage: normalizedUsage,
-              },
-            });
-          }
-        }
         yield* offerRuntimeEvent({
           ...base,
           type: "task.progress",
@@ -2268,25 +2272,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         });
         return;
       case "task_notification":
-        if (message.usage) {
-          const normalizedUsage = normalizeClaudeTokenUsage(
-            message.usage,
-            context.lastKnownContextWindow,
-          );
-          if (normalizedUsage) {
-            context.lastKnownTokenUsage = normalizedUsage;
-            const usageStamp = yield* makeEventStamp();
-            yield* offerRuntimeEvent({
-              ...base,
-              eventId: usageStamp.eventId,
-              createdAt: usageStamp.createdAt,
-              type: "thread.token-usage.updated",
-              payload: {
-                usage: normalizedUsage,
-              },
-            });
-          }
-        }
         yield* offerRuntimeEvent({
           ...base,
           type: "task.completed",
