@@ -326,6 +326,61 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
     }),
   );
 
+  it.effect("includes stateDir in JSON pairing output and warns on mismatch", () =>
+    Effect.gen(function* () {
+      const baseDir = mkdtempSync(join(tmpdir(), "t3-cli-auth-pairing-stateDir-test-"));
+
+      const createdOutput = yield* captureStdout(
+        runCli(["auth", "pairing", "create", "--base-dir", baseDir, "--json"]),
+      );
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      const created = JSON.parse(createdOutput.output) as {
+        readonly id: string;
+        readonly credential: string;
+        readonly stateDir: string;
+      };
+
+      assert.equal(typeof created.stateDir, "string");
+      assert.equal(created.stateDir!.includes("userdata"), true);
+      assert.equal(created.stateDir, join(baseDir, "userdata"));
+    }),
+  );
+
+  it.effect("prints advisory mismatch warning in text mode when dev-url is absent", () =>
+    Effect.gen(function* () {
+      const baseDir = mkdtempSync(join(tmpdir(), "t3-cli-auth-pairing-warn-test-"));
+
+      const createdOutput = yield* captureStdout(
+        runCli(["auth", "pairing", "create", "--base-dir", baseDir]),
+      );
+
+      assert.equal(createdOutput.output.includes("State directory:"), true);
+      assert.equal(createdOutput.output.includes("Token was written to the"), true);
+      assert.equal(createdOutput.output.includes("pass --dev-url to match"), true);
+    }),
+  );
+
+  it.effect("omits advisory warning when dev-url is passed", () =>
+    Effect.gen(function* () {
+      const baseDir = mkdtempSync(join(tmpdir(), "t3-cli-auth-pairing-devurl-test-"));
+
+      const createdOutput = yield* captureStdout(
+        runCli([
+          "auth",
+          "pairing",
+          "create",
+          "--base-dir",
+          baseDir,
+          "--dev-url",
+          "http://localhost:5734",
+        ]),
+      );
+
+      assert.equal(createdOutput.output.includes("dev"), true);
+      assert.equal(createdOutput.output.includes("Token was written to the"), false);
+    }),
+  );
+
   it.effect("executes auth session subcommands and redacts secrets from list output", () =>
     Effect.gen(function* () {
       const baseDir = mkdtempSync(join(tmpdir(), "t3-cli-auth-session-test-"));
