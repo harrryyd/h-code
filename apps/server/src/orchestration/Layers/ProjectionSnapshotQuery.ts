@@ -90,7 +90,7 @@ const ProjectionThreadDbRowSchema = Schema.Struct({
   title: ProjectionThread.fields.title,
   managerMetadata: Schema.NullOr(Schema.fromJsonString(ManagerThreadMetadata)),
   modelSelection: Schema.fromJsonString(ModelSelection),
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: Schema.fromJsonString(RuntimeMode).pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
   interactionMode: ProjectionThread.fields.interactionMode,
   branch: ProjectionThread.fields.branch,
   worktreePath: ProjectionThread.fields.worktreePath,
