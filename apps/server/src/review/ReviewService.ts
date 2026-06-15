@@ -250,12 +250,6 @@ export const make = Effect.fn("makeReviewService")(function* () {
         }
 
         const draft = localDraftOption.value;
-        if (draft.state === "published") {
-          return yield* new ChangeRequestSubmitReviewError({
-            kind: "no-draft",
-            detail: "Review has already been submitted.",
-          });
-        }
         if (draft.comments.length === 0) {
           return yield* new ChangeRequestSubmitReviewError({
             kind: "no-draft",
@@ -281,47 +275,71 @@ export const make = Effect.fn("makeReviewService")(function* () {
           });
         }
 
-        // Format comments into markdown body
-        const body = localComments
-          .map((c) => {
-            const fileLine = typeof c.line === "number" ? `:${c.line}` : "";
-            return `**${c.file}${fileLine}**\n\n${c.body}`;
-          })
-          .join("\n\n---\n\n");
+        // Separate line-specific comments from file-level comments.
+        // Line comments go into the GitHub API `comments` array (visible in
+        // "Files changed" tab pinned to the line). File-level comments go in
+        // the review `body` (visible in the "Conversation" tab).
+        const lineComments = localComments.filter((c) => typeof c.line === "number");
+        const fileComments = localComments.filter((c) => typeof c.line !== "number");
 
-        // Write body to a temporary file
+        const body = fileComments.map((c) => `**${c.file}**\n\n${c.body}`).join("\n\n---\n\n");
+
+        const apiComments = lineComments.map((c) => ({
+          path: c.file,
+          line: c.line,
+          side: "RIGHT",
+          body: c.body,
+        }));
+
+        const payload = {
+          event: "COMMENT",
+          body,
+          commit_id: draft.prHeadSHA,
+          ...(apiComments.length > 0 ? { comments: apiComments } : {}),
+        };
+
+        // Write JSON payload to a temporary file
         yield* fileSystem
           .makeDirectory(path.join(config.stateDir, "tmp"), {
             recursive: true,
           })
           .pipe(Effect.orElseSucceed(() => undefined));
-        const bodyFile = path.join(
+        const commentsJsonFile = path.join(
           config.stateDir,
           "tmp",
-          `review-body-${input.threadId}-${input.prNumber}.md`,
+          `review-comments-${input.threadId}-${input.prNumber}.json`,
         );
         yield* fileSystem
-          .writeFileString(bodyFile, body)
+          .writeFileString(commentsJsonFile, JSON.stringify(payload))
           .pipe(Effect.orElseSucceed(() => undefined));
 
-        // Submit the review and clean up temp file
-        yield* cli
-          .createPullRequestReview({
-            cwd: input.cwd,
-            reference: String(input.prNumber),
-            bodyFile,
-          })
-          .pipe(
-            Effect.mapError(
-              (cause) =>
-                new ChangeRequestSubmitReviewError({
-                  kind: "review-failed",
-                  detail: cause.message,
-                  cause,
-                }),
-            ),
-            Effect.ensuring(fileSystem.remove(bodyFile).pipe(Effect.catch(() => Effect.void))),
-          );
+        // Submit via gh api for inline comments, fall back to gh pr review
+        const submitEffect =
+          apiComments.length > 0
+            ? cli.createPullRequestReviewWithComments({
+                cwd: input.cwd,
+                reference: String(input.prNumber),
+                commentsJsonFile,
+              })
+            : cli.createPullRequestReview({
+                cwd: input.cwd,
+                reference: String(input.prNumber),
+                bodyFile: commentsJsonFile,
+              });
+
+        yield* submitEffect.pipe(
+          Effect.mapError(
+            (cause) =>
+              new ChangeRequestSubmitReviewError({
+                kind: "review-failed",
+                detail: cause.message,
+                cause,
+              }),
+          ),
+          Effect.ensuring(
+            fileSystem.remove(commentsJsonFile).pipe(Effect.catch(() => Effect.void)),
+          ),
+        );
 
         // Fetch fresh GitHub comments to merge with published local comments
         const reviews = yield* cli
@@ -332,10 +350,14 @@ export const make = Effect.fn("makeReviewService")(function* () {
           .pipe(Effect.orElseSucceed(() => ({ comments: [] })));
         const githubComments = reviews.comments.map(mapGitHubCommentToReviewComment);
 
-        // Merge: local comments take precedence, GitHub comments fill in any extras
+        // Merge: local comments are marked as published (no longer "local" author)
+        // so future submissions won't re-post them. GitHub comments fill in any extras.
         const localIds = new Set(localComments.map((c) => c.id));
         const mergedComments = [
-          ...localComments.map((c) => ({ ...c, state: "published" as const })),
+          ...localComments.map((c) => ({
+            ...c,
+            author: { login: "local-published" },
+          })),
           ...githubComments.filter((c) => !localIds.has(c.id)),
         ];
 
@@ -344,7 +366,7 @@ export const make = Effect.fn("makeReviewService")(function* () {
           prNumber: input.prNumber,
           prHeadSHA: draft.prHeadSHA,
           comments: mergedComments,
-          state: "published",
+          state: "draft",
         };
 
         // Replace local draft

@@ -1,7 +1,7 @@
 import { FileDiff, Virtualizer } from "@pierre/diffs/react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { scopeThreadRef } from "@t3tools/client-runtime";
-import type { TurnId } from "@t3tools/contracts";
+import type { TurnId, ReviewComment } from "@t3tools/contracts";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -48,6 +48,7 @@ import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./Dif
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
 import { DiffCommentPanel } from "./DiffCommentPanel";
 import { StaleBanner } from "./StaleBanner";
+import { InlineAnnotationComment, deriveLineAnnotations } from "./InlineAnnotationComment";
 import { useReviewComments } from "../hooks/useReviewComments";
 
 type DiffRenderMode = "stacked" | "split";
@@ -230,6 +231,17 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     setPrDiffRefreshKey((k) => k + 1);
     refreshRequestedRef.current = true;
   }, []);
+
+  const handleReplyComment = useCallback(
+    (comment: ReviewComment) => {
+      const quote = comment.body
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n");
+      startEditing(comment.file, comment.line ?? null, `${quote}\n\n`);
+    },
+    [startEditing],
+  );
 
   const isStale = useMemo(
     () => !!(storedPrHeadSHA && prHeadSHA && storedPrHeadSHA !== prHeadSHA),
@@ -479,6 +491,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           openDiffFileInEditor(filePath);
         }}
       >
+        {/* @ts-expect-error FileDiff annotation props with generic type */}
         <FileDiff
           fileDiff={fileDiff}
           renderHeaderPrefix={() => (
@@ -530,6 +543,28 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               </>
             );
           }}
+          lineAnnotations={
+            isReviewMode ? deriveLineAnnotations(comments.filter((c) => c.file === filePath)) : []
+          }
+          renderAnnotation={
+            isReviewMode
+              ? (annotation: any) => {
+                  const c = comments.find(
+                    (x) => x.file === filePath && x.id === annotation.metadata?.commentId,
+                  );
+                  if (!c) return null;
+                  return (
+                    <InlineAnnotationComment
+                      annotation={annotation}
+                      onReply={(body) => handleReplyComment(c)}
+                      onDelete={deleteComment}
+                      onRequestAgent={runBackgroundAgent}
+                      agentRunning={agentRunning?.has(c.id)}
+                    />
+                  );
+                }
+              : undefined
+          }
           options={{
             collapsed,
             diffStyle: diffRenderMode === "split" ? "split" : "unified",
@@ -541,9 +576,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             ...(isReviewMode
               ? {
                   onLineNumberClick: (props: { annotationSide: string; lineNumber: number }) => {
-                    const lineNumber =
-                      props.annotationSide === "additions" ? props.lineNumber : undefined;
-                    startEditing(filePath, lineNumber ?? props.lineNumber);
+                    startEditing(
+                      filePath,
+                      props.annotationSide === "additions" ? props.lineNumber : null,
+                    );
                   },
                 }
               : {}),
@@ -558,6 +594,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             onCancelEditing={cancelEditing}
             onSaveComment={saveComment}
             onDeleteComment={deleteComment}
+            onReplyComment={handleReplyComment}
             savePending={savePending}
             saveError={saveError}
             onRequestAgent={runBackgroundAgent}
@@ -581,6 +618,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       cancelEditing,
       saveComment,
       deleteComment,
+      handleReplyComment,
       savePending,
       saveError,
       runBackgroundAgent,
@@ -1082,6 +1120,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                     onCancelEditing={cancelEditing}
                     onSaveComment={saveComment}
                     onDeleteComment={deleteComment}
+                    onReplyComment={handleReplyComment}
                     savePending={savePending}
                     saveError={saveError}
                     onRequestAgent={runBackgroundAgent}

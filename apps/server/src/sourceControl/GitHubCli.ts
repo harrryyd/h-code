@@ -121,6 +121,15 @@ export interface GitHubCliShape {
     readonly reference: string;
     readonly bodyFile: string;
   }) => Effect.Effect<void, GitHubCliError>;
+
+  /** Post a PR review with inline comments via the GitHub API.
+   *  Uses `gh api POST /repos/{owner}/{repo}/pulls/{pr}/reviews` with
+   *  a JSON payload containing both a body and per-file/line comments array. */
+  readonly createPullRequestReviewWithComments: (input: {
+    readonly cwd: string;
+    readonly reference: string;
+    readonly commentsJsonFile: string;
+  }) => Effect.Effect<void, GitHubCliError>;
 }
 
 export class GitHubCli extends Context.Service<GitHubCli, GitHubCliShape>()(
@@ -508,6 +517,28 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
       execute({
         cwd: input.cwd,
         args: ["pr", "review", input.reference, "--comment", "--body-file", input.bodyFile],
+      }).pipe(Effect.asVoid),
+    createPullRequestReviewWithComments: (input) =>
+      Effect.gen(function* () {
+        const repoResult = yield* execute({
+          cwd: input.cwd,
+          args: ["repo", "view", "--json", "nameWithOwner"],
+        });
+        const repoRaw = repoResult.stdout.trim();
+        let nameWithOwner = "";
+        try {
+          nameWithOwner = (JSON.parse(repoRaw) as { nameWithOwner: string }).nameWithOwner;
+        } catch {
+          return yield* new GitHubCliError({
+            operation: "createPullRequestReviewWithComments",
+            detail: "Failed to parse repo nameWithOwner from gh repo view output.",
+          });
+        }
+        const apiPath = `repos/${nameWithOwner}/pulls/${input.reference}/reviews`;
+        yield* execute({
+          cwd: input.cwd,
+          args: ["api", apiPath, "--input", input.commentsJsonFile],
+        });
       }).pipe(Effect.asVoid),
   });
 });
