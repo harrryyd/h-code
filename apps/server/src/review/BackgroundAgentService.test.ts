@@ -205,7 +205,7 @@ describe("BackgroundAgentService", () => {
         createWorktreeRefName: "t3/agent-response-abc12345",
       });
 
-      const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
       const eventsArray = yield* runAndCollect({
         service,
@@ -273,7 +273,7 @@ describe("BackgroundAgentService", () => {
         updateMutation,
       });
 
-      const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
       yield* runAndCollect({
         service,
@@ -325,7 +325,7 @@ describe("BackgroundAgentService", () => {
         updateMutation,
       });
 
-      const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
       const eventsArray = yield* runAndCollect({
         service,
@@ -380,7 +380,7 @@ describe("BackgroundAgentService", () => {
         updateMutation,
       });
 
-      const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
       const eventsArray = yield* runAndCollect({
         service,
@@ -440,7 +440,7 @@ describe("BackgroundAgentService", () => {
         updateMutation,
       });
 
-      const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
       yield* runAndCollect({
         service,
@@ -519,7 +519,7 @@ describe("BackgroundAgentService", () => {
         Layer.succeed(ReviewService, makeBaseReview()),
       );
 
-      const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
       yield* runAndCollect({
         service,
@@ -575,6 +575,7 @@ describe("BackgroundAgentService", () => {
               renameBranch: () => Effect.die("unexpected"),
             } as unknown as GitVcsDriverShape),
           ),
+          Layer.succeed(ReviewService, makeBaseReview()),
         ),
       ),
     ));
@@ -636,7 +637,7 @@ describe("BackgroundAgentService", () => {
           updateMutation,
         });
 
-        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+        const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
         // @effect-diagnostics-next-line runEffectInsideEffect:off
         const collectPromise = Effect.runPromise(
@@ -700,7 +701,7 @@ describe("BackgroundAgentService", () => {
           updateMutation,
         });
 
-        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+        const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
         // @effect-diagnostics-next-line runEffectInsideEffect:off
         const collectPromise = Effect.runPromise(
@@ -767,7 +768,7 @@ describe("BackgroundAgentService", () => {
           updateMutation,
         });
 
-        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+        const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
         // Run 5 agents with max concurrency 2
         const inputs = [
@@ -824,7 +825,7 @@ describe("BackgroundAgentService", () => {
           updateMutation,
         });
 
-        const service = yield* BackgroundAgentService.make.pipe(Effect.provide(layer));
+        const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
 
         const events = yield* service.runBatchAgents([]).pipe(Stream.runCollect);
 

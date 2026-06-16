@@ -115,7 +115,6 @@ const RelayClientLive = Layer.unwrap(
 
 const HttpServerLive = Layer.unwrap(
   Effect.gen(function* () {
-    yield* ServerRuntimeStartup;
     const config = yield* ServerConfig;
     if (typeof Bun !== "undefined") {
       const BunHttpServer = yield* Effect.promise(
@@ -236,6 +235,7 @@ const SourceControlRepositoryServiceLayerLive = SourceControlRepositoryService.l
 const ReviewLayerLive = ReviewService.layer.pipe(
   Layer.provideMerge(GitVcsDriver.layer),
   Layer.provideMerge(VcsDriverRegistryLayerLive),
+  Layer.provideMerge(GitHubCli.layer),
 );
 
 const BackgroundAgentServiceLayerLive = BackgroundAgentService.layer.pipe(

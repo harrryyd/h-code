@@ -397,6 +397,7 @@ export const ServerSettings = Schema.Struct({
       }),
     ),
   ),
+  reviewAgentInstanceId: Schema.optional(ProviderInstanceId),
 
   // Legacy single-instance-per-driver settings. Continues to be the source
   // of truth until `providerInstances` (below) lands per-driver migration

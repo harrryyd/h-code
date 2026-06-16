@@ -7,6 +7,7 @@
  * @module ProjectionThreadRepository
  */
 import {
+  DEFAULT_RUNTIME_MODE,
   IsoDateTime,
   ManagerSeededWorkItem,
   ManagerThreadMetadata,
@@ -31,7 +32,7 @@ export const ProjectionThread = Schema.Struct({
   title: Schema.String,
   managerMetadata: Schema.optional(ManagerThreadMetadata),
   modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
+  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
   interactionMode: ProviderInteractionMode,
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),

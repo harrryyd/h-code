@@ -646,6 +646,13 @@ function createGitHubCliWithFakeGh(scenario: FakeGhScenario = {}): {
             detail: `Unexpected pull request review create: ${input.reference}`,
           }),
         ),
+      createPullRequestReviewWithComments: (input) =>
+        Effect.fail(
+          new GitHubCliError({
+            operation: "createPullRequestReviewWithComments",
+            detail: `Unexpected pull request review with comments create: ${input.reference}`,
+          }),
+        ),
     },
     ghCalls,
   };

@@ -7,7 +7,7 @@ export interface DiffRouteSearch {
 }
 
 function isDiffOpenValue(value: unknown): boolean {
-  return value === "1" || value === 1 || value === true;
+  return value === "1" || value === 1 || value === true || value === '"1"';
 }
 
 function normalizeSearchString(value: unknown): string | undefined {

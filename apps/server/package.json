@@ -42,6 +42,7 @@
     "@types/node": "catalog:",
     "effect-acp": "workspace:*",
     "effect-codex-app-server": "workspace:*",
+    "playwright": "^1.58.2",
     "vite-plus": "catalog:"
   },
   "engines": {

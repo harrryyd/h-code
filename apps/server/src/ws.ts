@@ -1540,7 +1540,15 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
                 detail: `Thread ${input.threadId} not found.`,
               });
             }
-            const cwd = thread.value.worktreePath;
+            let cwd: string | null = thread.value.worktreePath;
+            if (!cwd) {
+              const project = yield* projectionSnapshotQuery
+                .getProjectShellById(thread.value.projectId)
+                .pipe(Effect.orDie);
+              if (Option.isSome(project)) {
+                cwd = project.value.workspaceRoot;
+              }
+            }
             if (!cwd) {
               return yield* new ChangeRequestGetPrDiffError({
                 kind: "not-a-repo",
@@ -1609,7 +1617,15 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
                 detail: `Thread ${input.threadId} not found.`,
               });
             }
-            const cwd = thread.value.worktreePath;
+            let cwd: string | null = thread.value.worktreePath;
+            if (!cwd) {
+              const project = yield* projectionSnapshotQuery
+                .getProjectShellById(thread.value.projectId)
+                .pipe(Effect.orDie);
+              if (Option.isSome(project)) {
+                cwd = project.value.workspaceRoot;
+              }
+            }
             if (!cwd) {
               return yield* new ChangeRequestSubmitReviewError({
                 kind: "not-a-repo",
@@ -1635,7 +1651,15 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
                 }),
               );
             }
-            const cwd = thread.value.worktreePath;
+            let cwd: string | null = thread.value.worktreePath;
+            if (!cwd) {
+              const project = yield* projectionSnapshotQuery
+                .getProjectShellById(thread.value.projectId)
+                .pipe(Effect.orDie);
+              if (Option.isSome(project)) {
+                cwd = project.value.workspaceRoot;
+              }
+            }
             if (!cwd) {
               return yield* Effect.fail(
                 new ChangeRequestRunBackgroundAgentError({
@@ -1714,7 +1738,15 @@ const makeWsRpcHandlers = (currentSession: AuthenticatedSession) =>
                 }),
               );
             }
-            const cwd = thread.value.worktreePath;
+            let cwd: string | null = thread.value.worktreePath;
+            if (!cwd) {
+              const project = yield* projectionSnapshotQuery
+                .getProjectShellById(thread.value.projectId)
+                .pipe(Effect.orDie);
+              if (Option.isSome(project)) {
+                cwd = project.value.workspaceRoot;
+              }
+            }
             if (!cwd) {
               return yield* Effect.fail(
                 new ChangeRequestRunBackgroundAgentError({

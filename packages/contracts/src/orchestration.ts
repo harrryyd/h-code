@@ -118,7 +118,6 @@ export const RuntimeMode = Schema.Literals([
   "approval-required",
   "auto-accept-edits",
   "full-access",
-  "review",
 ]);
 export type RuntimeMode = typeof RuntimeMode.Type;
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
@@ -1231,7 +1230,7 @@ export const ThreadMetaUpdatedPayload = Schema.Struct({
 
 export const ThreadRuntimeModeSetPayload = Schema.Struct({
   threadId: ThreadId,
-  runtimeMode: RuntimeMode,
+  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
   updatedAt: IsoDateTime,
 });
 

@@ -176,6 +176,11 @@ function makeSubmitReviewLayer(input: {
   readonly ghCreateReview: (opts: {
     readonly bodyFile: string;
   }) => Effect.Effect<void, GitHubCli.GitHubCliError>;
+  readonly ghCreateReviewWithComments?: (opts: {
+    readonly cwd: string;
+    readonly reference: string;
+    readonly commentsJsonFile: string;
+  }) => Effect.Effect<void, GitHubCli.GitHubCliError>;
   readonly ghGetReviews: () => Effect.Effect<
     GitHubCli.GitHubPullRequestReview,
     GitHubCli.GitHubCliError
@@ -199,6 +204,10 @@ function makeSubmitReviewLayer(input: {
             getPullRequestReviews: ({ cwd: _, reference: __ }) => input.ghGetReviews(),
             createPullRequestReview: ({ cwd: _, reference: __, bodyFile }) =>
               input.ghCreateReview({ bodyFile }),
+            createPullRequestReviewWithComments: ({ cwd: _, reference: __, commentsJsonFile }) =>
+              input.ghCreateReviewWithComments
+                ? input.ghCreateReviewWithComments({ cwd: __, reference: __, commentsJsonFile })
+                : input.ghCreateReview({ bodyFile: commentsJsonFile }),
           }),
         ),
       ),
@@ -273,13 +282,13 @@ describe("ReviewService submitReview", () => {
       const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "t3-submit-review-" });
       const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-submit-review-base-" });
 
-      const createReviewCalls: Array<{ readonly bodyFile: string }> = [];
-      let bodyFileContent = "";
+      const createReviewCalls: Array<{ readonly commentsJsonFile: string }> = [];
+      let payloadContent = "";
 
       const outcome = yield* Effect.gen(function* () {
         const review = yield* ReviewService.ReviewService;
 
-        // Upsert 3 draft comments
+        // Upsert 3 draft comments (2 with line, 1 file-level)
         yield* review.upsertReviewComment({
           threadId: "thread-submit",
           prNumber: 99,
@@ -311,11 +320,12 @@ describe("ReviewService submitReview", () => {
           makeSubmitReviewLayer({
             cwd,
             baseDir,
-            ghCreateReview: ({ bodyFile }) =>
+            ghCreateReview: () => Effect.die("should not be called for line comments"),
+            ghCreateReviewWithComments: ({ commentsJsonFile }) =>
               Effect.gen(function* () {
-                createReviewCalls.push({ bodyFile });
-                bodyFileContent = yield* fs
-                  .readFileString(bodyFile)
+                createReviewCalls.push({ commentsJsonFile });
+                payloadContent = yield* fs
+                  .readFileString(commentsJsonFile)
                   .pipe(Effect.orElseSucceed(() => "file-read-error"));
               }),
             ghGetReviews: () => Effect.succeed({ comments: [] }),
@@ -323,25 +333,36 @@ describe("ReviewService submitReview", () => {
         ),
       );
 
-      // Verify gh pr review was called
+      // Verify gh api was called
       expect(createReviewCalls).toHaveLength(1);
 
-      // Verify body file contains all 3 comments
-      expect(bodyFileContent).toContain("src/app.ts:42");
-      expect(bodyFileContent).toContain("Consider renaming this variable.");
-      expect(bodyFileContent).toContain("src/utils.ts");
-      expect(bodyFileContent).toContain("Extract this into a helper function.");
-      expect(bodyFileContent).toContain("src/index.ts:10");
-      expect(bodyFileContent).toContain("Use a named export here.");
+      // Parse JSON payload
+      const payload = JSON.parse(payloadContent);
+      expect(payload.event).toBe("COMMENT");
+      expect(payload.commit_id).toBe("sha1");
 
-      // Verify returned draft has local comments marked as published
-      expect(outcome.state).toBe("published");
+      // Body contains file-level comment (testLocalComment2 has no line)
+      expect(payload.body).toContain("src/utils.ts");
+      expect(payload.body).toContain("Extract this into a helper function.");
+
+      // Comments array contains line-specific comments
+      expect(payload.comments).toHaveLength(2);
+      expect(payload.comments[0].path).toBe("src/app.ts");
+      expect(payload.comments[0].line).toBe(42);
+      expect(payload.comments[0].side).toBe("RIGHT");
+      expect(payload.comments[0].body).toBe("Consider renaming this variable.");
+      expect(payload.comments[1].path).toBe("src/index.ts");
+      expect(payload.comments[1].line).toBe(10);
+      expect(payload.comments[1].body).toBe("Use a named export here.");
+
+      // Verify returned draft stays in "draft" state so future submissions are possible
+      expect(outcome.state).toBe("draft");
       expect(outcome.comments).toHaveLength(3);
       expect(outcome.comments[0]?.id).toBe("local-1");
-      expect(outcome.comments[1]?.id).toBe("local-2");
-      expect(outcome.comments[2]?.id).toBe("local-3");
+      // Published comments are no longer marked as "local" author
+      expect(outcome.comments[0]?.author.login).toBe("local-published");
 
-      // Verify getReviewDraft returns the published draft
+      // Verify getReviewDraft returns the draft (not published) with authored comments
       const freshDraft = yield* Effect.gen(function* () {
         const review = yield* ReviewService.ReviewService;
         return yield* review.getReviewDraft({
@@ -354,13 +375,13 @@ describe("ReviewService submitReview", () => {
           makeSubmitReviewLayer({
             cwd,
             baseDir,
-            ghCreateReview: () => Effect.die("should not be called again"),
+            ghCreateReview: () => Effect.die("should not be called"),
             ghGetReviews: () => Effect.succeed({ comments: [] }),
           }),
         ),
       );
 
-      expect(freshDraft?.state).toBe("published");
+      expect(freshDraft?.state).toBe("draft");
       expect(freshDraft?.comments).toHaveLength(3);
       expect(freshDraft?.comments[0]?.id).toBe("local-1");
     }).pipe(Effect.provide(NodeServices.layer)));
@@ -382,7 +403,7 @@ describe("ReviewService submitReview", () => {
           comment: testLocalComment,
         });
 
-        // Attempt to submit (will fail because gh pr review fails)
+        // Attempt to submit (will fail because gh api fails)
         return yield* review
           .submitReview({
             threadId: "thread-fail",
@@ -395,11 +416,12 @@ describe("ReviewService submitReview", () => {
           makeSubmitReviewLayer({
             cwd,
             baseDir,
-            ghCreateReview: () =>
+            ghCreateReview: () => Effect.die("should not be called"),
+            ghCreateReviewWithComments: () =>
               Effect.fail(
                 new GitHubCli.GitHubCliError({
-                  operation: "createPullRequestReview",
-                  detail: "gh pr review failed: status 403",
+                  operation: "createPullRequestReviewWithComments",
+                  detail: "gh api review failed: status 403",
                 }),
               ),
             ghGetReviews: () => Effect.die("should not be called"),
@@ -409,7 +431,7 @@ describe("ReviewService submitReview", () => {
 
       expect(result._tag).toBe("ChangeRequestSubmitReviewError");
       expect(result.kind).toBe("review-failed");
-      expect(result.detail).toContain("gh pr review failed");
+      expect(result.detail).toContain("gh api review failed");
 
       // Verify local draft still exists
       const existingDraft = yield* Effect.gen(function* () {
@@ -433,5 +455,130 @@ describe("ReviewService submitReview", () => {
       expect(existingDraft).not.toBeNull();
       expect(existingDraft?.state).toBe("draft");
       expect(existingDraft?.comments).toHaveLength(1);
+    }).pipe(Effect.provide(NodeServices.layer)));
+
+  it("submitReview only posts new local comments on resubmission", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "t3-submit-review-" });
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-submit-review-base-" });
+
+      const createReviewCalls: Array<string> = [];
+      let secondPayload: Record<string, unknown> | null = null;
+
+      yield* Effect.gen(function* () {
+        const review = yield* ReviewService.ReviewService;
+
+        // First submission: post comment-1 (has line)
+        yield* review.upsertReviewComment({
+          threadId: "thread-incremental",
+          prNumber: 42,
+          prHeadSHA: "sha1",
+          comment: testLocalComment,
+        });
+        yield* review.submitReview({
+          threadId: "thread-incremental",
+          prNumber: 42,
+          cwd,
+        });
+
+        // Add a second comment (no line = file-level)
+        yield* review.upsertReviewComment({
+          threadId: "thread-incremental",
+          prNumber: 42,
+          prHeadSHA: "sha1",
+          comment: testLocalComment2,
+        });
+
+        // Second submission should only include the new comment
+        yield* review.submitReview({
+          threadId: "thread-incremental",
+          prNumber: 42,
+          cwd,
+        });
+      }).pipe(
+        Effect.provide(
+          makeSubmitReviewLayer({
+            cwd,
+            baseDir,
+            ghCreateReview: ({ bodyFile }) =>
+              Effect.gen(function* () {
+                createReviewCalls.push("body:" + bodyFile);
+                const raw = yield* fs
+                  .readFileString(bodyFile)
+                  .pipe(Effect.orElseSucceed(() => "{}"));
+                secondPayload = JSON.parse(raw);
+              }),
+            ghCreateReviewWithComments: ({ commentsJsonFile }) =>
+              Effect.gen(function* () {
+                createReviewCalls.push("inline:" + commentsJsonFile);
+              }),
+            ghGetReviews: () => Effect.succeed({ comments: [] }),
+          }),
+        ),
+      );
+
+      expect(createReviewCalls).toHaveLength(2);
+      // Second submission uses body path (file-level only), should not contain first comment
+      const sp = secondPayload as Record<string, unknown> | null;
+      const bodyText = typeof sp?.body === "string" ? sp.body : "";
+      expect(bodyText).not.toContain("Consider renaming this variable.");
+      expect(bodyText).toContain("Extract this into a helper function.");
+      // No comments array since the new comment has no line
+      expect(sp?.comments).toBeUndefined();
+    }).pipe(Effect.provide(NodeServices.layer)));
+
+  it("submitReview returns no-draft when all local comments are already published", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "t3-submit-review-" });
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-submit-review-base-" });
+
+      const createReviewCalls: Array<{ readonly commentsJsonFile: string }> = [];
+
+      const error = yield* Effect.gen(function* () {
+        const review = yield* ReviewService.ReviewService;
+
+        yield* review.upsertReviewComment({
+          threadId: "thread-all-published",
+          prNumber: 1,
+          prHeadSHA: "sha1",
+          comment: testLocalComment,
+        });
+
+        // First submission publishes the comment
+        yield* review.submitReview({
+          threadId: "thread-all-published",
+          prNumber: 1,
+          cwd,
+        });
+
+        // Second submission with no new local comments
+        return yield* review
+          .submitReview({
+            threadId: "thread-all-published",
+            prNumber: 1,
+            cwd,
+          })
+          .pipe(Effect.flip);
+      }).pipe(
+        Effect.provide(
+          makeSubmitReviewLayer({
+            cwd,
+            baseDir,
+            ghCreateReview: () => Effect.die("should not be called"),
+            ghCreateReviewWithComments: ({ commentsJsonFile }) =>
+              Effect.gen(function* () {
+                createReviewCalls.push({ commentsJsonFile });
+              }),
+            ghGetReviews: () => Effect.succeed({ comments: [] }),
+          }),
+        ),
+      );
+
+      expect(createReviewCalls).toHaveLength(1);
+      expect(error._tag).toBe("ChangeRequestSubmitReviewError");
+      expect(error.kind).toBe("no-draft");
+      expect(error.detail).toBe("No local draft review comments to submit.");
     }).pipe(Effect.provide(NodeServices.layer)));
 });

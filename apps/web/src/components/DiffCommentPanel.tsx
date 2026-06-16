@@ -7,6 +7,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   PlusIcon,
+  ReplyIcon,
   Trash2Icon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -17,6 +18,7 @@ import type { BackgroundAgentEvent } from "../hooks/useReviewComments";
 interface InlineCommentInputProps {
   filePath: string;
   lineNumber: number | null;
+  prefillBody: string;
   onSave: (body: string) => Promise<void>;
   onCancel: () => void;
   pending: boolean;
@@ -26,12 +28,13 @@ interface InlineCommentInputProps {
 function InlineCommentInput({
   filePath,
   lineNumber,
+  prefillBody,
   onSave,
   onCancel,
   pending,
   error,
 }: InlineCommentInputProps) {
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(prefillBody);
   const trimmed = body.trim();
 
   const handleSave = useCallback(() => {
@@ -192,6 +195,7 @@ function AgentResponseDisplay({
 interface InlineCommentProps {
   comment: ReviewComment;
   onDelete?: ((commentId: string) => void) | undefined;
+  onReply?: ((comment: ReviewComment) => void) | undefined;
   onRequestAgent?: ((commentId: string) => void) | undefined;
   agentEvents?: BackgroundAgentEvent[] | undefined;
   agentRunning?: boolean | undefined;
@@ -200,6 +204,7 @@ interface InlineCommentProps {
 function InlineComment({
   comment,
   onDelete,
+  onReply,
   onRequestAgent,
   agentEvents,
   agentRunning,
@@ -264,6 +269,17 @@ function InlineComment({
           {isAgentRunning && <Loader2Icon className="size-2.5 animate-spin text-blue-400" />}
         </div>
         <div className="flex items-center gap-0.5">
+          {/* Reply button */}
+          {onReply && (
+            <button
+              type="button"
+              className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground/40 hover:bg-foreground/8 hover:text-foreground/70"
+              onClick={() => onReply(comment)}
+              title="Reply"
+            >
+              <ReplyIcon className="size-3" />
+            </button>
+          )}
           {/* Request AI response button */}
           {onRequestAgent && isAgentIdle && (
             <button
@@ -309,11 +325,12 @@ function InlineComment({
 interface DiffCommentPanelProps {
   filePath: string;
   comments: readonly ReviewComment[];
-  editingComment: { filePath: string; lineNumber: number | null } | null;
+  editingComment: { filePath: string; lineNumber: number | null; prefillBody?: string } | null;
   onStartEditing: (filePath: string, lineNumber: number | null) => void;
   onCancelEditing: () => void;
   onSaveComment: (body: string) => Promise<void>;
   onDeleteComment: (commentId: string) => void;
+  onReplyComment?: ((comment: ReviewComment) => void) | undefined;
   savePending: boolean;
   saveError: string | null;
   onRequestAgent?: ((commentId: string) => void) | undefined;
@@ -348,6 +365,7 @@ export function DiffCommentPanel({
   onCancelEditing,
   onSaveComment,
   onDeleteComment,
+  onReplyComment,
   savePending,
   saveError,
   onRequestAgent,
@@ -358,7 +376,11 @@ export function DiffCommentPanel({
   modifiedFiles,
 }: DiffCommentPanelProps) {
   const [showOutdated, setShowOutdated] = useState(false);
-  const fileComments = comments.filter((c) => c.file === filePath);
+  // Line-specific comments are rendered inline as diff annotations.
+  // DiffCommentPanel only shows file-level comments (no line number).
+  const allFileComments = comments.filter((c) => c.file === filePath);
+  const fileComments = allFileComments.filter((c) => typeof c.line !== "number");
+  const lineCount = allFileComments.filter((c) => typeof c.line === "number").length;
   const isEditing = editingComment?.filePath === filePath;
 
   const outdatedComments = fileComments.filter((c) =>
@@ -368,45 +390,24 @@ export function DiffCommentPanel({
     (c) => !isCommentOutdated(c, currentPrHeadSHA, storedPrHeadSHA, filePath, modifiedFiles),
   );
 
-  const commentedLines = currentComments
-    .filter((c) => typeof c.line === "number")
-    .map((c) => c.line as number);
-  const uniqueCommentedLines = [...new Set(commentedLines)].sort((a, b) => a - b);
+  const headerVisible = currentComments.length > 0 || outdatedComments.length > 0 || lineCount > 0;
 
   return (
     <div className="diff-comment-panel py-1">
-      {fileComments.length > 0 && (
+      {headerVisible && (
         <div className="mx-3 mb-1 flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
-          <span>
-            {currentComments.length} comment{currentComments.length !== 1 ? "s" : ""}
-          </span>
+          {currentComments.length > 0 && (
+            <span>
+              {currentComments.length} file comment{currentComments.length !== 1 ? "s" : ""}
+            </span>
+          )}
+          {lineCount > 0 && (
+            <span>
+              {lineCount} line comment{lineCount !== 1 ? "s" : ""} (shown inline)
+            </span>
+          )}
           {outdatedComments.length > 0 && (
             <span className="text-muted-foreground/40">({outdatedComments.length} outdated)</span>
-          )}
-          {uniqueCommentedLines.length > 0 && (
-            <span>
-              on line{uniqueCommentedLines.length !== 1 ? "s" : ""}{" "}
-              {uniqueCommentedLines
-                .map((line) => (
-                  <button
-                    key={line}
-                    type="button"
-                    className="inline-flex size-4 items-center justify-center rounded-sm bg-foreground/6 text-[8px] font-medium text-muted-foreground/70 hover:bg-foreground/12 hover:text-foreground/70"
-                    onClick={() => onStartEditing(filePath, line)}
-                    title={`Comment on line ${line}`}
-                  >
-                    {line}
-                  </button>
-                ))
-                .reduce(
-                  (prev, curr) =>
-                    (
-                      <>
-                        {prev} {curr}
-                      </>
-                    ) as never,
-                )}
-            </span>
           )}
         </div>
       )}
@@ -430,6 +431,7 @@ export function DiffCommentPanel({
                 key={comment.id}
                 comment={comment}
                 onDelete={onDeleteComment}
+                onReply={onReplyComment}
                 onRequestAgent={undefined}
                 agentEvents={agentEvents?.get(comment.id)}
                 agentRunning={agentRunning?.has(comment.id)}
@@ -444,6 +446,7 @@ export function DiffCommentPanel({
           key={comment.id}
           comment={comment}
           onDelete={onDeleteComment}
+          onReply={onReplyComment}
           onRequestAgent={onRequestAgent}
           agentEvents={agentEvents?.get(comment.id)}
           agentRunning={agentRunning?.has(comment.id)}
@@ -453,6 +456,7 @@ export function DiffCommentPanel({
         <InlineCommentInput
           filePath={editingComment!.filePath}
           lineNumber={editingComment!.lineNumber}
+          prefillBody={editingComment!.prefillBody ?? ""}
           onSave={onSaveComment}
           onCancel={onCancelEditing}
           pending={savePending}
