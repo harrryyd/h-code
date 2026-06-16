@@ -187,6 +187,7 @@ export function useReviewComments(options: UseReviewCommentsOptions): UseReviewC
           const commentIds = updatedDraft.comments.map((c) => c.id);
 
           if (commentIds.length > 0) {
+            const completedComments = new Set<string>();
             const unsub = api.changeRequest.runBatchAgents(
               { threadId, prNumber, commentIds },
               (event) => {
@@ -227,6 +228,12 @@ export function useReviewComments(options: UseReviewCommentsOptions): UseReviewC
                     next.delete(event.commentId);
                     return next;
                   });
+
+                  completedComments.add(event.commentId);
+                  if (completedComments.size >= commentIds.length) {
+                    // All agents are done — break the infinite subscribe loop
+                    unsub();
+                  }
                 }
               },
               {
@@ -292,6 +299,10 @@ export function useReviewComments(options: UseReviewCommentsOptions): UseReviewC
           }
 
           if (event.type === "done" || event.type === "error") {
+            // Prevent infinite resubscribe loop: the transport's subscribe()
+            // auto-reconnects after stream completion. For one-shot RPCs like
+            // runBackgroundAgent this is wrong — call unsub() to break the loop.
+            unsub();
             setAgentRunning((prev) => {
               const next = new Set(prev);
               next.delete(commentId);

@@ -26,6 +26,7 @@ import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { ReviewService } from "./ReviewService.ts";
 
 export const DEFAULT_MAX_CONCURRENT_AGENTS = 3;
+export const MAX_AGENT_OUTPUT_BYTES = 500_000;
 
 const AGENT_PROMPT_TEMPLATE = `
 You are a code review assistant. A developer has left a review comment on a pull request.
@@ -39,13 +40,13 @@ The following comment was left on \`{commentFile}\`{commentLine}:
 > {commentBody}
 
 ## Instructions
-1. Read and understand the comment and the PR diff context.
-2. Explain your understanding of the issue raised in the comment.
+1. Determine whether the comment describes a specific, actionable code issue. If the comment is vague (e.g. "test", "fix this", single words without context), ambiguous, or does not point to a clear defect in the code, then briefly explain why no code changes are needed and STOP. Do not modify any files.
+2. If the comment is actionable: explain your understanding of the issue raised in the comment.
 3. Implement a fix for the issue described in the comment.
 4. Keep changes minimal and focused — only fix what the comment asks for.
 5. After making changes, explain what you did.
 
-Respond with a clear explanation first, then implement the fix. DO NOT ask questions — just explain and implement.
+Respond with a clear explanation. If changes were made, explain them after the explanation. DO NOT ask questions.
 `.trim();
 
 function buildPrompt(input: {
@@ -274,7 +275,8 @@ const make = Effect.fn("makeBackgroundAgentService")(function* () {
           const runAgentProcess = Effect.callback<number, ChangeRequestRunBackgroundAgentError>(
             (resume) => {
               let resolved = false;
-              let child: child_process.ChildProcess;
+              let child: child_process.ChildProcess | null = null;
+              let killedByOutputGuard = false;
               try {
                 child = child_process.spawn(binaryPath, args, {
                   cwd: worktreePath,
@@ -297,25 +299,54 @@ const make = Effect.fn("makeBackgroundAgentService")(function* () {
                 return;
               }
 
+              const killForOutputExceeded = () => {
+                if (!resolved && child) {
+                  killedByOutputGuard = true;
+                  resolved = true;
+                  child.kill("SIGTERM");
+                  resume(
+                    Effect.fail(
+                      fail(
+                        "agent-failed",
+                        `Agent output exceeded ${MAX_AGENT_OUTPUT_BYTES.toLocaleString()} byte limit. The agent may be caught in a self-correction loop.`,
+                      ),
+                    ),
+                  );
+                }
+              };
+
               child.stdout?.on("data", (chunk: Buffer) => {
                 const text = chunk.toString("utf-8");
-                Effect.runFork(Ref.update(combinedOutputRef, (prev) => prev + text));
-                safeOffer({
-                  type: "text",
-                  commentId: input.commentId,
-                  content: text,
-                });
+                Effect.runFork(
+                  Ref.updateAndGet(combinedOutputRef, (prev) => prev + text).pipe(
+                    Effect.flatMap((total) => {
+                      if (total.length > MAX_AGENT_OUTPUT_BYTES) {
+                        killForOutputExceeded();
+                      }
+                      return Effect.void;
+                    }),
+                  ),
+                );
+                if (!killedByOutputGuard) {
+                  safeOffer({
+                    type: "text",
+                    commentId: input.commentId,
+                    content: text,
+                  });
+                }
               });
 
               child.stderr?.on("data", (chunk: Buffer) => {
                 const text = chunk.toString("utf-8");
                 Effect.runFork(Ref.update(combinedOutputRef, (prev) => prev + text));
-                safeOffer({
-                  type: "detail",
-                  commentId: input.commentId,
-                  title: "Agent stderr",
-                  content: text,
-                });
+                if (!killedByOutputGuard) {
+                  safeOffer({
+                    type: "detail",
+                    commentId: input.commentId,
+                    title: "Agent stderr",
+                    content: text,
+                  });
+                }
               });
 
               child.on("close", (code: number | null) => {

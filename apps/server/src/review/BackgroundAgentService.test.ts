@@ -8,6 +8,7 @@ import {
   BackgroundAgentService,
   type BackgroundAgentServiceShape,
   DEFAULT_MAX_CONCURRENT_AGENTS,
+  MAX_AGENT_OUTPUT_BYTES,
 } from "./BackgroundAgentService.ts";
 import { GitWorkflowService } from "../git/GitWorkflowService.ts";
 import {
@@ -33,12 +34,28 @@ import * as child_process from "node:child_process";
 
 function makeFakeChildProcess() {
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
+  const stdoutListeners: Array<(chunk: Buffer) => void> = [];
+  const stderrListeners: Array<(chunk: Buffer) => void> = [];
+  let killed = false;
+
   return {
-    stdout: { on: vi.fn() },
-    stderr: { on: vi.fn() },
+    stdout: {
+      on: vi.fn((_event: string, cb: (chunk: Buffer) => void) => {
+        stdoutListeners.push(cb);
+      }),
+    },
+    stderr: {
+      on: vi.fn((_event: string, cb: (chunk: Buffer) => void) => {
+        stderrListeners.push(cb);
+      }),
+    },
     on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       if (!listeners[event]) listeners[event] = [];
       listeners[event]!.push(cb);
+    }),
+    kill: vi.fn(() => {
+      killed = true;
+      return true;
     }),
     _emitClose: (code: number) => {
       for (const cb of listeners.close ?? []) cb(code);
@@ -46,6 +63,15 @@ function makeFakeChildProcess() {
     _emitError: () => {
       for (const cb of listeners.error ?? []) cb(new Error("spawn error"));
     },
+    _emitStdout: (chunk: Buffer | string) => {
+      const buf = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      for (const cb of stdoutListeners) cb(buf);
+    },
+    _emitStderr: (chunk: Buffer | string) => {
+      const buf = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      for (const cb of stderrListeners) cb(buf);
+    },
+    _wasKilled: () => killed,
   };
 }
 
@@ -473,6 +499,82 @@ describe("BackgroundAgentService", () => {
       ),
     ));
 
+  it("kills agent process when output exceeds MAX_AGENT_OUTPUT_BYTES", () =>
+    Effect.gen(function* () {
+      const fakeChild = makeFakeChildProcess();
+      vi.mocked(child_process.spawn).mockReturnValue(
+        fakeChild as unknown as ReturnType<typeof child_process.spawn>,
+      );
+
+      const updateMutation = vi.fn();
+      const { layer } = makeLayer({
+        gitDiff: "test diff",
+        gitStatus: "",
+        createWorktreePath: "/tmp/test",
+        createWorktreeRefName: "test-branch",
+        updateMutation,
+      });
+
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
+
+      // Start collecting events; don't auto-close the child
+      // @effect-diagnostics-next-line runEffectInsideEffect:off
+      const collectPromise = Effect.runPromise(
+        service.runBackgroundAgent({
+          threadId: "thread-1",
+          prNumber: 1,
+          commentId: "comment-1",
+          cwd: "/test/repo",
+          prHeadRef: "refs/heads/main",
+          commentFile: "test.ts",
+          commentLine: 42,
+          commentBody: "Fix this",
+        }).pipe(Stream.runCollect),
+      );
+
+      // Emit stdout data exceeding the limit
+      const chunk = "x".repeat(1024); // 1KB chunks
+      const chunksNeeded = Math.ceil((MAX_AGENT_OUTPUT_BYTES + 1) / chunk.length);
+      for (let i = 0; i < chunksNeeded; i++) {
+        fakeChild._emitStdout(chunk);
+      }
+
+      // Let microtasks drain so the output guard fires
+      // @effect-diagnostics-next-line globalTimers:off
+      yield* Effect.promise(() => new Promise<unknown>((r) => setTimeout(r, 20)));
+
+      // The child should have been killed
+      expect(fakeChild._wasKilled()).toBe(true);
+      expect(fakeChild.kill).toHaveBeenCalledWith("SIGTERM");
+
+      const events = (yield* Effect.promise(
+        () => collectPromise as Promise<ReadonlyArray<BackgroundAgentResponseEvent>>,
+      )) as ReadonlyArray<BackgroundAgentResponseEvent>;
+      const eventsArray = Array.from(events);
+
+      // Should have a failed status
+      const failedStatus = eventsArray.find(
+        (e) => e.type === "status" && e.agentStatus === "failed",
+      );
+      expect(failedStatus).toBeDefined();
+
+      // Should have an error event mentioning output limit
+      const errorEvent = eventsArray.find(
+        (e) => e.type === "error",
+      ) as BackgroundAgentResponseEvent | undefined;
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent?.message).toContain("output exceeded");
+    }).pipe(
+      Effect.provide(
+        makeLayer({
+          gitDiff: "test diff",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
+      ),
+    ));
+
   it("uses origin/HEAD as base ref for PR diff", () =>
     Effect.gen(function* () {
       const fakeChild = makeFakeChildProcess();
@@ -577,6 +679,56 @@ describe("BackgroundAgentService", () => {
           ),
           Layer.succeed(ReviewService, makeBaseReview()),
         ),
+      ),
+    ));
+
+  it("prompt instructs agent to check if comment is actionable before making changes", () =>
+    Effect.gen(function* () {
+      const fakeChild = makeFakeChildProcess();
+      let capturedArgs: ReadonlyArray<string> = [];
+      vi.mocked(child_process.spawn).mockImplementation((_bin, args) => {
+        capturedArgs = args as ReadonlyArray<string>;
+        return fakeChild as unknown as ReturnType<typeof child_process.spawn>;
+      });
+
+      const { layer } = makeLayer({
+        gitDiff: "diff --git a/test.ts b/test.ts\n+test change",
+        gitStatus: "",
+        createWorktreePath: "/tmp/test",
+        createWorktreeRefName: "test-branch",
+      });
+
+      const service = yield* (BackgroundAgentService as any).make.pipe(Effect.provide(layer));
+
+      yield* runAndCollect({
+        service,
+        input: {
+          threadId: "thread-1",
+          prNumber: 1,
+          commentId: "comment-1",
+          cwd: "/test/repo",
+          prHeadRef: "refs/t3/pr/1/head",
+          commentFile: "test.ts",
+          commentLine: 42,
+          commentBody: "test",
+        },
+        fakeChild,
+        exitCode: 0,
+      });
+
+      // The last arg is the prompt
+      const prompt = capturedArgs[capturedArgs.length - 1] ?? "";
+      expect(prompt).toContain("actionable");
+      expect(prompt).toContain("Do not modify any files");
+      expect(prompt).toContain("vague");
+    }).pipe(
+      Effect.provide(
+        makeLayer({
+          gitDiff: "diff --git a/test.ts b/test.ts\n+test change",
+          gitStatus: "",
+          createWorktreePath: "/tmp/test",
+          createWorktreeRefName: "test-branch",
+        }).layer,
       ),
     ));
 
