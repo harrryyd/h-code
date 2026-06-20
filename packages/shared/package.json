@@ -31,6 +31,10 @@
       "types": "./src/observability.ts",
       "import": "./src/observability.ts"
     },
+    "./httpObservability": {
+      "types": "./src/httpObservability.ts",
+      "import": "./src/httpObservability.ts"
+    },
     "./shell": {
       "types": "./src/shell.ts",
       "import": "./src/shell.ts"
@@ -134,10 +138,6 @@
     "./keybindings": {
       "types": "./src/keybindings.ts",
       "import": "./src/keybindings.ts"
-    },
-    "./todoStore": {
-      "types": "./src/todoStore.ts",
-      "import": "./src/todoStore.ts"
     },
     "./composerTrigger": {
       "types": "./src/composerTrigger.ts",

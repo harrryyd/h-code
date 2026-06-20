@@ -10,7 +10,6 @@ import {
   type AuthEnvironmentScope,
   type AuthPairingCredentialResult,
   type AuthSessionState,
-  type AuthWebSocketTicketResult,
   type ExecutionEnvironmentDescriptor,
   type EnvironmentAuthInvalidError,
 } from "@t3tools/contracts";
@@ -33,7 +32,6 @@ interface EnvironmentHttpTestScenario {
   readonly descriptor?: () => Effect.Effect<ExecutionEnvironmentDescriptor>;
   readonly session?: () => Effect.Effect<AuthSessionState>;
   readonly browserSession?: BrowserSessionHandler;
-  readonly webSocketTicket?: () => Effect.Effect<AuthWebSocketTicketResult>;
   readonly pairingCredential?: (
     payload: AuthCreatePairingCredentialInput,
   ) => Effect.Effect<AuthPairingCredentialResult>;
@@ -43,7 +41,6 @@ export interface EnvironmentHttpTestCalls {
   descriptor: number;
   session: number;
   browserSession: Array<AuthBrowserSessionRequest>;
-  webSocketTicket: number;
   pairingCredential: Array<AuthCreatePairingCredentialInput>;
 }
 
@@ -68,7 +65,6 @@ export async function installEnvironmentHttpTest(scenario: EnvironmentHttpTestSc
     descriptor: 0,
     session: 0,
     browserSession: [],
-    webSocketTicket: 0,
     pairingCredential: [],
   };
 
@@ -104,15 +100,7 @@ export async function installEnvironmentHttpTest(scenario: EnvironmentHttpTestSc
               }),
             )
             .handle("token", () => unexpectedEndpoint("auth.token"))
-            .handle(
-              "webSocketTicket",
-              Effect.fn("test.environment.auth.webSocketTicket")(function* () {
-                calls.webSocketTicket += 1;
-                return yield* (
-                  scenario.webSocketTicket?.() ?? unexpectedEndpoint("auth.webSocketTicket")
-                );
-              }),
-            )
+            .handle("webSocketTicket", () => unexpectedEndpoint("auth.webSocketTicket"))
             .handle(
               "pairingCredential",
               Effect.fn("test.environment.auth.pairingCredential")(function* ({ payload }) {

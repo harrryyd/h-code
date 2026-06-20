@@ -16,7 +16,6 @@ import { isTemporaryWorktreeBranch, WORKTREE_BRANCH_PREFIX } from "@t3tools/shar
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
-import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
@@ -32,6 +31,7 @@ import { ProviderAdapterRequestError } from "../../provider/Errors.ts";
 import type { ProviderServiceError } from "../../provider/Errors.ts";
 import { TextGeneration } from "../../textGeneration/TextGeneration.ts";
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
+import { ProviderRegistry } from "../../provider/Services/ProviderRegistry.ts";
 import { OrchestrationEngineService } from "../Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../Services/ProjectionSnapshotQuery.ts";
 import {
@@ -53,8 +53,7 @@ type ProviderIntentEvent = Extract<
       | "thread.turn-interrupt-requested"
       | "thread.approval-response-requested"
       | "thread.user-input-response-requested"
-      | "thread.session-stop-requested"
-      | "thread.context-compacted";
+      | "thread.session-stop-requested";
   }
 >;
 
@@ -182,6 +181,7 @@ const make = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const projectionSnapshotQuery = yield* ProjectionSnapshotQuery;
   const providerService = yield* ProviderService;
+  const providerRegistry = yield* ProviderRegistry;
   const gitWorkflow = yield* GitWorkflowService;
   const vcsStatusBroadcaster = yield* VcsStatusBroadcaster;
   const textGeneration = yield* TextGeneration;
@@ -307,6 +307,38 @@ const make = Effect.gen(function* () {
       .pipe(Effect.map(Option.getOrUndefined));
   });
 
+  const rejectStartedThreadModelChangeIfRequired = Effect.fnUntraced(function* (input: {
+    readonly threadId: ThreadId;
+    readonly currentModelSelection: ModelSelection;
+    readonly requestedModelSelection: ModelSelection | undefined;
+  }) {
+    const requestedModelSelection = input.requestedModelSelection;
+    if (
+      requestedModelSelection === undefined ||
+      (input.currentModelSelection.instanceId === requestedModelSelection.instanceId &&
+        input.currentModelSelection.model === requestedModelSelection.model)
+    ) {
+      return;
+    }
+    const providers = yield* providerRegistry.getProviders;
+    const requiresNewThread =
+      providers.find((snapshot) => snapshot.instanceId === input.currentModelSelection.instanceId)
+        ?.requiresNewThreadForModelChange === true ||
+      providers.find((snapshot) => snapshot.instanceId === requestedModelSelection.instanceId)
+        ?.requiresNewThreadForModelChange === true;
+    if (!requiresNewThread) {
+      return;
+    }
+    return yield* new ProviderAdapterRequestError({
+      provider: providerErrorLabelFromInstanceHint({
+        instanceId: String(requestedModelSelection.instanceId),
+        modelSelectionInstanceId: String(input.currentModelSelection.instanceId),
+      }),
+      method: "thread.turn.start",
+      detail: `Thread '${input.threadId}' cannot switch models after the conversation has started. Start a new thread to use '${requestedModelSelection.model}'.`,
+    });
+  });
+
   const ensureSessionForThread = Effect.fn("ensureSessionForThread")(function* (
     threadId: ThreadId,
     createdAt: string,
@@ -386,6 +418,20 @@ const make = Effect.gen(function* () {
       });
     }
     const preferredProvider: ProviderDriverKind = desiredDriverKind;
+    if (thread.session !== null) {
+      yield* rejectStartedThreadModelChangeIfRequired({
+        threadId,
+        currentModelSelection:
+          activeSession?.model !== undefined
+            ? {
+                ...thread.modelSelection,
+                instanceId: currentInstanceId,
+                model: activeSession.model,
+              }
+            : thread.modelSelection,
+        requestedModelSelection,
+      });
+    }
     if (
       thread.session !== null &&
       requestedModelSelection !== undefined &&
@@ -946,64 +992,6 @@ const make = Effect.gen(function* () {
     });
   });
 
-  const processContextCompacted = Effect.fn("processContextCompacted")(function* (
-    event: Extract<ProviderIntentEvent, { type: "thread.context-compacted" }>,
-  ) {
-    const threadId = event.payload.threadId;
-    const thread = yield* resolveThread(threadId);
-    if (!thread) {
-      return;
-    }
-
-    const nowIso = yield* Effect.map(DateTime.now, DateTime.formatIso);
-
-    // Attempt provider compaction
-    const compactResult = yield* providerService.compactThread({ threadId }).pipe(
-      Effect.map((result) => ({ _tag: "success" as const, ...result })),
-      Effect.catch((error) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning("provider compaction failed, proceeding with trim-only", {
-            threadId: String(threadId),
-            cause: Cause.pretty(Cause.fail(error)),
-          });
-          return { _tag: "failure" as const };
-        }),
-      ),
-    );
-
-    if (compactResult._tag === "success") {
-      // Dispatch summarize with the compaction summary
-      const summarizeCommandId = yield* serverCommandId("compact-summarize");
-      yield* orchestrationEngine.dispatch({
-        type: "thread.context.summarize",
-        commandId: summarizeCommandId,
-        threadId,
-        summary: compactResult.summary,
-        compactDurationMs: compactResult.durationMs,
-        createdAt: nowIso,
-      });
-
-      // Dispatch trim with the summary attached
-      const trimCommandId = yield* serverCommandId("compact-trim");
-      yield* orchestrationEngine.dispatch({
-        type: "thread.context.trim",
-        commandId: trimCommandId,
-        threadId,
-        summary: compactResult.summary,
-        createdAt: nowIso,
-      });
-    } else {
-      // Dispatch trim without summary (fallback)
-      const trimCommandId = yield* serverCommandId("compact-trim-fallback");
-      yield* orchestrationEngine.dispatch({
-        type: "thread.context.trim",
-        commandId: trimCommandId,
-        threadId,
-        createdAt: nowIso,
-      });
-    }
-  });
-
   const processDomainEvent = Effect.fn("processDomainEvent")(function* (
     event: ProviderIntentEvent,
   ) {
@@ -1044,9 +1032,6 @@ const make = Effect.gen(function* () {
       case "thread.session-stop-requested":
         yield* processSessionStopRequested(event);
         return;
-      case "thread.context-compacted":
-        yield* processContextCompacted(event);
-        return;
     }
   });
 
@@ -1073,8 +1058,7 @@ const make = Effect.gen(function* () {
         event.type === "thread.turn-interrupt-requested" ||
         event.type === "thread.approval-response-requested" ||
         event.type === "thread.user-input-response-requested" ||
-        event.type === "thread.session-stop-requested" ||
-        event.type === "thread.context-compacted"
+        event.type === "thread.session-stop-requested"
       ) {
         return yield* worker.enqueue(event);
       }

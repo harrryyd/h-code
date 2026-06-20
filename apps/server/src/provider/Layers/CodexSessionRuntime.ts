@@ -17,7 +17,6 @@ import {
   TurnId,
 } from "@t3tools/contracts";
 import { normalizeModelSlug } from "@t3tools/shared/model";
-import * as Clock from "effect/Clock";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
@@ -139,10 +138,6 @@ export interface CodexSessionRuntimeShape {
   readonly rollbackThread: (
     numTurns: number,
   ) => Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
-  readonly compactThread: Effect.Effect<
-    { summary: string; durationMs: number },
-    CodexSessionRuntimeError
-  >;
   readonly respondToRequest: (
     requestId: ApprovalRequestId,
     decision: ProviderApprovalDecision,
@@ -1328,60 +1323,6 @@ export const makeCodexSessionRuntime = (
           });
           return parseThreadSnapshot(response);
         }),
-      compactThread: Effect.scoped(
-        Effect.gen(function* () {
-          const startTime = yield* Clock.currentTimeMillis;
-          const providerThreadId = yield* readProviderThreadId;
-          const compactedDeferred = yield* Deferred.make<
-            { summary: string; durationMs: number },
-            CodexSessionRuntimeError
-          >();
-
-          yield* client
-            .handleServerNotification("thread/compacted", (_payload) =>
-              Effect.gen(function* () {
-                const snapshot = yield* client.request("thread/read", {
-                  threadId: providerThreadId,
-                  includeTurns: true,
-                });
-                const parsed = parseThreadSnapshot(snapshot);
-                let summary = "";
-                for (const turn of [...parsed.turns].toReversed()) {
-                  for (const item of turn.items) {
-                    if (typeof (item as Record<string, unknown>).type === "string") {
-                      const itemType = (item as Record<string, unknown>).type as string;
-                      if (
-                        (itemType === "compaction" || itemType === "context_compaction") &&
-                        "encrypted_content" in (item as Record<string, unknown>)
-                      ) {
-                        summary = String((item as Record<string, unknown>).encrypted_content ?? "");
-                        break;
-                      }
-                    }
-                  }
-                  if (summary) break;
-                }
-                const durationMs = (yield* Clock.currentTimeMillis) - startTime;
-                yield* Deferred.succeed(compactedDeferred, { summary, durationMs });
-              }),
-            )
-            .pipe(Effect.forkScoped);
-
-          yield* client.request("thread/compact/start", {
-            threadId: providerThreadId,
-          });
-
-          const result = yield* Effect.raceFirst(
-            Deferred.await(compactedDeferred),
-            Effect.sleep("30 seconds").pipe(
-              Effect.andThen(Clock.currentTimeMillis),
-              Effect.map((now) => ({ summary: "", durationMs: now - startTime })),
-            ),
-          );
-
-          return result;
-        }),
-      ),
       respondToRequest: (requestId, decision) =>
         Effect.gen(function* () {
           const pending = (yield* Ref.get(pendingApprovalsRef)).get(requestId);

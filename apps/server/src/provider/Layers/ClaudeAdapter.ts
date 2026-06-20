@@ -67,12 +67,9 @@ import * as Stream from "effect/Stream";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
-import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
-import { ServerSettingsService } from "../../serverSettings.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
 import {
   getClaudeModelCapabilities,
-  type McpServerSnapshot,
   isClaudeUltracodeEffort,
   normalizeClaudeCliEffort,
   resolveClaudeApiModelId,
@@ -191,8 +188,6 @@ interface ClaudeQueryRuntime extends AsyncIterable<SDKMessage> {
   readonly setModel: (model?: string) => Promise<void>;
   readonly setPermissionMode: (mode: PermissionMode) => Promise<void>;
   readonly setMaxThinkingTokens: (maxThinkingTokens: number | null) => Promise<void>;
-  readonly toggleMcpServer: (serverName: string, enabled: boolean) => Promise<void>;
-  readonly mcpServerStatus: () => Promise<ReadonlyArray<McpServerSnapshot>>;
   readonly close: () => void;
 }
 
@@ -1057,8 +1052,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig;
-  const settingsService = yield* ServerSettingsService;
-  const threadMcpToggleRepository = yield* ThreadMcpToggleRepository;
   const crypto = yield* Crypto.Crypto;
   const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, options?.environment).pipe(
     Effect.provideService(Path.Path, path),
@@ -1506,9 +1499,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     // The SDK result.usage contains *accumulated* totals across all API calls
     // (input_tokens, cache_read_input_tokens, etc. summed over every request).
     // This does NOT represent the current context window size.
-    // Instead, use per-request usage captured from message_start/message_delta
-    // stream events. If none were captured (e.g. no streaming), fall back to
-    // the accumulated total, treating it as totalProcessedTokens.
+    // Instead, use the last known context-window-accurate usage from task_progress
+    // events and treat the accumulated total as totalProcessedTokens.
     const accumulatedSnapshot = normalizeClaudeTokenUsage(
       result?.usage,
       resultContextWindow ?? context.lastKnownContextWindow,
@@ -1677,28 +1669,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
 
     const { event } = message;
-
-    if (event.type === "message_start") {
-      const usage = event.message?.usage;
-      if (usage && typeof usage === "object") {
-        const normalized = normalizeClaudeTokenUsage(usage, context.lastKnownContextWindow);
-        if (normalized) {
-          context.lastKnownTokenUsage = normalized;
-        }
-      }
-      return;
-    }
-
-    if (event.type === "message_delta") {
-      const usage = event.usage;
-      if (usage && typeof usage === "object") {
-        const normalized = normalizeClaudeTokenUsage(usage, context.lastKnownContextWindow);
-        if (normalized) {
-          context.lastKnownTokenUsage = normalized;
-        }
-      }
-      return;
-    }
 
     if (event.type === "content_block_delta") {
       if (
@@ -2259,6 +2229,25 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         });
         return;
       case "task_progress":
+        if (message.usage) {
+          const normalizedUsage = normalizeClaudeTokenUsage(
+            message.usage,
+            context.lastKnownContextWindow,
+          );
+          if (normalizedUsage) {
+            context.lastKnownTokenUsage = normalizedUsage;
+            const usageStamp = yield* makeEventStamp();
+            yield* offerRuntimeEvent({
+              ...base,
+              eventId: usageStamp.eventId,
+              createdAt: usageStamp.createdAt,
+              type: "thread.token-usage.updated",
+              payload: {
+                usage: normalizedUsage,
+              },
+            });
+          }
+        }
         yield* offerRuntimeEvent({
           ...base,
           type: "task.progress",
@@ -2272,6 +2261,25 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         });
         return;
       case "task_notification":
+        if (message.usage) {
+          const normalizedUsage = normalizeClaudeTokenUsage(
+            message.usage,
+            context.lastKnownContextWindow,
+          );
+          if (normalizedUsage) {
+            context.lastKnownTokenUsage = normalizedUsage;
+            const usageStamp = yield* makeEventStamp();
+            yield* offerRuntimeEvent({
+              ...base,
+              eventId: usageStamp.eventId,
+              createdAt: usageStamp.createdAt,
+              type: "thread.token-usage.updated",
+              payload: {
+                usage: normalizedUsage,
+              },
+            });
+          }
+        }
         yield* offerRuntimeEvent({
           ...base,
           type: "task.completed",
@@ -2605,68 +2613,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
     return Effect.succeed(context);
   };
-
-  const applyPersistedMcpToggles = Effect.fn("applyPersistedMcpToggles")(function* (
-    context: ClaudeSessionContext,
-  ) {
-    const settings = yield* settingsService.getSettings.pipe(
-      Effect.catchCause((cause) =>
-        Effect.logWarning("claude.mcp-toggle.defaults-load-failed", {
-          threadId: context.session.threadId,
-          cause,
-        }).pipe(Effect.as({ mcpDefaultPreferences: {} })),
-      ),
-    );
-    const persistedRows = yield* threadMcpToggleRepository
-      .listByThreadId({
-        threadId: context.session.threadId,
-      })
-      .pipe(
-        Effect.catchCause((cause) =>
-          Effect.logWarning("claude.mcp-toggle.load-failed", {
-            threadId: context.session.threadId,
-            cause,
-          }).pipe(Effect.as([])),
-        ),
-      );
-    const defaultsByInstance = settings.mcpDefaultPreferences as Readonly<
-      Record<string, Readonly<Record<string, boolean>> | undefined>
-    >;
-    const effective = new Map<string, boolean>(
-      Object.entries(defaultsByInstance[boundInstanceId] ?? {}),
-    );
-    for (const row of persistedRows) {
-      if (row.providerKind !== PROVIDER) {
-        continue;
-      }
-      effective.set(row.mcpServerName, row.enabled);
-    }
-
-    yield* Effect.forEach(
-      [...effective.entries()],
-      ([mcpServerName, enabled]) =>
-        Effect.tryPromise({
-          try: () => context.query.toggleMcpServer(mcpServerName, enabled),
-          catch: (cause) =>
-            new ProviderAdapterProcessError({
-              provider: PROVIDER,
-              threadId: context.session.threadId,
-              detail: toMessage(cause, `Failed to apply MCP toggle '${mcpServerName}'.`),
-              cause,
-            }),
-        }).pipe(
-          Effect.catchCause((cause) =>
-            Effect.logWarning("claude.mcp-toggle.apply-failed", {
-              threadId: context.session.threadId,
-              mcpServerName,
-              enabled,
-              cause,
-            }),
-          ),
-        ),
-      { discard: true },
-    );
-  });
 
   const startSession: ClaudeAdapterShape["startSession"] = Effect.fn("startSession")(
     function* (input) {
@@ -3157,7 +3103,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       };
       yield* Ref.set(contextRef, context);
       sessions.set(threadId, context);
-      yield* applyPersistedMcpToggles(context);
 
       const sessionStartedStamp = yield* makeEventStamp();
       yield* offerRuntimeEvent({
@@ -3356,15 +3301,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     },
   );
 
-  const compactThread: ClaudeAdapterShape["compactThread"] = (_threadId) =>
-    Effect.fail(
-      new ProviderAdapterRequestError({
-        provider: PROVIDER,
-        method: "thread/compact/start",
-        detail: "Compaction is not supported by this provider.",
-      }),
-    );
-
   const respondToRequest: ClaudeAdapterShape["respondToRequest"] = Effect.fn("respondToRequest")(
     function* (threadId, requestId, decision) {
       const context = yield* requireSession(threadId);
@@ -3411,60 +3347,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const listSessions: ClaudeAdapterShape["listSessions"] = () =>
     Effect.sync(() => Array.from(sessions.values(), ({ session }) => ({ ...session })));
 
-  const toggleMcpServerOnThread: ClaudeAdapterShape["toggleMcpServerOnThread"] = Effect.fn(
-    "toggleMcpServerOnThread",
-  )(function* (threadId, mcpServerName, enabled) {
-    const context = yield* requireSession(threadId);
-    yield* Effect.tryPromise({
-      try: () => context.query.toggleMcpServer(mcpServerName, enabled),
-      catch: (cause) =>
-        new ProviderAdapterProcessError({
-          provider: PROVIDER,
-          threadId,
-          detail: toMessage(cause, `Failed to toggle MCP server '${mcpServerName}'.`),
-          cause,
-        }),
-    });
-    yield* threadMcpToggleRepository
-      .upsert({
-        threadId,
-        providerKind: PROVIDER,
-        mcpServerName,
-        enabled,
-        updatedAt: yield* nowIso,
-      })
-      .pipe(
-        Effect.mapError(
-          (cause) =>
-            new ProviderAdapterProcessError({
-              provider: PROVIDER,
-              threadId,
-              detail: toMessage(cause, `Failed to persist MCP toggle '${mcpServerName}'.`),
-              cause,
-            }),
-        ),
-      );
-  });
-
-  const listMcpServersOnThread: ClaudeAdapterShape["listMcpServersOnThread"] = Effect.fn(
-    "listMcpServersOnThread",
-  )(function* (threadId) {
-    const context = sessions.get(threadId);
-    if (!context || context.stopped || context.session.status === "closed") {
-      return [];
-    }
-    return yield* Effect.tryPromise({
-      try: () => context.query.mcpServerStatus(),
-      catch: (cause) =>
-        new ProviderAdapterProcessError({
-          provider: PROVIDER,
-          threadId,
-          detail: toMessage(cause, "Failed to list MCP server status."),
-          cause,
-        }),
-    });
-  });
-
   const hasSession: ClaudeAdapterShape["hasSession"] = (threadId) =>
     Effect.sync(() => {
       const context = sessions.get(threadId);
@@ -3501,20 +3383,16 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     provider: PROVIDER,
     capabilities: {
       sessionModelSwitch: "in-session",
-      supportsMcpToggle: true,
     },
     startSession,
     sendTurn,
     interruptTurn,
     readThread,
     rollbackThread,
-    compactThread,
     respondToRequest,
     respondToUserInput,
     stopSession,
     listSessions,
-    toggleMcpServerOnThread,
-    listMcpServersOnThread,
     hasSession,
     stopAll,
     get streamEvents() {

@@ -2,7 +2,6 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
-import { ThreadId, TrimmedNonEmptyString, PositiveInt } from "./baseSchemas.ts";
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
   AuthAccessStreamError,
@@ -114,11 +113,7 @@ import {
   SourceControlRepositoryError,
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
-  ReviewComment,
-  ReviewCommentAgentStatus,
-  ReviewDraft,
 } from "./sourceControl.ts";
-import { TodoCategory, TodoItem, TodoItemPriority } from "./todos.ts";
 import { VcsError } from "./vcs.ts";
 
 export const WS_METHODS = {
@@ -134,10 +129,6 @@ export const WS_METHODS = {
 
   // Filesystem methods
   filesystemBrowse: "filesystem.browse",
-
-  // MCP methods
-  mcpListServers: "mcp.listServers",
-  mcpToggleServer: "mcp.toggleServer",
 
   // VCS methods
   vcsPull: "vcs.pull",
@@ -156,15 +147,6 @@ export const WS_METHODS = {
 
   // Review methods
   reviewGetDiffPreview: "review.getDiffPreview",
-
-  // Change request review methods
-  changeRequestGetReviewDraft: "changeRequest.getReviewDraft",
-  changeRequestUpsertReviewComment: "changeRequest.upsertReviewComment",
-  changeRequestDeleteReviewComment: "changeRequest.deleteReviewComment",
-  changeRequestGetPrDiff: "changeRequest.getPrDiff",
-  changeRequestSubmitReview: "changeRequest.submitReview",
-  changeRequestRunBackgroundAgent: "changeRequest.runBackgroundAgent",
-  changeRequestRunBatchAgents: "changeRequest.runBatchAgents",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -198,10 +180,6 @@ export const WS_METHODS = {
   sourceControlCloneRepository: "sourceControl.cloneRepository",
   sourceControlPublishRepository: "sourceControl.publishRepository",
 
-  // Todo methods
-  todosLoad: "todo.load",
-  todosMutate: "todo.mutate",
-
   // Streaming subscriptions
   subscribeVcsStatus: "subscribeVcsStatus",
   subscribeTerminalEvents: "subscribeTerminalEvents",
@@ -210,42 +188,6 @@ export const WS_METHODS = {
   subscribeServerLifecycle: "subscribeServerLifecycle",
   subscribeAuthAccess: "subscribeAuthAccess",
 } as const;
-
-export const McpServerSnapshotSchema = Schema.Struct({
-  name: Schema.String,
-  status: Schema.Literals(["connected", "failed", "needs-auth", "pending", "disabled"]),
-});
-export type McpServerSnapshot = typeof McpServerSnapshotSchema.Type;
-
-export const WsMcpListServersInput = Schema.Struct({
-  threadId: ThreadId,
-});
-export type WsMcpListServersInput = typeof WsMcpListServersInput.Type;
-
-export const WsMcpListServersResult = Schema.Struct({
-  servers: Schema.Array(McpServerSnapshotSchema),
-});
-export type WsMcpListServersResult = typeof WsMcpListServersResult.Type;
-
-export const WsMcpToggleServerInput = Schema.Struct({
-  threadId: ThreadId,
-  mcpServerName: Schema.String,
-  enabled: Schema.Boolean,
-});
-export type WsMcpToggleServerInput = typeof WsMcpToggleServerInput.Type;
-
-export const WsMcpToggleServerResult = Schema.Struct({});
-export type WsMcpToggleServerResult = typeof WsMcpToggleServerResult.Type;
-
-export class McpToggleError extends Schema.TaggedErrorClass<McpToggleError>()("McpToggleError", {
-  kind: Schema.Literals(["provider-not-claude", "session-not-found", "sdk-failure"]),
-  detail: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {
-  override get message(): string {
-    return `MCP toggle error (${this.kind}): ${this.detail}`;
-  }
-}
 
 export const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
   payload: ServerUpsertKeybindingInput,
@@ -390,18 +332,6 @@ export const WsFilesystemBrowseRpc = Rpc.make(WS_METHODS.filesystemBrowse, {
   error: Schema.Union([FilesystemBrowseError, EnvironmentAuthorizationError]),
 });
 
-export const WsMcpListServersRpc = Rpc.make(WS_METHODS.mcpListServers, {
-  payload: WsMcpListServersInput,
-  success: WsMcpListServersResult,
-  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
-});
-
-export const WsMcpToggleServerRpc = Rpc.make(WS_METHODS.mcpToggleServer, {
-  payload: WsMcpToggleServerInput,
-  success: WsMcpToggleServerResult,
-  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
-});
-
 export const WsSubscribeVcsStatusRpc = Rpc.make(WS_METHODS.subscribeVcsStatus, {
   payload: VcsStatusInput,
   success: VcsStatusStreamEvent,
@@ -483,341 +413,6 @@ export const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPrevie
   payload: ReviewDiffPreviewInput,
   success: ReviewDiffPreviewResult,
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
-});
-
-export const WsChangeRequestGetReviewDraftInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-});
-export type WsChangeRequestGetReviewDraftInput = typeof WsChangeRequestGetReviewDraftInput.Type;
-
-export const WsChangeRequestGetReviewDraftRpc = Rpc.make(WS_METHODS.changeRequestGetReviewDraft, {
-  payload: WsChangeRequestGetReviewDraftInput,
-  success: Schema.NullOr(ReviewDraft),
-  error: EnvironmentAuthorizationError,
-});
-
-export const WsChangeRequestUpsertReviewCommentInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  prHeadSHA: TrimmedNonEmptyString,
-  comment: ReviewComment,
-});
-export type WsChangeRequestUpsertReviewCommentInput =
-  typeof WsChangeRequestUpsertReviewCommentInput.Type;
-
-export const WsChangeRequestUpsertReviewCommentRpc = Rpc.make(
-  WS_METHODS.changeRequestUpsertReviewComment,
-  {
-    payload: WsChangeRequestUpsertReviewCommentInput,
-    success: ReviewDraft,
-    error: EnvironmentAuthorizationError,
-  },
-);
-
-export const WsChangeRequestDeleteReviewCommentInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  commentId: TrimmedNonEmptyString,
-});
-export type WsChangeRequestDeleteReviewCommentInput =
-  typeof WsChangeRequestDeleteReviewCommentInput.Type;
-
-export const WsChangeRequestDeleteReviewCommentRpc = Rpc.make(
-  WS_METHODS.changeRequestDeleteReviewComment,
-  {
-    payload: WsChangeRequestDeleteReviewCommentInput,
-    success: Schema.NullOr(ReviewDraft),
-    error: EnvironmentAuthorizationError,
-  },
-);
-export class ChangeRequestGetPrDiffError extends Schema.TaggedErrorClass<ChangeRequestGetPrDiffError>()(
-  "ChangeRequestGetPrDiffError",
-  {
-    kind: Schema.Literals(["diff-failed", "not-a-repo", "pr-not-found"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `PR diff error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const ChangeRequestGetPrDiffInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-});
-export type ChangeRequestGetPrDiffInput = typeof ChangeRequestGetPrDiffInput.Type;
-
-export const ChangeRequestGetPrDiffResult = Schema.Struct({
-  diff: Schema.String,
-  prHeadSHA: TrimmedNonEmptyString,
-});
-export type ChangeRequestGetPrDiffResult = typeof ChangeRequestGetPrDiffResult.Type;
-
-export const WsChangeRequestGetPrDiffRpc = Rpc.make(WS_METHODS.changeRequestGetPrDiff, {
-  payload: ChangeRequestGetPrDiffInput,
-  success: ChangeRequestGetPrDiffResult,
-  error: Schema.Union([ChangeRequestGetPrDiffError, EnvironmentAuthorizationError]),
-});
-
-export class ChangeRequestRunBackgroundAgentError extends Schema.TaggedErrorClass<ChangeRequestRunBackgroundAgentError>()(
-  "ChangeRequestRunBackgroundAgentError",
-  {
-    kind: Schema.Literals(["thread-not-found", "no-worktree", "agent-failed"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Background agent error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const ChangeRequestRunBackgroundAgentInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  commentId: TrimmedNonEmptyString,
-});
-export type ChangeRequestRunBackgroundAgentInput = typeof ChangeRequestRunBackgroundAgentInput.Type;
-
-export const BackgroundAgentResponseEvent = Schema.Struct({
-  type: Schema.Literals(["text", "detail", "status", "done", "error"]),
-  commentId: TrimmedNonEmptyString,
-  content: Schema.optional(Schema.String),
-  agentStatus: Schema.optional(ReviewCommentAgentStatus),
-  title: Schema.optional(Schema.String),
-  message: Schema.optional(Schema.String),
-});
-export type BackgroundAgentResponseEvent = typeof BackgroundAgentResponseEvent.Type;
-
-export const WsChangeRequestRunBackgroundAgentRpc = Rpc.make(
-  WS_METHODS.changeRequestRunBackgroundAgent,
-  {
-    payload: ChangeRequestRunBackgroundAgentInput,
-    success: BackgroundAgentResponseEvent,
-    error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
-    stream: true,
-  },
-);
-
-export const WsChangeRequestRunBatchAgentsInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  commentIds: Schema.Array(TrimmedNonEmptyString),
-});
-export type WsChangeRequestRunBatchAgentsInput = typeof WsChangeRequestRunBatchAgentsInput.Type;
-
-export const WsChangeRequestRunBatchAgentsRpc = Rpc.make(WS_METHODS.changeRequestRunBatchAgents, {
-  payload: WsChangeRequestRunBatchAgentsInput,
-  success: BackgroundAgentResponseEvent,
-  error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
-  stream: true,
-});
-
-export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<ChangeRequestSubmitReviewError>()(
-  "ChangeRequestSubmitReviewError",
-  {
-    kind: Schema.Literals(["no-draft", "review-failed", "not-a-repo"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Submit review error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const WsChangeRequestSubmitReviewInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  runBatchAgents: Schema.optional(Schema.Boolean),
-});
-export type WsChangeRequestSubmitReviewInput = typeof WsChangeRequestSubmitReviewInput.Type;
-
-export const WsChangeRequestSubmitReviewRpc = Rpc.make(WS_METHODS.changeRequestSubmitReview, {
-  payload: WsChangeRequestSubmitReviewInput,
-  success: ReviewDraft,
-  error: Schema.Union([ChangeRequestSubmitReviewError, EnvironmentAuthorizationError]),
-});
-
-export const TodosLoadResult = Schema.Struct({
-  categories: Schema.Array(TodoCategory),
-  items: Schema.Array(TodoItem),
-  jiraBaseUrl: Schema.optional(Schema.String),
-});
-export type TodosLoadResult = typeof TodosLoadResult.Type;
-
-export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("TodosLoadError", {
-  kind: Schema.Literals(["io-failure", "parse-failure"]),
-  detail: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {
-  override get message(): string {
-    return `Todo load error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
-  payload: Schema.Struct({}),
-  success: TodosLoadResult,
-  error: Schema.Union([TodosLoadError, EnvironmentAuthorizationError]),
-});
-
-export const TodoMutationType = Schema.Literals([
-  "createCategory",
-  "renameCategory",
-  "setCategoryColor",
-  "setCategoryJiraLink",
-  "deleteCategory",
-  "toggleCategory",
-  "createItem",
-  "cycleItemStatus",
-  "reorderItems",
-  "reorderCategories",
-  "updateItemDescription",
-  "setItemJiraLink",
-  "renameItem",
-  "setItemPriority",
-  "setJiraBaseUrl",
-  "deleteItem",
-]);
-export type TodoMutationType = typeof TodoMutationType.Type;
-
-export const CreateCategoryMutation = Schema.Struct({
-  type: Schema.Literal("createCategory"),
-  name: Schema.String,
-  color: Schema.String,
-});
-export const RenameCategoryMutation = Schema.Struct({
-  type: Schema.Literal("renameCategory"),
-  categoryId: Schema.String,
-  name: Schema.String,
-});
-export const SetCategoryColorMutation = Schema.Struct({
-  type: Schema.Literal("setCategoryColor"),
-  categoryId: Schema.String,
-  color: Schema.String,
-});
-export const SetCategoryJiraLinkMutation = Schema.Struct({
-  type: Schema.Literal("setCategoryJiraLink"),
-  categoryId: Schema.String,
-  jiraLink: Schema.String,
-});
-export const DeleteCategoryMutation = Schema.Struct({
-  type: Schema.Literal("deleteCategory"),
-  categoryId: Schema.String,
-});
-
-export const CreateItemMutation = Schema.Struct({
-  type: Schema.Literal("createItem"),
-  categoryId: Schema.String,
-  title: TrimmedNonEmptyString,
-});
-
-export const CycleItemStatusMutation = Schema.Struct({
-  type: Schema.Literal("cycleItemStatus"),
-  itemId: Schema.String,
-});
-
-export const ReorderItemsMutation = Schema.Struct({
-  type: Schema.Literal("reorderItems"),
-  updates: Schema.Array(
-    Schema.Struct({
-      id: Schema.String,
-      categoryId: Schema.String,
-      sortOrder: Schema.Number,
-    }),
-  ),
-});
-
-export const ReorderCategoriesMutation = Schema.Struct({
-  type: Schema.Literal("reorderCategories"),
-  orderedIds: Schema.Array(Schema.String),
-});
-
-export const UpdateItemDescriptionMutation = Schema.Struct({
-  type: Schema.Literal("updateItemDescription"),
-  itemId: Schema.String,
-  description: Schema.String,
-});
-
-export const SetItemJiraLinkMutation = Schema.Struct({
-  type: Schema.Literal("setItemJiraLink"),
-  itemId: Schema.String,
-  jiraLink: Schema.String,
-});
-
-export const SetJiraBaseUrlMutation = Schema.Struct({
-  type: Schema.Literal("setJiraBaseUrl"),
-  jiraBaseUrl: Schema.String,
-});
-
-export const RenameItemMutation = Schema.Struct({
-  type: Schema.Literal("renameItem"),
-  itemId: Schema.String,
-  title: TrimmedNonEmptyString,
-});
-
-export const SetItemPriorityMutation = Schema.Struct({
-  type: Schema.Literal("setItemPriority"),
-  itemId: Schema.String,
-  priority: TodoItemPriority,
-});
-
-export const DeleteItemMutation = Schema.Struct({
-  type: Schema.Literal("deleteItem"),
-  itemId: Schema.String,
-});
-
-export const ToggleCategoryMutation = Schema.Struct({
-  type: Schema.Literal("toggleCategory"),
-  categoryId: Schema.String,
-});
-
-export const TodoMutation = Schema.Union([
-  CreateCategoryMutation,
-  RenameCategoryMutation,
-  SetCategoryColorMutation,
-  SetCategoryJiraLinkMutation,
-  DeleteCategoryMutation,
-  ToggleCategoryMutation,
-  CreateItemMutation,
-  CycleItemStatusMutation,
-  ReorderItemsMutation,
-  ReorderCategoriesMutation,
-  UpdateItemDescriptionMutation,
-  SetItemJiraLinkMutation,
-  RenameItemMutation,
-  SetItemPriorityMutation,
-  SetJiraBaseUrlMutation,
-  DeleteItemMutation,
-]);
-export type TodoMutation = typeof TodoMutation.Type;
-
-export const TodosMutateInput = Schema.Struct({
-  mutations: Schema.Array(TodoMutation),
-});
-export type TodosMutateInput = typeof TodosMutateInput.Type;
-
-export class TodosMutateError extends Schema.TaggedErrorClass<TodosMutateError>()(
-  "TodosMutateError",
-  {
-    kind: Schema.Literals(["io-failure", "validation-failure"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Todo mutate error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const WsTodosMutateRpc = Rpc.make(WS_METHODS.todosMutate, {
-  payload: TodosMutateInput,
-  success: TodosLoadResult,
-  error: Schema.Union([TodosMutateError, EnvironmentAuthorizationError]),
 });
 
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
@@ -972,8 +567,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsWriteFileRpc,
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,
-  WsMcpListServersRpc,
-  WsMcpToggleServerRpc,
   WsSubscribeVcsStatusRpc,
   WsVcsPullRpc,
   WsVcsRefreshStatusRpc,
@@ -986,16 +579,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsCreateRefRpc,
   WsVcsSwitchRefRpc,
   WsVcsInitRpc,
-  WsTodosLoadRpc,
-  WsTodosMutateRpc,
   WsReviewGetDiffPreviewRpc,
-  WsChangeRequestGetReviewDraftRpc,
-  WsChangeRequestUpsertReviewCommentRpc,
-  WsChangeRequestDeleteReviewCommentRpc,
-  WsChangeRequestGetPrDiffRpc,
-  WsChangeRequestSubmitReviewRpc,
-  WsChangeRequestRunBackgroundAgentRpc,
-  WsChangeRequestRunBatchAgentsRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,

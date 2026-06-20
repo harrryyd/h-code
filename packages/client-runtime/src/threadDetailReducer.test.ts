@@ -39,7 +39,6 @@ const baseThread: OrchestrationThread = {
   proposedPlans: [],
   activities: [],
   checkpoints: [],
-  contextTrimPoints: [],
   session: null,
 };
 

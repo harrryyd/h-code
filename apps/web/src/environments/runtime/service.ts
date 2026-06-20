@@ -43,7 +43,7 @@ import {
 import { ensureLocalApi } from "~/localApi";
 import { collectActiveTerminalUiThreadKeys } from "~/lib/terminalUiStateCleanup";
 import { deriveOrchestrationBatchEffects } from "~/orchestrationEventEffects";
-import { getPrimaryKnownEnvironment, resolvePrimaryWebSocketConnectionUrl } from "../primary";
+import { getPrimaryKnownEnvironment } from "../primary";
 import { webRuntime } from "../../lib/runtime";
 import { connectManagedCloudEnvironment } from "../../cloud/linkEnvironment";
 import { readManagedRelayClerkToken } from "../../cloud/managedAuth";
@@ -1160,7 +1160,7 @@ function createPrimaryEnvironmentClient(
   const connectionLabel = knownEnvironment?.label ?? null;
 
   return createWsRpcClient(
-    new WsTransport(async () => await resolvePrimaryWebSocketConnectionUrl(wsBaseUrl), {
+    new WsTransport(wsBaseUrl, {
       getConnectionLabel: () => connectionLabel,
       getVersionMismatchHint: () =>
         resolveServerConfigVersionMismatch(getServerConfig())?.hint ?? null,
@@ -1582,7 +1582,7 @@ async function ensureSavedEnvironmentConnection(
             await removeSavedEnvironmentBearerToken(activeRecord.environmentId);
             throw new Error(
               activeCredential.current.method === "dpop"
-                ? "Managed tunnel credential expired. Connect it again from T3 Cloud."
+                ? "Managed tunnel credential expired. Connect it again from T3 Connect."
                 : "Saved environment credential expired. Pair it again.",
               {
                 cause: error,

@@ -88,11 +88,6 @@ import {
 } from "./orchestration/Services/ProjectionSnapshotQuery.ts";
 import { SqlitePersistenceMemory } from "./persistence/Layers/Sqlite.ts";
 import { PersistenceSqlError } from "./persistence/Errors.ts";
-import { ProviderUnsupportedError } from "./provider/Errors.ts";
-import {
-  ProviderAdapterRegistry,
-  type ProviderAdapterRegistryShape,
-} from "./provider/Services/ProviderAdapterRegistry.ts";
 import {
   ProviderRegistry,
   type ProviderRegistryShape,
@@ -131,9 +126,6 @@ import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as ReviewService from "./review/ReviewService.ts";
 import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
-import * as SourceControlDiscovery from "./sourceControl/SourceControlDiscovery.ts";
-import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
-import * as BackgroundAgentService from "./review/BackgroundAgentService.ts";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
@@ -201,7 +193,6 @@ const makeDefaultOrchestrationReadModel = () => {
         activities: [],
         proposedPlans: [],
         checkpoints: [],
-        contextTrimPoints: [],
         deletedAt: null,
       },
     ],
@@ -533,16 +524,6 @@ const buildAppUnderTest = (options?: {
     );
     const reviewLayer = options?.layers?.reviewService
       ? Layer.mock(ReviewService.ReviewService)({
-          getReviewDraft: () => Effect.succeed(null),
-          upsertReviewComment: () =>
-            Effect.succeed({
-              threadId: "",
-              prNumber: 1,
-              prHeadSHA: "",
-              comments: [],
-              state: "draft",
-            }),
-          deleteReviewComment: () => Effect.succeed(null),
           ...options.layers.reviewService,
         })
       : ReviewService.layer.pipe(
@@ -554,24 +535,6 @@ const buildAppUnderTest = (options?: {
           ...options.layers.vcsStatusBroadcaster,
         })
       : VcsStatusBroadcaster.layer.pipe(Layer.provide(gitWorkflowLayer));
-    const providerAdapterRegistryLayer = Layer.mock(ProviderAdapterRegistry)({
-      getByInstance: (instanceId) =>
-        Effect.fail(
-          new ProviderUnsupportedError({
-            provider: instanceId,
-          }),
-        ),
-      getInstanceInfo: (instanceId) =>
-        Effect.fail(
-          new ProviderUnsupportedError({
-            provider: instanceId,
-          }),
-        ),
-      listInstances: () => Effect.succeed([]),
-      listProviders: () => Effect.succeed([]),
-      streamChanges: Stream.empty,
-      subscribeChanges: Effect.die("ProviderAdapterRegistry.subscribeChanges not implemented."),
-    } satisfies ProviderAdapterRegistryShape);
 
     const servedRoutesLayer = HttpRouter.serve(makeRoutesLayer, {
       disableListenLog: true,
@@ -601,7 +564,6 @@ const buildAppUnderTest = (options?: {
           ...options?.layers?.providerRegistry,
         }),
       ),
-      Layer.provide(providerAdapterRegistryLayer),
       Layer.provide(
         Layer.mock(ServerSettingsService)({
           start: Effect.void,
@@ -820,7 +782,7 @@ const buildAppUnderTest = (options?: {
       ),
       Layer.provide(
         Layer.mock(CloudCliTokenManager.CloudCliTokenManager)({
-          get: Effect.die(new Error("Unexpected T3 Cloud CLI authorization request.")),
+          get: Effect.die(new Error("Unexpected T3 Connect CLI authorization request.")),
           getExisting: Effect.succeed(Option.none()),
           hasCredential: Effect.succeed(false),
           clear: Effect.void,
@@ -828,23 +790,6 @@ const buildAppUnderTest = (options?: {
         }),
       ),
       Layer.provideMerge(makeAuthTestLayer()),
-      Layer.provide(
-        Layer.mock(SourceControlDiscovery.SourceControlDiscovery)({
-          discover: Effect.succeed({ versionControlSystems: [], sourceControlProviders: [] }),
-        }),
-      ),
-      Layer.provide(
-        Layer.mock(ProviderMaintenanceRunner.ProviderMaintenanceRunner)({
-          updateProvider: () =>
-            Effect.die("ProviderMaintenanceRunner.updateProvider not implemented in test"),
-        }),
-      ),
-      Layer.provide(
-        Layer.mock(BackgroundAgentService.BackgroundAgentService)({
-          runBackgroundAgent: () => Stream.empty,
-          runBatchAgents: () => Stream.empty,
-        }),
-      ),
       Layer.provideMerge(ServerSecretStore.layer),
       Layer.provide(workspaceAndProjectServicesLayer),
       Layer.provideMerge(FetchHttpClient.layer),
@@ -1768,7 +1713,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       yield* buildAppUnderTest();
 
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const linkProofUrl = yield* getHttpServerUrl("/api/cloud/link-proof");
+      const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
       const linkProofResponse = yield* fetchEffect(linkProofUrl, {
         method: "POST",
         headers: {
@@ -1805,7 +1750,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       yield* buildAppUnderTest();
 
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const linkProofUrl = yield* getHttpServerUrl("/api/cloud/link-proof");
+      const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
       const serverPort = Number(new URL(linkProofUrl).port);
       const linkProofResponse = yield* fetchEffect(linkProofUrl, {
         method: "POST",
@@ -1817,10 +1762,10 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           challenge: "relay-link-challenge",
           relayIssuer: "https://relay.example.test",
           endpoint: {
-            httpBaseUrl: linkProofUrl.replace("/api/cloud/link-proof", ""),
+            httpBaseUrl: linkProofUrl.replace("/api/connect/link-proof", ""),
             wsBaseUrl: linkProofUrl
               .replace("http://", "ws://")
-              .replace("/api/cloud/link-proof", "/ws"),
+              .replace("/api/connect/link-proof", "/ws"),
             providerKind: "manual",
           },
           origin: {
@@ -1844,9 +1789,9 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     Effect.gen(function* () {
       yield* buildAppUnderTest();
 
-      const linkProofUrl = yield* getHttpServerUrl("/api/cloud/link-proof");
+      const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
       const serverPort = Number(new URL(linkProofUrl).port);
-      const linkProofResponse = yield* HttpClient.post("/api/cloud/link-proof", {
+      const linkProofResponse = yield* HttpClient.post("/api/connect/link-proof", {
         headers: {
           cookie: yield* getAuthenticatedSessionCookieHeader(),
           "content-type": "application/json",
@@ -1888,9 +1833,9 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       Effect.gen(function* () {
         yield* buildAppUnderTest();
 
-        const linkProofUrl = yield* getHttpServerUrl("/api/cloud/link-proof");
+        const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
         const serverPort = Number(new URL(linkProofUrl).port);
-        const linkProofResponse = yield* HttpClient.post("/api/cloud/link-proof", {
+        const linkProofResponse = yield* HttpClient.post("/api/connect/link-proof", {
           headers: {
             cookie: yield* getAuthenticatedSessionCookieHeader(),
             "content-type": "application/json",
@@ -1930,9 +1875,9 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     Effect.gen(function* () {
       yield* buildAppUnderTest();
 
-      const linkProofUrl = yield* getHttpServerUrl("/api/cloud/link-proof");
+      const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
       const serverPort = Number(new URL(linkProofUrl).port);
-      const linkProofResponse = yield* HttpClient.post("/api/cloud/link-proof", {
+      const linkProofResponse = yield* HttpClient.post("/api/connect/link-proof", {
         headers: {
           cookie: yield* getAuthenticatedSessionCookieHeader(),
           "content-type": "application/json",
@@ -1973,7 +1918,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       yield* buildAppUnderTest();
 
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const linkProofUrl = yield* getHttpServerUrl("/api/cloud/link-proof");
+      const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
       const serverPort = Number(new URL(linkProofUrl).port);
       const linkProofResponse = yield* fetchEffect(linkProofUrl, {
         method: "POST",
@@ -2017,7 +1962,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       });
       const credential = (yield* credentialResponse.json) as { readonly credential: string };
       const pairedCookie = yield* getAuthenticatedSessionCookieHeader(credential.credential);
-      const linkStateUrl = yield* getHttpServerUrl("/api/cloud/link-state");
+      const linkStateUrl = yield* getHttpServerUrl("/api/connect/link-state");
       const response = yield* fetchEffect(linkStateUrl, {
         headers: { cookie: pairedCookie },
       });
@@ -2083,7 +2028,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       yield* buildAppUnderTest();
 
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const preferencesUrl = yield* getHttpServerUrl("/api/cloud/preferences");
+      const preferencesUrl = yield* getHttpServerUrl("/api/connect/preferences");
       const ownerResponse = yield* fetchEffect(preferencesUrl, {
         method: "POST",
         headers: {
@@ -2127,7 +2072,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       yield* buildAppUnderTest();
 
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2162,7 +2107,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const postRelayConfig = (body: {
         readonly relayUrl: string;
         readonly relayIssuer?: string;
@@ -2239,7 +2184,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const postRelayConfig = (cloudUserId: string, environmentCredential: string) =>
         fetchEffect(relayConfigUrl, {
           method: "POST",
@@ -2282,8 +2227,8 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const linkStateUrl = yield* getHttpServerUrl("/api/cloud/link-state");
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const linkStateUrl = yield* getHttpServerUrl("/api/connect/link-state");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
 
       const initialResponse = yield* fetchEffect(linkStateUrl, {
         headers: {
@@ -2339,7 +2284,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     Effect.gen(function* () {
       yield* buildAppUnderTest();
 
-      const reconcileUrl = yield* getHttpServerUrl("/api/cloud/reconcile");
+      const reconcileUrl = yield* getHttpServerUrl("/api/connect/reconcile");
       const response = yield* fetchEffect(reconcileUrl, {
         method: "POST",
       });
@@ -2376,9 +2321,9 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
-      const unlinkUrl = yield* getHttpServerUrl("/api/cloud/unlink");
-      const linkStateUrl = yield* getHttpServerUrl("/api/cloud/link-state");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
+      const unlinkUrl = yield* getHttpServerUrl("/api/connect/unlink");
+      const linkStateUrl = yield* getHttpServerUrl("/api/connect/link-state");
 
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
@@ -2453,7 +2398,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2479,7 +2424,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         issuedAt: DateTime.formatIso(now),
         expiresAt: DateTime.formatIso(DateTime.add(now, { minutes: 5 })),
       });
-      const mintUrl = yield* getHttpServerUrl("/api/cloud/mint-credential");
+      const mintUrl = yield* getHttpServerUrl("/api/connect/mint-credential");
       const postMint = () =>
         fetchEffect(mintUrl, {
           method: "POST",
@@ -2503,7 +2448,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
-  it.effect("serves the documented T3 Cloud mint credential endpoint", () =>
+  it.effect("serves the documented T3 Connect mint credential endpoint", () =>
     Effect.gen(function* () {
       yield* buildAppUnderTest();
 
@@ -2512,7 +2457,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2539,7 +2484,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         issuedAt: DateTime.formatIso(now),
         expiresAt: DateTime.formatIso(DateTime.add(now, { minutes: 5 })),
       });
-      const mintUrl = yield* getHttpServerUrl("/api/t3-cloud/mint-credential");
+      const mintUrl = yield* getHttpServerUrl("/api/t3-connect/mint-credential");
       const response = yield* fetchEffect(mintUrl, {
         method: "POST",
         headers: {
@@ -2562,7 +2507,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
-  it.effect("serves signed T3 Cloud environment health checks", () =>
+  it.effect("serves signed T3 Connect environment health checks", () =>
     Effect.gen(function* () {
       yield* buildAppUnderTest();
 
@@ -2571,7 +2516,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2597,7 +2542,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         issuedAt: DateTime.formatIso(now),
         expiresAt: DateTime.formatIso(DateTime.add(now, { minutes: 5 })),
       });
-      const healthUrl = yield* getHttpServerUrl("/api/t3-cloud/health");
+      const healthUrl = yield* getHttpServerUrl("/api/t3-connect/health");
       const response = yield* fetchEffect(healthUrl, {
         method: "POST",
         headers: {
@@ -2631,7 +2576,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2657,7 +2602,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         issuedAt: DateTime.formatIso(now),
         expiresAt: DateTime.formatIso(DateTime.add(now, { minutes: 5 })),
       });
-      const healthUrl = yield* getHttpServerUrl("/api/t3-cloud/health");
+      const healthUrl = yield* getHttpServerUrl("/api/t3-connect/health");
       const postHealth = () =>
         fetchEffect(healthUrl, {
           method: "POST",
@@ -2692,7 +2637,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           publicKeyEncoding: { format: "pem", type: "spki" },
         });
         const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-        const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+        const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
         const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
           method: "POST",
           headers: {
@@ -2711,7 +2656,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         assert.equal(relayConfigResponse.status, 200);
 
         const now = yield* DateTime.now;
-        const mintUrl = yield* getHttpServerUrl("/api/t3-cloud/mint-credential");
+        const mintUrl = yield* getHttpServerUrl("/api/t3-connect/mint-credential");
         const postMint = (request: ReturnType<typeof makeCloudMintCredentialRequest>) =>
           fetchEffect(mintUrl, {
             method: "POST",
@@ -2772,7 +2717,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2811,7 +2756,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         issuedAt: DateTime.formatIso(now),
         expiresAt: DateTime.formatIso(DateTime.add(now, { minutes: 5 })),
       });
-      const healthUrl = yield* getHttpServerUrl("/api/t3-cloud/health");
+      const healthUrl = yield* getHttpServerUrl("/api/t3-connect/health");
       const healthResponse = yield* fetchEffect(healthUrl, {
         method: "POST",
         headers: {
@@ -2841,7 +2786,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2859,7 +2804,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(relayConfigResponse.status, 200);
 
       const now = yield* DateTime.now;
-      const mintUrl = yield* getHttpServerUrl("/api/cloud/mint-credential");
+      const mintUrl = yield* getHttpServerUrl("/api/connect/mint-credential");
       const postMint = (request: ReturnType<typeof makeCloudMintCredentialRequest>) =>
         fetchEffect(mintUrl, {
           method: "POST",
@@ -2908,7 +2853,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2926,7 +2871,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(relayConfigResponse.status, 200);
 
       const now = yield* DateTime.now;
-      const mintUrl = yield* getHttpServerUrl("/api/t3-cloud/mint-credential");
+      const mintUrl = yield* getHttpServerUrl("/api/t3-connect/mint-credential");
       const response = yield* fetchEffect(mintUrl, {
         method: "POST",
         headers: {
@@ -2959,7 +2904,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -2977,7 +2922,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(relayConfigResponse.status, 200);
 
       const now = yield* DateTime.now;
-      const mintUrl = yield* getHttpServerUrl("/api/t3-cloud/mint-credential");
+      const mintUrl = yield* getHttpServerUrl("/api/t3-connect/mint-credential");
       const response = yield* fetchEffect(mintUrl, {
         method: "POST",
         headers: {
@@ -3010,7 +2955,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -3028,7 +2973,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(relayConfigResponse.status, 200);
 
       const now = yield* DateTime.now;
-      const healthUrl = yield* getHttpServerUrl("/api/t3-cloud/health");
+      const healthUrl = yield* getHttpServerUrl("/api/t3-connect/health");
       const postHealth = (request: ReturnType<typeof makeCloudEnvironmentHealthRequest>) =>
         fetchEffect(healthUrl, {
           method: "POST",
@@ -3075,7 +3020,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -3093,7 +3038,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(relayConfigResponse.status, 200);
 
       const now = yield* DateTime.now;
-      const healthUrl = yield* getHttpServerUrl("/api/t3-cloud/health");
+      const healthUrl = yield* getHttpServerUrl("/api/t3-connect/health");
       const response = yield* fetchEffect(healthUrl, {
         method: "POST",
         headers: {
@@ -3125,7 +3070,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         publicKeyEncoding: { format: "pem", type: "spki" },
       });
       const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
-      const relayConfigUrl = yield* getHttpServerUrl("/api/cloud/relay-config");
+      const relayConfigUrl = yield* getHttpServerUrl("/api/connect/relay-config");
       const relayConfigResponse = yield* fetchEffect(relayConfigUrl, {
         method: "POST",
         headers: {
@@ -3143,7 +3088,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(relayConfigResponse.status, 200);
 
       const now = yield* DateTime.now;
-      const healthUrl = yield* getHttpServerUrl("/api/t3-cloud/health");
+      const healthUrl = yield* getHttpServerUrl("/api/t3-connect/health");
       const response = yield* fetchEffect(healthUrl, {
         method: "POST",
         headers: {
@@ -3335,7 +3280,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         config: { devUrl: new URL(crossOriginClientOrigin) },
       });
 
-      const linkProofUrl = yield* getHttpServerUrl("/api/cloud/link-proof");
+      const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
       const response = yield* fetchEffect(linkProofUrl, {
         method: "OPTIONS",
         headers: {
@@ -5480,7 +5425,6 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             activities: [],
             proposedPlans: [],
             checkpoints: [],
-            contextTrimPoints: [],
             deletedAt: null,
           },
         ],

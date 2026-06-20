@@ -15,11 +15,9 @@ import {
   writeSavedEnvironmentCredential,
 } from "./catalog";
 
-function deferredResolver() {
-  return () => {
-    throw new Error("Resolver was not initialized.");
-  };
-}
+let resolveRegistryRead: () => void = () => {
+  throw new Error("Registry read resolver was not initialized.");
+};
 
 describe("environment runtime catalog stores", () => {
   beforeEach(async () => {
@@ -144,7 +142,9 @@ describe("environment runtime catalog stores", () => {
   });
 
   it("does not let stale hydration overwrite records added while hydration is in flight", async () => {
-    let resolveRegistryRead: () => void = deferredResolver();
+    resolveRegistryRead = () => {
+      throw new Error("Registry read resolver was not initialized.");
+    };
 
     vi.stubGlobal("window", {
       nativeApi: {
