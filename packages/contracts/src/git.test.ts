@@ -7,7 +7,6 @@ import {
   GitRunStackedActionResult,
   GitRunStackedActionInput,
   GitResolvePullRequestResult,
-  VcsStatusResult,
 } from "./git.ts";
 
 const decodeCreateWorktreeInput = Schema.decodeUnknownSync(VcsCreateWorktreeInput);
@@ -17,7 +16,6 @@ const decodePreparePullRequestThreadInput = Schema.decodeUnknownSync(
 const decodeRunStackedActionInput = Schema.decodeUnknownSync(GitRunStackedActionInput);
 const decodeRunStackedActionResult = Schema.decodeUnknownSync(GitRunStackedActionResult);
 const decodeResolvePullRequestResult = Schema.decodeUnknownSync(GitResolvePullRequestResult);
-const decodeVcsStatusResult = Schema.decodeUnknownSync(VcsStatusResult);
 
 describe("VcsCreateWorktreeInput", () => {
   it("accepts omitted newRefName for existing-refName worktrees", () => {
@@ -60,53 +58,6 @@ describe("GitResolvePullRequestResult", () => {
 
     expect(parsed.pullRequest.number).toBe(42);
     expect(parsed.pullRequest.headBranch).toBe("feature/pr-threads");
-  });
-});
-
-describe("VcsStatusResult", () => {
-  it("decodes change request label metadata on status results", () => {
-    const parsed = decodeVcsStatusResult({
-      isRepo: true,
-      hasPrimaryRemote: true,
-      isDefaultRef: false,
-      refName: "feature/pr-badge",
-      hasWorkingTreeChanges: false,
-      workingTree: {
-        files: [],
-        insertions: 0,
-        deletions: 0,
-      },
-      hasUpstream: true,
-      aheadCount: 0,
-      behindCount: 0,
-      pr: {
-        number: 42,
-        title: "Decorate the change request badge",
-        url: "https://github.com/pingdotgg/t3code/pull/42",
-        baseRef: "main",
-        headRef: "feature/pr-badge",
-        state: "open",
-        labels: [
-          {
-            name: "ready-for-agent",
-            color: "#0e8a16",
-          },
-          {
-            name: "enhancement",
-          },
-        ],
-      },
-    });
-
-    expect(parsed.pr?.labels).toEqual([
-      {
-        name: "ready-for-agent",
-        color: "#0e8a16",
-      },
-      {
-        name: "enhancement",
-      },
-    ]);
   });
 });
 

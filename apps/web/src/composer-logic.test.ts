@@ -324,57 +324,7 @@ describe("parseStandaloneComposerSlashCommand", () => {
     expect(parseStandaloneComposerSlashCommand("/default")).toBe("default");
   });
 
-  it("parses standalone /clear command", () => {
-    expect(parseStandaloneComposerSlashCommand("/clear")).toEqual({ command: "clear" });
-  });
-
-  it("parses standalone /clear N command", () => {
-    expect(parseStandaloneComposerSlashCommand("/clear 3")).toEqual({
-      command: "clear",
-      keepLastNTurns: 3,
-    });
-  });
-
-  it("parses /clear with surrounding whitespace", () => {
-    expect(parseStandaloneComposerSlashCommand(" /clear 5 ")).toEqual({
-      command: "clear",
-      keepLastNTurns: 5,
-    });
-  });
-
-  it("ignores /clear with extra message text", () => {
-    expect(parseStandaloneComposerSlashCommand("/clear explain this")).toBeNull();
-  });
-
-  it("returns null for /clear with non-numeric argument", () => {
-    expect(parseStandaloneComposerSlashCommand("/clear abc")).toBeNull();
-  });
-
   it("ignores slash commands with extra message text", () => {
     expect(parseStandaloneComposerSlashCommand("/plan explain this")).toBeNull();
-  });
-
-  it("parses standalone /new command", () => {
-    expect(parseStandaloneComposerSlashCommand("/new")).toBe("new");
-  });
-
-  it("parses /new with surrounding whitespace", () => {
-    expect(parseStandaloneComposerSlashCommand(" /new ")).toBe("new");
-  });
-
-  it("ignores /new with extra message text", () => {
-    expect(parseStandaloneComposerSlashCommand("/new start fresh")).toBeNull();
-  });
-
-  it("parses standalone /compact command", () => {
-    expect(parseStandaloneComposerSlashCommand("/compact")).toBe("compact");
-  });
-
-  it("parses /compact with surrounding whitespace", () => {
-    expect(parseStandaloneComposerSlashCommand(" /compact ")).toBe("compact");
-  });
-
-  it("ignores /compact with extra message text", () => {
-    expect(parseStandaloneComposerSlashCommand("/compact start fresh")).toBeNull();
   });
 });

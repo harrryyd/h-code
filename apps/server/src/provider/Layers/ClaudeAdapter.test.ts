@@ -34,11 +34,8 @@ import * as TestClock from "effect/testing/TestClock";
 
 import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
-import { ThreadMcpToggleRepositoryLive } from "../../persistence/Layers/ThreadMcpToggles.ts";
-import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
-import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
-import { ProviderAdapterSessionNotFoundError, ProviderAdapterValidationError } from "../Errors.ts";
+import { ProviderAdapterValidationError } from "../Errors.ts";
 import type { ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import { makeClaudeAdapter, type ClaudeAdapterLiveOptions } from "./ClaudeAdapter.ts";
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
@@ -61,12 +58,6 @@ class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
   public readonly setModelCalls: Array<string | undefined> = [];
   public readonly setPermissionModeCalls: Array<string> = [];
   public readonly setMaxThinkingTokensCalls: Array<number | null> = [];
-  public readonly toggleMcpServerCalls: Array<{ name: string; enabled: boolean }> = [];
-  public readonly mcpServerStatusCalls: Array<void> = [];
-  public mcpServerStatuses: ReadonlyArray<{
-    readonly name: string;
-    readonly status: "connected" | "failed" | "needs-auth" | "pending" | "disabled";
-  }> = [];
   public closeCalls = 0;
 
   emit(message: SDKMessage): void {
@@ -119,20 +110,6 @@ class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
     this.setMaxThinkingTokensCalls.push(maxThinkingTokens);
   };
 
-  readonly toggleMcpServer = async (name: string, enabled: boolean): Promise<void> => {
-    this.toggleMcpServerCalls.push({ name, enabled });
-  };
-
-  readonly mcpServerStatus = async (): Promise<
-    ReadonlyArray<{
-      readonly name: string;
-      readonly status: "connected" | "failed" | "needs-auth" | "pending" | "disabled";
-    }>
-  > => {
-    this.mcpServerStatusCalls.push(undefined);
-    return this.mcpServerStatuses;
-  };
-
   readonly close = (): void => {
     this.closeCalls += 1;
     this.finish();
@@ -179,7 +156,6 @@ function makeHarness(config?: {
   readonly baseDir?: string;
   readonly claudeConfig?: Partial<ClaudeSettings>;
   readonly instanceId?: ProviderInstanceId;
-  readonly settingsOverrides?: Parameters<typeof ServerSettingsService.layerTest>[0];
 }) {
   const query = new FakeClaudeQuery();
   let createInput:
@@ -221,9 +197,7 @@ function makeHarness(config?: {
           config?.baseDir ?? "/tmp",
         ),
       ),
-      Layer.provideMerge(ThreadMcpToggleRepositoryLive),
-      Layer.provideMerge(SqlitePersistenceMemory),
-      Layer.provideMerge(ServerSettingsService.layerTest(config?.settingsOverrides)),
+      Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(NodeServices.layer),
     ),
     query,
@@ -294,17 +268,6 @@ const THREAD_ID = ThreadId.make("thread-claude-1");
 const RESUME_THREAD_ID = ThreadId.make("thread-claude-resume");
 
 describe("ClaudeAdapterLive", () => {
-  it.effect("declares MCP toggle capability", () => {
-    const harness = makeHarness();
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeAdapter;
-      assert.deepEqual(adapter.capabilities, {
-        sessionModelSwitch: "in-session",
-        supportsMcpToggle: true,
-      });
-    }).pipe(Effect.provide(harness.layer));
-  });
-
   it.effect("returns validation error for non-claude provider on startSession", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
@@ -329,155 +292,6 @@ describe("ClaudeAdapterLive", () => {
           issue: "Expected provider 'claudeAgent' but received 'codex'.",
         }),
       );
-    }).pipe(
-      Effect.provideService(Random.Random, makeDeterministicRandomService()),
-      Effect.provide(harness.layer),
-    );
-  });
-
-  it.effect("toggleMcpServerOnThread fails when the session is missing", () => {
-    const harness = makeHarness();
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeAdapter;
-      const result = yield* adapter
-        .toggleMcpServerOnThread(THREAD_ID, "filesystem", true)
-        .pipe(Effect.result);
-
-      assert.equal(result._tag, "Failure");
-      if (result._tag !== "Failure") {
-        return;
-      }
-      assert.deepEqual(
-        result.failure,
-        new ProviderAdapterSessionNotFoundError({
-          provider: ProviderDriverKind.make("claudeAgent"),
-          threadId: THREAD_ID,
-        }),
-      );
-    }).pipe(Effect.provide(harness.layer));
-  });
-
-  it.effect("toggleMcpServerOnThread persists the toggle when the session exists", () => {
-    const harness = makeHarness();
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeAdapter;
-      const repository = yield* ThreadMcpToggleRepository;
-
-      yield* adapter.startSession({
-        threadId: THREAD_ID,
-        provider: ProviderDriverKind.make("claudeAgent"),
-        runtimeMode: "full-access",
-      });
-      yield* adapter.toggleMcpServerOnThread(THREAD_ID, "filesystem", false);
-
-      assert.deepEqual(harness.query.toggleMcpServerCalls, [
-        { name: "filesystem", enabled: false },
-      ]);
-      const rows = yield* repository.listByThreadId({ threadId: THREAD_ID });
-      assert.equal(rows.length, 1);
-      assert.deepEqual(
-        rows[0] && {
-          ...rows[0],
-          updatedAt: typeof rows[0].updatedAt === "string" ? "<timestamp>" : rows[0].updatedAt,
-        },
-        {
-          threadId: THREAD_ID,
-          providerKind: ProviderDriverKind.make("claudeAgent"),
-          mcpServerName: "filesystem",
-          enabled: false,
-          updatedAt: "<timestamp>",
-        },
-      );
-    }).pipe(
-      Effect.provideService(Random.Random, makeDeterministicRandomService()),
-      Effect.provide(harness.layer),
-    );
-  });
-
-  it.effect("startSession applies persisted MCP toggles", () => {
-    const harness = makeHarness();
-    return Effect.gen(function* () {
-      const repository = yield* ThreadMcpToggleRepository;
-      yield* repository.upsert({
-        threadId: THREAD_ID,
-        providerKind: ProviderDriverKind.make("claudeAgent"),
-        mcpServerName: "filesystem",
-        enabled: false,
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      });
-      yield* repository.upsert({
-        threadId: THREAD_ID,
-        providerKind: ProviderDriverKind.make("claudeAgent"),
-        mcpServerName: "github",
-        enabled: true,
-        updatedAt: "2026-01-01T00:01:00.000Z",
-      });
-
-      const adapter = yield* ClaudeAdapter;
-      yield* adapter.startSession({
-        threadId: THREAD_ID,
-        provider: ProviderDriverKind.make("claudeAgent"),
-        runtimeMode: "full-access",
-      });
-
-      assert.deepEqual(harness.query.toggleMcpServerCalls, [
-        { name: "filesystem", enabled: false },
-        { name: "github", enabled: true },
-      ]);
-    }).pipe(
-      Effect.provideService(Random.Random, makeDeterministicRandomService()),
-      Effect.provide(harness.layer),
-    );
-  });
-
-  it.effect("startSession applies MCP default preferences when no thread override exists", () => {
-    const harness = makeHarness({
-      settingsOverrides: {
-        mcpDefaultPreferences: {
-          [ProviderInstanceId.make("claudeAgent")]: {
-            filesystem: false,
-            github: true,
-          },
-        },
-      },
-    });
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeAdapter;
-      yield* adapter.startSession({
-        threadId: THREAD_ID,
-        provider: ProviderDriverKind.make("claudeAgent"),
-        runtimeMode: "full-access",
-      });
-
-      assert.deepEqual(harness.query.toggleMcpServerCalls, [
-        { name: "filesystem", enabled: false },
-        { name: "github", enabled: true },
-      ]);
-    }).pipe(
-      Effect.provideService(Random.Random, makeDeterministicRandomService()),
-      Effect.provide(harness.layer),
-    );
-  });
-
-  it.effect("listMcpServersOnThread proxies through to the SDK query", () => {
-    const harness = makeHarness();
-    harness.query.mcpServerStatuses = [
-      { name: "filesystem", status: "connected" },
-      { name: "github", status: "disabled" },
-    ];
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeAdapter;
-      yield* adapter.startSession({
-        threadId: THREAD_ID,
-        provider: ProviderDriverKind.make("claudeAgent"),
-        runtimeMode: "full-access",
-      });
-
-      assert.deepEqual(yield* adapter.listMcpServersOnThread(THREAD_ID), [
-        { name: "filesystem", status: "connected" },
-        { name: "github", status: "disabled" },
-      ]);
-      assert.deepEqual(harness.query.mcpServerStatusCalls, [undefined]);
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),
@@ -1565,8 +1379,6 @@ describe("ClaudeAdapterLive", () => {
       }),
     ).pipe(
       Layer.provideMerge(ServerConfig.layerTest("/tmp/claude-adapter-test", "/tmp")),
-      Layer.provideMerge(ThreadMcpToggleRepositoryLive),
-      Layer.provideMerge(SqlitePersistenceMemory),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(NodeServices.layer),
     );
@@ -1658,8 +1470,6 @@ describe("ClaudeAdapterLive", () => {
       }),
     ).pipe(
       Layer.provideMerge(ServerConfig.layerTest("/tmp/claude-adapter-test", "/tmp")),
-      Layer.provideMerge(ThreadMcpToggleRepositoryLive),
-      Layer.provideMerge(SqlitePersistenceMemory),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(NodeServices.layer),
     );
@@ -1707,7 +1517,7 @@ describe("ClaudeAdapterLive", () => {
     return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
 
-      const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 5).pipe(
+      const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 6).pipe(
         Stream.runCollect,
         Effect.forkChild,
       );
@@ -1749,12 +1559,12 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
-  it.effect("does not emit token usage updates from task progress", () => {
+  it.effect("emits thread token usage updates from Claude task progress", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
 
-      const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 5).pipe(
+      const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 6).pipe(
         Stream.runCollect,
         Effect.forkChild,
       );
@@ -1782,64 +1592,20 @@ describe("ClaudeAdapterLive", () => {
       const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
       const usageEvent = runtimeEvents.find((event) => event.type === "thread.token-usage.updated");
       const progressEvent = runtimeEvents.find((event) => event.type === "task.progress");
-      assert.equal(usageEvent, undefined);
-      assert.equal(progressEvent?.type, "task.progress");
-      if (progressEvent?.type === "task.progress") {
-        assert.equal(progressEvent.payload.description, "Thinking through the patch");
-        assert.deepEqual(progressEvent.payload.usage, {
-          total_tokens: 321,
-          tool_uses: 2,
-          duration_ms: 654,
+      assert.equal(usageEvent?.type, "thread.token-usage.updated");
+      if (usageEvent?.type === "thread.token-usage.updated") {
+        assert.deepEqual(usageEvent.payload, {
+          usage: {
+            usedTokens: 321,
+            lastUsedTokens: 321,
+            toolUses: 2,
+            durationMs: 654,
+          },
         });
       }
-    }).pipe(
-      Effect.provideService(Random.Random, makeDeterministicRandomService()),
-      Effect.provide(harness.layer),
-    );
-  });
-
-  it.effect("does not emit token usage updates from task notification", () => {
-    const harness = makeHarness();
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeAdapter;
-
-      const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 5).pipe(
-        Stream.runCollect,
-        Effect.forkChild,
-      );
-
-      yield* adapter.startSession({
-        threadId: THREAD_ID,
-        provider: ProviderDriverKind.make("claudeAgent"),
-        runtimeMode: "full-access",
-      });
-
-      harness.query.emit({
-        type: "system",
-        subtype: "task_notification",
-        task_id: "task-notif-1",
-        status: "completed",
-        description: "Background task finished",
-        usage: {
-          total_tokens: 888,
-          tool_uses: 5,
-        },
-        session_id: "sdk-session-task-notif",
-        uuid: "task-notif-1",
-      } as unknown as SDKMessage);
-
-      const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
-      const usageEvent = runtimeEvents.find((event) => event.type === "thread.token-usage.updated");
-      const completedEvent = runtimeEvents.find((event) => event.type === "task.completed");
-      assert.equal(usageEvent, undefined);
-      assert.equal(completedEvent?.type, "task.completed");
-      if (completedEvent?.type === "task.completed") {
-        assert.equal(completedEvent.payload.taskId, "task-notif-1");
-        assert.equal(completedEvent.payload.status, "completed");
-        assert.deepEqual(completedEvent.payload.usage, {
-          total_tokens: 888,
-          tool_uses: 5,
-        });
+      assert.equal(progressEvent?.type, "task.progress");
+      if (usageEvent && progressEvent) {
+        assert.notStrictEqual(usageEvent.eventId, progressEvent.eventId);
       }
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
@@ -1978,184 +1744,13 @@ describe("ClaudeAdapterLive", () => {
   });
 
   it.effect(
-    "uses per-request usage from message_start stream events for context window occupancy",
-    () => {
-      const harness = makeHarness();
-      return Effect.gen(function* () {
-        const adapter = yield* ClaudeAdapter;
-
-        const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 7).pipe(
-          Stream.runCollect,
-          Effect.forkChild,
-        );
-
-        yield* adapter.startSession({
-          threadId: THREAD_ID,
-          provider: ProviderDriverKind.make("claudeAgent"),
-          runtimeMode: "full-access",
-        });
-
-        yield* adapter.sendTurn({
-          threadId: THREAD_ID,
-          input: "hello",
-          attachments: [],
-        });
-
-        harness.query.emit({
-          type: "stream_event",
-          session_id: "sdk-session-msg-start",
-          uuid: "stream-msg-start-1",
-          parent_tool_use_id: null,
-          event: {
-            type: "message_start",
-            message: {
-              id: "msg_1",
-              type: "message",
-              role: "assistant",
-              model: "claude-sonnet-4-5",
-              stop_reason: null,
-              stop_sequence: null,
-              content: [],
-              usage: {
-                input_tokens: 400,
-                output_tokens: 100,
-              },
-            },
-          },
-        } as unknown as SDKMessage);
-
-        harness.query.emit({
-          type: "result",
-          subtype: "success",
-          is_error: false,
-          duration_ms: 1234,
-          duration_api_ms: 1200,
-          num_turns: 1,
-          result: "done",
-          stop_reason: "end_turn",
-          session_id: "sdk-session-result-msg-start",
-          usage: {
-            input_tokens: 4000,
-            output_tokens: 1000,
-          },
-          modelUsage: {
-            "claude-sonnet-4-5": {
-              contextWindow: 200000,
-              maxOutputTokens: 64000,
-            },
-          },
-        } as unknown as SDKMessage);
-        harness.query.finish();
-
-        const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
-        const usageEvent = runtimeEvents.find(
-          (event) => event.type === "thread.token-usage.updated",
-        );
-        assert.equal(usageEvent?.type, "thread.token-usage.updated");
-        if (usageEvent?.type === "thread.token-usage.updated") {
-          // usedTokens should be the per-request value from message_start (500),
-          // NOT the accumulated value from result.usage (5000).
-          assert.equal(usageEvent.payload.usage.usedTokens, 500);
-          assert.equal(usageEvent.payload.usage.lastUsedTokens, 500);
-          // totalProcessedTokens reflects the accumulated total for cost tracking.
-          assert.equal(usageEvent.payload.usage.totalProcessedTokens, 5000);
-          assert.equal(usageEvent.payload.usage.maxTokens, 200000);
-        }
-      }).pipe(
-        Effect.provideService(Random.Random, makeDeterministicRandomService()),
-        Effect.provide(harness.layer),
-      );
-    },
-  );
-
-  it.effect(
-    "uses per-request usage from message_delta stream events for context window occupancy",
-    () => {
-      const harness = makeHarness();
-      return Effect.gen(function* () {
-        const adapter = yield* ClaudeAdapter;
-
-        const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 7).pipe(
-          Stream.runCollect,
-          Effect.forkChild,
-        );
-
-        yield* adapter.startSession({
-          threadId: THREAD_ID,
-          provider: ProviderDriverKind.make("claudeAgent"),
-          runtimeMode: "full-access",
-        });
-
-        yield* adapter.sendTurn({
-          threadId: THREAD_ID,
-          input: "hello",
-          attachments: [],
-        });
-
-        harness.query.emit({
-          type: "stream_event",
-          session_id: "sdk-session-msg-delta",
-          uuid: "stream-msg-delta-1",
-          parent_tool_use_id: null,
-          event: {
-            type: "message_delta",
-            delta: { stop_reason: "end_turn", stop_sequence: null },
-            usage: {
-              input_tokens: 300,
-              output_tokens: 200,
-            },
-          },
-        } as unknown as SDKMessage);
-
-        harness.query.emit({
-          type: "result",
-          subtype: "success",
-          is_error: false,
-          duration_ms: 1234,
-          duration_api_ms: 1200,
-          num_turns: 1,
-          result: "done",
-          stop_reason: "end_turn",
-          session_id: "sdk-session-result-msg-delta",
-          usage: {
-            input_tokens: 4000,
-            output_tokens: 1000,
-          },
-          modelUsage: {
-            "claude-sonnet-4-5": {
-              contextWindow: 200000,
-              maxOutputTokens: 64000,
-            },
-          },
-        } as unknown as SDKMessage);
-        harness.query.finish();
-
-        const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
-        const usageEvent = runtimeEvents.find(
-          (event) => event.type === "thread.token-usage.updated",
-        );
-        assert.equal(usageEvent?.type, "thread.token-usage.updated");
-        if (usageEvent?.type === "thread.token-usage.updated") {
-          assert.equal(usageEvent.payload.usage.usedTokens, 500);
-          assert.equal(usageEvent.payload.usage.lastUsedTokens, 500);
-          assert.equal(usageEvent.payload.usage.totalProcessedTokens, 5000);
-          assert.equal(usageEvent.payload.usage.maxTokens, 200000);
-        }
-      }).pipe(
-        Effect.provideService(Random.Random, makeDeterministicRandomService()),
-        Effect.provide(harness.layer),
-      );
-    },
-  );
-
-  it.effect(
     "preserves oversized Claude result totals after task progress snapshots are recorded",
     () => {
       const harness = makeHarness();
       return Effect.gen(function* () {
         const adapter = yield* ClaudeAdapter;
 
-        const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 8).pipe(
+        const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 9).pipe(
           Stream.runCollect,
           Effect.forkChild,
         );
@@ -2215,8 +1810,8 @@ describe("ClaudeAdapterLive", () => {
         if (finalUsageEvent?.type === "thread.token-usage.updated") {
           assert.deepEqual(finalUsageEvent.payload, {
             usage: {
-              usedTokens: 200000,
-              lastUsedTokens: 200000,
+              usedTokens: 190000,
+              lastUsedTokens: 190000,
               totalProcessedTokens: 535000,
               maxTokens: 200000,
             },

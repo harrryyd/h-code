@@ -21,12 +21,6 @@ export type SourceControlProviderInfo = typeof SourceControlProviderInfo.Type;
 export const ChangeRequestState = Schema.Literals(["open", "closed", "merged"]);
 export type ChangeRequestState = typeof ChangeRequestState.Type;
 
-export const ChangeRequestLabel = Schema.Struct({
-  name: TrimmedNonEmptyString,
-  color: Schema.optional(TrimmedNonEmptyString),
-});
-export type ChangeRequestLabel = typeof ChangeRequestLabel.Type;
-
 export const ChangeRequest = Schema.Struct({
   provider: SourceControlProviderKind,
   number: PositiveInt,
@@ -35,7 +29,6 @@ export const ChangeRequest = Schema.Struct({
   baseRefName: TrimmedNonEmptyString,
   headRefName: TrimmedNonEmptyString,
   state: ChangeRequestState,
-  labels: Schema.optional(Schema.Array(ChangeRequestLabel)),
   updatedAt: Schema.Option(Schema.DateTimeUtc),
   isCrossRepository: Schema.optional(Schema.Boolean),
   headRepositoryNameWithOwner: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
@@ -184,57 +177,3 @@ export class SourceControlRepositoryError extends Schema.TaggedErrorClass<Source
     return `Source control repository operation ${this.operation} failed for ${this.provider}: ${this.detail}`;
   }
 }
-
-export const ReviewCommentAuthor = Schema.Struct({
-  login: TrimmedNonEmptyString,
-});
-export type ReviewCommentAuthor = typeof ReviewCommentAuthor.Type;
-
-export const ReviewCommentAgentStatus = Schema.Literals([
-  "pending",
-  "resolved",
-  "suggestion",
-  "idle",
-  "running",
-  "completed",
-  "failed",
-]);
-export type ReviewCommentAgentStatus = typeof ReviewCommentAgentStatus.Type;
-
-export interface ReviewComment {
-  readonly id: string;
-  readonly file: string;
-  readonly line?: number | undefined;
-  readonly commitSHA: string;
-  readonly body: string;
-  readonly replies?: ReadonlyArray<ReviewComment> | undefined;
-  readonly agentStatus?: ReviewCommentAgentStatus | undefined;
-  readonly author: ReviewCommentAuthor;
-  readonly createdAt: string;
-}
-
-export const ReviewComment = Schema.Struct({
-  id: TrimmedNonEmptyString,
-  file: TrimmedNonEmptyString,
-  line: Schema.optional(PositiveInt),
-  commitSHA: TrimmedNonEmptyString,
-  body: TrimmedNonEmptyString,
-  replies: Schema.optional(
-    Schema.Array(Schema.suspend((): Schema.Codec<ReviewComment> => ReviewComment)),
-  ),
-  agentStatus: Schema.optional(ReviewCommentAgentStatus),
-  author: ReviewCommentAuthor,
-  createdAt: Schema.String,
-});
-
-export const ReviewDraftState = Schema.Literals(["draft", "published"]);
-export type ReviewDraftState = typeof ReviewDraftState.Type;
-
-export const ReviewDraft = Schema.Struct({
-  threadId: TrimmedNonEmptyString,
-  prNumber: PositiveInt,
-  prHeadSHA: TrimmedNonEmptyString,
-  comments: Schema.Array(ReviewComment),
-  state: ReviewDraftState,
-});
-export type ReviewDraft = typeof ReviewDraft.Type;

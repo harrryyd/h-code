@@ -1,7 +1,5 @@
 import type {
   EnvironmentId,
-  ManagerProjectMetadata,
-  ManagerThreadMetadata,
   ModelSelection,
   OrchestrationLatestTurn,
   OrchestrationProposedPlanId,
@@ -16,7 +14,6 @@ import type {
   ProviderDriverKind,
   ProviderInstanceId,
   CheckpointRef,
-  ContextTrimPoint,
   ProviderInteractionMode,
   RuntimeMode,
 } from "@t3tools/contracts";
@@ -89,7 +86,6 @@ export interface Project {
   environmentId: EnvironmentId;
   name: string;
   cwd: string;
-  managerMetadata?: ManagerProjectMetadata;
   repositoryIdentity?: RepositoryIdentity | null;
   defaultModelSelection: ModelSelection | null;
   createdAt?: string | undefined;
@@ -103,7 +99,6 @@ export interface Thread {
   codexThreadId: string | null;
   projectId: ProjectId;
   title: string;
-  managerMetadata?: ManagerThreadMetadata;
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
@@ -120,7 +115,6 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
-  contextTrimPoints: ReadonlyArray<ContextTrimPoint>;
 }
 
 export interface ThreadShell {
@@ -129,7 +123,6 @@ export interface ThreadShell {
   codexThreadId: string | null;
   projectId: ProjectId;
   title: string;
-  managerMetadata?: ManagerThreadMetadata;
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
@@ -151,7 +144,6 @@ export interface SidebarThreadSummary {
   environmentId: EnvironmentId;
   projectId: ProjectId;
   title: string;
-  managerMetadata?: ManagerThreadMetadata;
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
   createdAt: string;

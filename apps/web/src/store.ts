@@ -226,7 +226,6 @@ function mapProject(
     environmentId,
     name: project.title,
     cwd: project.workspaceRoot,
-    ...(project.managerMetadata ? { managerMetadata: project.managerMetadata } : {}),
     repositoryIdentity: project.repositoryIdentity ?? null,
     defaultModelSelection: project.defaultModelSelection
       ? normalizeModelSelection(project.defaultModelSelection)
@@ -244,7 +243,6 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     codexThreadId: null,
     projectId: thread.projectId,
     title: thread.title,
-    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     modelSelection: normalizeModelSelection(thread.modelSelection),
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
@@ -261,7 +259,6 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     worktreePath: thread.worktreePath,
     turnDiffSummaries: thread.checkpoints.map(mapTurnDiffSummary),
     activities: thread.activities.map((activity) => ({ ...activity })),
-    contextTrimPoints: thread.contextTrimPoints,
   };
 }
 
@@ -280,7 +277,6 @@ function mapThreadShell(
     codexThreadId: null,
     projectId: thread.projectId,
     title: thread.title,
-    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     modelSelection: normalizeModelSelection(thread.modelSelection),
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
@@ -301,7 +297,6 @@ function mapThreadShell(
     environmentId,
     projectId: thread.projectId,
     title: thread.title,
-    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     interactionMode: thread.interactionMode,
     session,
     createdAt: thread.createdAt,
@@ -330,7 +325,6 @@ function toThreadShell(thread: Thread): ThreadShell {
     codexThreadId: thread.codexThreadId,
     projectId: thread.projectId,
     title: thread.title,
-    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     modelSelection: thread.modelSelection,
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
@@ -427,7 +421,6 @@ function threadShellsEqual(left: ThreadShell | undefined, right: ThreadShell): b
     left.codexThreadId === right.codexThreadId &&
     left.projectId === right.projectId &&
     left.title === right.title &&
-    left.managerMetadata === right.managerMetadata &&
     left.modelSelection === right.modelSelection &&
     left.runtimeMode === right.runtimeMode &&
     left.interactionMode === right.interactionMode &&
@@ -1273,9 +1266,6 @@ function applyEnvironmentOrchestrationEvent(
           id: event.payload.threadId,
           projectId: event.payload.projectId,
           title: event.payload.title,
-          ...(event.payload.managerMetadata
-            ? { managerMetadata: event.payload.managerMetadata }
-            : {}),
           modelSelection: event.payload.modelSelection,
           runtimeMode: event.payload.runtimeMode,
           interactionMode: event.payload.interactionMode,
@@ -1290,7 +1280,6 @@ function applyEnvironmentOrchestrationEvent(
           proposedPlans: [],
           activities: [],
           checkpoints: [],
-          contextTrimPoints: [],
           session: null,
         },
         environmentId,

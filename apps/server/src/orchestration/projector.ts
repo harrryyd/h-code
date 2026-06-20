@@ -15,7 +15,6 @@ import {
   ProjectDeletedPayload,
   ProjectMetaUpdatedPayload,
   ThreadActivityAppendedPayload,
-  ThreadArchivedAndNewCreatedPayload,
   ThreadArchivedPayload,
   ThreadCreatedPayload,
   ThreadDeletedPayload,
@@ -23,13 +22,10 @@ import {
   ThreadMetaUpdatedPayload,
   ThreadProposedPlanUpsertedPayload,
   ThreadRuntimeModeSetPayload,
-  ThreadSeededWorkItemsUpsertedPayload,
   ThreadUnarchivedPayload,
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
   ThreadTurnDiffCompletedPayload,
-  ThreadManagerQueueItemsUpsertedPayload,
-  ThreadTrimPointCreatedPayload,
 } from "./Schemas.ts";
 
 type ThreadPatch = Partial<Omit<OrchestrationThread, "id" | "projectId">>;
@@ -187,9 +183,6 @@ export function projectEvent(
             id: payload.projectId,
             title: payload.title,
             workspaceRoot: payload.workspaceRoot,
-            ...(payload.managerMetadata !== undefined
-              ? { managerMetadata: payload.managerMetadata }
-              : {}),
             defaultModelSelection: payload.defaultModelSelection,
             scripts: payload.scripts,
             createdAt: payload.createdAt,
@@ -261,9 +254,6 @@ export function projectEvent(
             id: payload.threadId,
             projectId: payload.projectId,
             title: payload.title,
-            ...(payload.managerMetadata !== undefined
-              ? { managerMetadata: payload.managerMetadata }
-              : {}),
             modelSelection: payload.modelSelection,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,
@@ -275,9 +265,6 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
-            seededWorkItems: [],
-            managerQueueItems: [],
-            proposedPlans: [],
             activities: [],
             checkpoints: [],
             session: null,
@@ -301,22 +288,6 @@ export function projectEvent(
           threads: updateThread(nextBase.threads, payload.threadId, {
             deletedAt: payload.deletedAt,
             updatedAt: payload.deletedAt,
-          }),
-        })),
-      );
-
-    case "thread.seeded-work-items-upserted":
-      return decodeForEvent(
-        ThreadSeededWorkItemsUpsertedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            seededWorkItems: payload.seededWorkItems,
-            updatedAt: payload.updatedAt,
           }),
         })),
       );
@@ -676,104 +647,6 @@ export function projectEvent(
           };
         }),
       );
-
-    case "thread.manager-queue-items-upserted":
-      return decodeForEvent(
-        ThreadManagerQueueItemsUpsertedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            managerQueueItems: payload.managerQueueItems,
-            updatedAt: payload.updatedAt,
-          }),
-        })),
-      );
-
-    case "thread.trim-point-created":
-      return decodeForEvent(
-        ThreadTrimPointCreatedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => {
-          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
-          if (!thread) {
-            return nextBase;
-          }
-          const contextTrimPoints = [...thread.contextTrimPoints, payload.trimPoint].toSorted(
-            (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-          );
-          return {
-            ...nextBase,
-            threads: updateThread(nextBase.threads, payload.threadId, {
-              contextTrimPoints,
-              updatedAt: event.occurredAt,
-            }),
-          };
-        }),
-      );
-
-    case "thread.archived-and-new-created":
-      return Effect.gen(function* () {
-        const payload = yield* decodeForEvent(
-          ThreadArchivedAndNewCreatedPayload,
-          event.payload,
-          event.type,
-          "payload",
-        );
-        const oldThread = nextBase.threads.find((entry) => entry.id === payload.archivedThreadId);
-        if (!oldThread) {
-          return nextBase;
-        }
-
-        const newThread: OrchestrationThread = yield* decodeForEvent(
-          OrchestrationThread,
-          {
-            id: payload.newThreadId,
-            projectId: oldThread.projectId,
-            title: oldThread.title,
-            ...(oldThread.managerMetadata !== undefined
-              ? { managerMetadata: oldThread.managerMetadata }
-              : {}),
-            modelSelection: oldThread.modelSelection,
-            runtimeMode: oldThread.runtimeMode,
-            interactionMode: oldThread.interactionMode,
-            branch: oldThread.branch,
-            worktreePath: oldThread.worktreePath,
-            latestTurn: null,
-            createdAt: payload.createdAt,
-            updatedAt: payload.createdAt,
-            archivedAt: null,
-            deletedAt: null,
-            messages: [],
-            seededWorkItems: [],
-            managerQueueItems: [],
-            proposedPlans: [],
-            activities: [],
-            checkpoints: [],
-            session: null,
-          },
-          event.type,
-          "thread",
-        );
-
-        return {
-          ...nextBase,
-          threads: [
-            ...nextBase.threads.map((entry) =>
-              entry.id === payload.archivedThreadId
-                ? { ...entry, archivedAt: payload.createdAt, updatedAt: payload.createdAt }
-                : entry,
-            ),
-            newThread,
-          ],
-        };
-      });
 
     default:
       return Effect.succeed(nextBase);

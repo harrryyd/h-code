@@ -12,7 +12,6 @@ import type {
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
 const EMPTY_ACTIVITIES: Thread["activities"] = [];
-const EMPTY_CONTEXT_TRIM_POINTS: Thread["contextTrimPoints"] = [];
 const EMPTY_PROPOSED_PLANS: ProposedPlan[] = [];
 const EMPTY_TURN_DIFF_SUMMARIES: TurnDiffSummary[] = [];
 const EMPTY_MESSAGE_MAP: Record<MessageId, ChatMessage> = {};
@@ -137,7 +136,6 @@ export function getThreadFromEnvironmentState(
     activities,
     proposedPlans,
     turnDiffSummaries,
-    contextTrimPoints: EMPTY_CONTEXT_TRIM_POINTS,
   };
 
   threadCache.set(shell, {

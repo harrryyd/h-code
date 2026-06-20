@@ -1,16 +1,11 @@
 import * as React from "react";
-import {
-  DEFAULT_SIDEBAR_PROJECT_SORT_ORDER,
-  type SidebarProjectSortOrder,
-  type SidebarThreadSortOrder,
-} from "@t3tools/contracts/settings";
+import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
 import {
   getThreadSortTimestamp,
   sortThreads,
   toSortableTimestamp,
   type ThreadSortInput,
 } from "../lib/threadSort";
-import { resolveProjectDefaultedNewThreadSeedContext } from "../lib/newThreadSeedContext";
 import type { SidebarThreadSummary, Thread } from "../types";
 import { cn } from "../lib/utils";
 import { isLatestTurnSettled } from "../session-logic";
@@ -191,7 +186,31 @@ export function resolveSidebarNewThreadSeedContext(input: {
   worktreePath?: string | null;
   envMode: SidebarNewThreadEnvMode;
 } {
-  return resolveProjectDefaultedNewThreadSeedContext(input);
+  if (input.defaultEnvMode === "worktree") {
+    return {
+      envMode: "worktree",
+    };
+  }
+
+  if (input.activeDraftThread?.projectId === input.projectId) {
+    return {
+      branch: input.activeDraftThread.branch,
+      worktreePath: input.activeDraftThread.worktreePath,
+      envMode: input.activeDraftThread.envMode,
+    };
+  }
+
+  if (input.activeThread?.projectId === input.projectId) {
+    return {
+      branch: input.activeThread.branch,
+      worktreePath: input.activeThread.worktreePath,
+      envMode: input.activeThread.worktreePath ? "worktree" : "local",
+    };
+  }
+
+  return {
+    envMode: input.defaultEnvMode,
+  };
 }
 
 export function orderItemsByPreferredIds<TItem, TId>(input: {
@@ -220,41 +239,6 @@ export function orderItemsByPreferredIds<TItem, TId>(input: {
   });
   const remaining = items.filter((item) => !preferredIdSet.has(getId(item)));
   return [...ordered, ...remaining];
-}
-
-export function resolveEffectiveSidebarProjectSortOrder(input: {
-  sortOrder: SidebarProjectSortOrder;
-  hasManualSidebarGroups: boolean;
-}): SidebarProjectSortOrder {
-  return input.hasManualSidebarGroups && input.sortOrder === "manual"
-    ? DEFAULT_SIDEBAR_PROJECT_SORT_ORDER
-    : input.sortOrder;
-}
-
-export function getVisibleSidebarProjects<TProject>(input: {
-  sections: readonly {
-    kind: "manual" | "ungrouped";
-    collapsed: boolean;
-    projects: readonly TProject[];
-  }[];
-}): TProject[] {
-  return input.sections.flatMap((section) =>
-    section.kind === "manual" && section.collapsed ? [] : section.projects,
-  );
-}
-
-export function orderSidebarSectionProjectsByPreferredIds<
-  TProject extends { projectKey: string },
-  TSection extends { projects: readonly TProject[] },
->(input: { sections: readonly TSection[]; preferredProjectKeys: readonly string[] }): TSection[] {
-  return input.sections.map((section) => ({
-    ...section,
-    projects: orderItemsByPreferredIds({
-      items: section.projects,
-      preferredIds: input.preferredProjectKeys,
-      getId: (project) => project.projectKey,
-    }),
-  }));
 }
 
 export function getVisibleSidebarThreadIds<TThreadId>(
@@ -554,8 +538,4 @@ export function sortProjectsForSidebar<
     if (byTimestamp !== 0) return byTimestamp;
     return left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
   });
-}
-
-export function isWorkerThread(thread: { managerMetadata?: { role: string } | null }): boolean {
-  return thread.managerMetadata?.role === "worker";
 }

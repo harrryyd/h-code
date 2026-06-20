@@ -35,10 +35,6 @@ export interface ProviderInstanceEntry {
   readonly driverKind: ProviderDriverKind;
   readonly displayName: string;
   readonly accentColor?: string | undefined;
-  readonly capabilities: {
-    readonly sessionModelSwitch: "in-session" | "unsupported";
-    readonly supportsMcpToggle: boolean;
-  };
   readonly continuationGroupKey?: string | undefined;
   readonly enabled: boolean;
   readonly installed: boolean;
@@ -146,10 +142,6 @@ export function deriveProviderInstanceEntries(
       driverKind,
       displayName,
       accentColor: normalizeProviderAccentColor(snapshot.accentColor),
-      capabilities: snapshot.capabilities ?? {
-        sessionModelSwitch: "unsupported",
-        supportsMcpToggle: false,
-      },
       continuationGroupKey: snapshot.continuation?.groupKey,
       enabled: snapshot.enabled,
       installed: snapshot.installed,

@@ -200,9 +200,6 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         DEFAULT_KEYBINDINGS.map((binding) => [binding.command, binding.key] as const),
       );
 
-      assert.equal(defaultsByCommand.get("chat.focus"), "mod+i");
-      assert.equal(defaultsByCommand.get("chat.newInProject"), "mod+alt+n");
-      assert.equal(defaultsByCommand.get("thread.renameCurrent"), "mod+shift+e");
       assert.equal(defaultsByCommand.get("thread.previous"), "mod+shift+[");
       assert.equal(defaultsByCommand.get("thread.next"), "mod+shift+]");
       assert.equal(defaultsByCommand.get("thread.jump.1"), "mod+1");

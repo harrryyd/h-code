@@ -14,8 +14,6 @@ import {
   deriveLogicalProjectKeyFromSettings,
   getProjectOrderKey,
   selectProjectGroupingSettings,
-  selectProjectThreadDefaultsSettings,
-  resolveProjectThreadEnvMode,
 } from "../logicalProject";
 import { selectProjectsAcrossEnvironments, useStore } from "../store";
 import { createThreadSelectorByRef } from "../storeSelectors";
@@ -26,7 +24,6 @@ import { useSettings } from "./useSettings";
 function useNewThreadState() {
   const projects = useStore(useShallow((store) => selectProjectsAcrossEnvironments(store)));
   const projectGroupingSettings = useSettings(selectProjectGroupingSettings);
-  const projectThreadDefaultsSettings = useSettings(selectProjectThreadDefaultsSettings);
   const router = useRouter();
   const getCurrentRouteTarget = useCallback(() => {
     const currentRouteParams = router.state.matches[router.state.matches.length - 1]?.params ?? {};
@@ -56,9 +53,6 @@ function useNewThreadState() {
           candidate.id === projectRef.projectId &&
           candidate.environmentId === projectRef.environmentId,
       );
-      const resolvedDefaultEnvMode = project
-        ? resolveProjectThreadEnvMode(project, projectThreadDefaultsSettings)
-        : projectThreadDefaultsSettings.defaultThreadEnvMode;
       const logicalProjectKey = project
         ? deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings)
         : scopedProjectKey(projectRef);
@@ -130,7 +124,7 @@ function useNewThreadState() {
           createdAt,
           branch: options?.branch ?? null,
           worktreePath: options?.worktreePath ?? null,
-          envMode: options?.envMode ?? resolvedDefaultEnvMode,
+          envMode: options?.envMode ?? "local",
           runtimeMode: DEFAULT_RUNTIME_MODE,
         });
         applyStickyState(draftId);
@@ -141,13 +135,7 @@ function useNewThreadState() {
         });
       })();
     },
-    [
-      getCurrentRouteTarget,
-      projectGroupingSettings,
-      projectThreadDefaultsSettings,
-      router,
-      projects,
-    ],
+    [getCurrentRouteTarget, projectGroupingSettings, router, projects],
   );
 }
 

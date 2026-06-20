@@ -35,7 +35,6 @@ export type ComposerCommandItem =
       command: ComposerSlashCommand;
       label: string;
       description: string;
-      disabled?: boolean;
     }
   | {
       id: string;
@@ -213,7 +212,6 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
     <CommandItem
       value={props.item.id}
       data-composer-item-id={props.item.id}
-      disabled={"disabled" in props.item ? props.item.disabled : undefined}
       className={cn(
         "cursor-pointer select-none gap-2 hover:bg-transparent hover:text-inherit data-highlighted:bg-transparent data-highlighted:text-inherit",
         props.isActive && "bg-accent! text-accent-foreground!",

@@ -9,29 +9,12 @@ const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 
 describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
-  it("defaults projectThreadDefaults to an empty record", () => {
-    expect(DEFAULT_SERVER_SETTINGS.projectThreadDefaults).toEqual({});
-  });
-
-  it("defaults manual sidebar group settings to empty collections", () => {
-    expect(DEFAULT_SERVER_SETTINGS.manualSidebarGroups).toEqual([]);
-    expect(DEFAULT_SERVER_SETTINGS.projectManualSidebarGroupAssignments).toEqual({});
-  });
-
   it("defaults to an empty record so legacy configs without the key still decode", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});
   });
 
-  it("defaults MCP default preferences to an empty record", () => {
-    expect(DEFAULT_SERVER_SETTINGS.mcpDefaultPreferences).toEqual({});
-    expect(decodeServerSettings({}).mcpDefaultPreferences).toEqual({});
-  });
-
   it("decodes a fully empty config (legacy on-disk shape) without complaint", () => {
     const decoded = decodeServerSettings({});
-    expect(decoded.projectThreadDefaults).toEqual({});
-    expect(decoded.manualSidebarGroups).toEqual([]);
-    expect(decoded.projectManualSidebarGroupAssignments).toEqual({});
     expect(decoded.providerInstances).toEqual({});
     // Legacy `providers` struct is still hydrated with its per-driver defaults
     // so existing call sites keep working through the migration.
@@ -82,40 +65,6 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
 });
 
 describe("ServerSettingsPatch.providerInstances", () => {
-  it("decodes project thread defaults as an optional map", () => {
-    const patch = decodeServerSettingsPatch({
-      projectThreadDefaults: {
-        "primary:/Users/julius/Code/t3code": "worktree",
-        "remote-1:/Users/julius/Code/t3code": "inherit",
-      },
-    });
-
-    expect(patch.projectThreadDefaults).toEqual({
-      "primary:/Users/julius/Code/t3code": "worktree",
-      "remote-1:/Users/julius/Code/t3code": "inherit",
-    });
-  });
-
-  it("decodes manual sidebar groups and project assignments as optional settings", () => {
-    const patch = decodeServerSettingsPatch({
-      manualSidebarGroups: [
-        { id: "ops", name: "Ops" },
-        { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
-      ],
-      projectManualSidebarGroupAssignments: {
-        "primary:/Users/julius/Code/t3code": "frontend",
-      },
-    });
-
-    expect(patch.manualSidebarGroups).toEqual([
-      { id: "ops", name: "Ops", color: "slate", collapsed: false },
-      { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
-    ]);
-    expect(patch.projectManualSidebarGroupAssignments).toEqual({
-      "primary:/Users/julius/Code/t3code": "frontend",
-    });
-  });
-
   it("treats providerInstances as an optional whole-map replacement", () => {
     const patch = decodeServerSettingsPatch({});
     expect(patch.providerInstances).toBeUndefined();

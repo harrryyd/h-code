@@ -62,22 +62,11 @@ function commandToAggregateRef(command: OrchestrationCommand): {
 } {
   switch (command.type) {
     case "project.create":
-    case "manager.bootstrap":
     case "project.meta.update":
     case "project.delete":
       return {
         aggregateKind: "project",
         aggregateId: command.projectId,
-      };
-    case "manager.refinement-handoff.record":
-      return {
-        aggregateKind: "thread",
-        aggregateId: command.refinerThreadId,
-      };
-    case "worker.delegate":
-      return {
-        aggregateKind: "thread",
-        aggregateId: command.workerThreadId,
       };
     default:
       return {

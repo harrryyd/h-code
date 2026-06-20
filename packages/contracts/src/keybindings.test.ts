@@ -7,7 +7,6 @@ import {
   KeybindingRule,
   ResolvedKeybindingRule,
   ResolvedKeybindingsConfig,
-  STATIC_KEYBINDING_COMMANDS,
 } from "./keybindings.ts";
 
 const decode = <S extends Schema.Top>(
@@ -48,29 +47,11 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedCommandPalette.command, "commandPalette.toggle");
 
-    const parsedFocusChat = yield* decode(KeybindingRule, {
-      key: "mod+i",
-      command: "chat.focus",
-    });
-    assert.strictEqual(parsedFocusChat.command, "chat.focus");
-
-    const parsedProjectPicker = yield* decode(KeybindingRule, {
-      key: "mod+alt+n",
-      command: "chat.newInProject",
-    });
-    assert.strictEqual(parsedProjectPicker.command, "chat.newInProject");
-
     const parsedLocal = yield* decode(KeybindingRule, {
       key: "mod+shift+n",
       command: "chat.newLocal",
     });
     assert.strictEqual(parsedLocal.command, "chat.newLocal");
-
-    const parsedRenameCurrent = yield* decode(KeybindingRule, {
-      key: "mod+shift+e",
-      command: "thread.renameCurrent",
-    });
-    assert.strictEqual(parsedRenameCurrent.command, "thread.renameCurrent");
 
     const parsedModelPickerToggle = yield* decode(KeybindingRule, {
       key: "mod+shift+m",
@@ -89,12 +70,6 @@ it.effect("parses keybinding rules", () =>
       command: "thread.previous",
     });
     assert.strictEqual(parsedThreadPrevious.command, "thread.previous");
-
-    const parsedTodoToggle = yield* decode(KeybindingRule, {
-      key: "mod+l",
-      command: "todo.toggle",
-    });
-    assert.strictEqual(parsedTodoToggle.command, "todo.toggle");
   }),
 );
 
@@ -204,10 +179,4 @@ it.effect("drops unknown fields in resolved keybinding rules", () =>
       assert.strictEqual(view.command, "terminal.toggle");
     }),
   ),
-);
-
-it.effect("STATIC_KEYBINDING_COMMANDS includes todo.toggle", () =>
-  Effect.sync(() => {
-    assert.isTrue(STATIC_KEYBINDING_COMMANDS.includes("todo.toggle"));
-  }),
 );

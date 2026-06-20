@@ -102,35 +102,6 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = Schema.decodeSync(ClientS
 export const ThreadEnvMode = Schema.Literals(["local", "worktree"]);
 export type ThreadEnvMode = typeof ThreadEnvMode.Type;
 
-export const ProjectThreadDefaultMode = Schema.Literals(["inherit", "local", "worktree"]);
-export type ProjectThreadDefaultMode = typeof ProjectThreadDefaultMode.Type;
-
-export const ManualSidebarGroupId = TrimmedNonEmptyString;
-export type ManualSidebarGroupId = typeof ManualSidebarGroupId.Type;
-
-export const ManualSidebarGroupColorPalette = Schema.Literals([
-  "slate",
-  "sky",
-  "mint",
-  "sage",
-  "amber",
-  "peach",
-  "rose",
-  "lavender",
-]);
-export type ManualSidebarGroupColorPalette = typeof ManualSidebarGroupColorPalette.Type;
-export const DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE: ManualSidebarGroupColorPalette = "slate";
-
-export const ManualSidebarGroup = Schema.Struct({
-  id: ManualSidebarGroupId,
-  name: TrimmedNonEmptyString,
-  color: ManualSidebarGroupColorPalette.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE)),
-  ),
-  collapsed: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-});
-export type ManualSidebarGroup = typeof ManualSidebarGroup.Type;
-
 const makeBinaryPathSetting = (fallback: string) =>
   TrimmedString.pipe(
     Schema.decodeTo(
@@ -402,16 +373,6 @@ export const ServerSettings = Schema.Struct({
   defaultThreadEnvMode: ThreadEnvMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("local" as const satisfies ThreadEnvMode)),
   ),
-  projectThreadDefaults: Schema.Record(TrimmedNonEmptyString, ProjectThreadDefaultMode).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
-  manualSidebarGroups: Schema.Array(ManualSidebarGroup).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
-  ),
-  projectManualSidebarGroupAssignments: Schema.Record(
-    TrimmedNonEmptyString,
-    ManualSidebarGroupId,
-  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   addProjectBaseDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   textGenerationModelSelection: ModelSelection.pipe(
     Schema.withDecodingDefault(
@@ -421,7 +382,6 @@ export const ServerSettings = Schema.Struct({
       }),
     ),
   ),
-  reviewAgentInstanceId: Schema.optional(ProviderInstanceId),
 
   // Legacy single-instance-per-driver settings. Continues to be the source
   // of truth until `providerInstances` (below) lands per-driver migration
@@ -444,10 +404,6 @@ export const ServerSettings = Schema.Struct({
   providerInstances: Schema.Record(ProviderInstanceId, ProviderInstanceConfig).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
-  mcpDefaultPreferences: Schema.Record(
-    ProviderInstanceId,
-    Schema.Record(TrimmedNonEmptyString, Schema.Boolean),
-  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   observability: ObservabilitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
 });
 export type ServerSettings = typeof ServerSettings.Type;
@@ -525,13 +481,6 @@ export const ServerSettingsPatch = Schema.Struct({
   enableAssistantStreaming: Schema.optionalKey(Schema.Boolean),
   automaticGitFetchInterval: Schema.optionalKey(Schema.DurationFromMillis),
   defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
-  projectThreadDefaults: Schema.optionalKey(
-    Schema.Record(TrimmedNonEmptyString, ProjectThreadDefaultMode),
-  ),
-  manualSidebarGroups: Schema.optionalKey(Schema.Array(ManualSidebarGroup)),
-  projectManualSidebarGroupAssignments: Schema.optionalKey(
-    Schema.Record(TrimmedNonEmptyString, ManualSidebarGroupId),
-  ),
   addProjectBaseDirectory: Schema.optionalKey(TrimmedString),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
   observability: Schema.optionalKey(
@@ -554,9 +503,6 @@ export const ServerSettingsPatch = Schema.Struct({
   // patches risk leaving driver-specific config in a half-merged state.
   // The web UI sends a fully-formed map every time it edits this field.
   providerInstances: Schema.optionalKey(Schema.Record(ProviderInstanceId, ProviderInstanceConfig)),
-  mcpDefaultPreferences: Schema.optionalKey(
-    Schema.Record(ProviderInstanceId, Schema.Record(TrimmedNonEmptyString, Schema.Boolean)),
-  ),
 });
 export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 

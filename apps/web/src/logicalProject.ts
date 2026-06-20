@@ -1,11 +1,6 @@
 import { scopedProjectKey, scopeProjectRef } from "@t3tools/client-runtime";
 import type { ScopedProjectRef, SidebarProjectGroupingMode } from "@t3tools/contracts";
-import type {
-  ManualSidebarGroup,
-  ProjectThreadDefaultMode,
-  ThreadEnvMode,
-  UnifiedSettings,
-} from "@t3tools/contracts/settings";
+import type { UnifiedSettings } from "@t3tools/contracts/settings";
 import { normalizeProjectPathForComparison } from "./lib/projectPaths";
 import type { Project } from "./types";
 
@@ -14,40 +9,12 @@ export interface ProjectGroupingSettings {
   sidebarProjectGroupingOverrides: Record<string, SidebarProjectGroupingMode>;
 }
 
-export interface ProjectThreadDefaultsSettings {
-  defaultThreadEnvMode: ThreadEnvMode;
-  projectThreadDefaults: Record<string, ProjectThreadDefaultMode>;
-}
-
-export interface ManualSidebarGroupsSettings {
-  manualSidebarGroups: readonly ManualSidebarGroup[];
-  projectManualSidebarGroupAssignments: Record<string, string>;
-}
-
 export type ProjectGroupingMode = SidebarProjectGroupingMode;
 
 export function selectProjectGroupingSettings(settings: UnifiedSettings): ProjectGroupingSettings {
   return {
     sidebarProjectGroupingMode: settings.sidebarProjectGroupingMode,
     sidebarProjectGroupingOverrides: settings.sidebarProjectGroupingOverrides,
-  };
-}
-
-export function selectProjectThreadDefaultsSettings(
-  settings: UnifiedSettings,
-): ProjectThreadDefaultsSettings {
-  return {
-    defaultThreadEnvMode: settings.defaultThreadEnvMode,
-    projectThreadDefaults: settings.projectThreadDefaults,
-  };
-}
-
-export function selectManualSidebarGroupsSettings(
-  settings: UnifiedSettings,
-): ManualSidebarGroupsSettings {
-  return {
-    manualSidebarGroups: settings.manualSidebarGroups,
-    projectManualSidebarGroupAssignments: settings.projectManualSidebarGroupAssignments,
   };
 }
 
@@ -106,18 +73,6 @@ export function deriveProjectGroupingOverrideKey(
   return derivePhysicalProjectKey(project);
 }
 
-export function deriveProjectThreadDefaultOverrideKey(
-  project: Pick<Project, "environmentId" | "cwd">,
-): string {
-  return derivePhysicalProjectKey(project);
-}
-
-export function deriveProjectManualSidebarGroupAssignmentKey(
-  project: Pick<Project, "environmentId" | "cwd">,
-): string {
-  return derivePhysicalProjectKey(project);
-}
-
 // Key under which a project's manual sort order (projectOrder) is stored.
 // Must stay aligned with the writer side in `uiStateStore.syncProjects` and
 // the drag handlers in `Sidebar` so readers and writers agree.
@@ -133,40 +88,6 @@ export function resolveProjectGroupingMode(
     settings.sidebarProjectGroupingOverrides?.[deriveProjectGroupingOverrideKey(project)] ??
     settings.sidebarProjectGroupingMode
   );
-}
-
-export function resolveProjectThreadDefaultMode(
-  project: Pick<Project, "environmentId" | "cwd">,
-  settings: ProjectThreadDefaultsSettings,
-): ProjectThreadDefaultMode {
-  return (
-    settings.projectThreadDefaults?.[deriveProjectThreadDefaultOverrideKey(project)] ?? "inherit"
-  );
-}
-
-export function resolveProjectThreadEnvMode(
-  project: Pick<Project, "environmentId" | "cwd">,
-  settings: ProjectThreadDefaultsSettings,
-): ThreadEnvMode {
-  const projectDefaultMode = resolveProjectThreadDefaultMode(project, settings);
-  return projectDefaultMode === "inherit" ? settings.defaultThreadEnvMode : projectDefaultMode;
-}
-
-export function resolveProjectManualSidebarGroupId(
-  project: Pick<Project, "environmentId" | "cwd">,
-  settings: ManualSidebarGroupsSettings,
-): string | null {
-  const assignedGroupId =
-    settings.projectManualSidebarGroupAssignments?.[
-      deriveProjectManualSidebarGroupAssignmentKey(project)
-    ] ?? null;
-  if (assignedGroupId === null) {
-    return null;
-  }
-
-  return settings.manualSidebarGroups.some((group) => group.id === assignedGroupId)
-    ? assignedGroupId
-    : null;
 }
 
 function deriveRepositoryScopedKey(

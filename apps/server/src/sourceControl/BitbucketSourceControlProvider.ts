@@ -109,22 +109,6 @@ export const make = Effect.fn("makeBitbucketSourceControlProvider")(function* ()
           ...(input.force !== undefined ? { force: input.force } : {}),
         })
         .pipe(Effect.mapError((error) => providerError("checkoutChangeRequest", error))),
-    getPullRequestReviews: (_input) =>
-      Effect.fail(
-        new SourceControlProviderError({
-          provider: "bitbucket",
-          operation: "getPullRequestReviews",
-          detail: "Not implemented for this provider.",
-        }),
-      ),
-    createPullRequestReview: (_input) =>
-      Effect.fail(
-        new SourceControlProviderError({
-          provider: "bitbucket",
-          operation: "createPullRequestReview",
-          detail: "Not implemented for this provider.",
-        }),
-      ),
   });
 });
 

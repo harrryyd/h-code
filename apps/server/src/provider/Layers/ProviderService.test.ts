@@ -196,13 +196,6 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = CODEX_DRIVER) {
       Effect.succeed({ threadId, turns: [] }),
   );
 
-  const compactThread = vi.fn(
-    (
-      _threadId: ThreadId,
-    ): Effect.Effect<{ summary: string; durationMs: number }, ProviderAdapterError> =>
-      Effect.succeed({ summary: "", durationMs: 0 }),
-  );
-
   const stopAll = vi.fn(
     (): Effect.Effect<void, ProviderAdapterError> =>
       Effect.sync(() => {
@@ -214,7 +207,6 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = CODEX_DRIVER) {
     provider,
     capabilities: {
       sessionModelSwitch: "in-session",
-      supportsMcpToggle: false,
     },
     startSession,
     sendTurn,
@@ -226,7 +218,6 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = CODEX_DRIVER) {
     hasSession,
     readThread,
     rollbackThread,
-    compactThread,
     stopAll,
     get streamEvents() {
       return Stream.fromPubSub(runtimeEventPubSub);
@@ -384,10 +375,6 @@ it.effect("ProviderServiceLive rejects new sessions for disabled providers", () 
                 driverKind: CLAUDE_AGENT_DRIVER,
                 continuationKey: "claudeAgent:instance:claudeAgent",
               },
-              capabilities: {
-                sessionModelSwitch: "in-session",
-                supportsMcpToggle: false,
-              },
             })
           : registryBase.getInstanceInfo(instanceId),
     };
@@ -448,10 +435,6 @@ it.effect(
                 continuationIdentity: {
                   driverKind,
                   continuationKey: "codex:/Users/example/.codex",
-                },
-                capabilities: {
-                  sessionModelSwitch: "in-session",
-                  supportsMcpToggle: false,
                 },
               })
             : Effect.fail(unsupported()),
@@ -523,10 +506,6 @@ it.effect("ProviderServiceLive rejects new sessions for disabled custom instance
               continuationIdentity: {
                 driverKind,
                 continuationKey: "codex:/Users/example/.codex",
-              },
-              capabilities: {
-                sessionModelSwitch: "in-session",
-                supportsMcpToggle: false,
               },
             })
           : Effect.fail(unsupported()),

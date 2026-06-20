@@ -55,10 +55,6 @@ interface FakeGhScenario {
     baseRefName: string;
     headRefName: string;
     state?: "open" | "closed" | "merged";
-    labels?: ReadonlyArray<{
-      name: string;
-      color?: string;
-    }>;
     isCrossRepository?: boolean;
     headRepositoryNameWithOwner?: string | null;
     headRepositoryOwnerLogin?: string | null;
@@ -131,23 +127,6 @@ function normalizeFakePullRequestSummary(raw: unknown): GitHubPullRequestSummary
     typeof record.headRepositoryOwner === "object" && record.headRepositoryOwner !== null
       ? (record.headRepositoryOwner as Record<string, unknown>)
       : null;
-  const labels = Array.isArray(record.labels)
-    ? record.labels
-        .map((label) => {
-          if (!label || typeof label !== "object") {
-            return null;
-          }
-          const labelRecord = label as Record<string, unknown>;
-          if (typeof labelRecord.name !== "string") {
-            return null;
-          }
-          return {
-            name: labelRecord.name,
-            ...(typeof labelRecord.color === "string" ? { color: labelRecord.color } : {}),
-          };
-        })
-        .filter((label): label is NonNullable<typeof label> => label !== null)
-    : undefined;
 
   if (
     typeof number !== "number" ||
@@ -189,7 +168,6 @@ function normalizeFakePullRequestSummary(raw: unknown): GitHubPullRequestSummary
     baseRefName,
     headRefName,
     ...(state ? { state } : {}),
-    ...(labels && labels.length > 0 ? { labels } : {}),
     ...(isCrossRepository !== undefined ? { isCrossRepository } : {}),
     ...(headRepositoryNameWithOwner ? { headRepositoryNameWithOwner } : {}),
     ...(headRepositoryOwnerLogin ? { headRepositoryOwnerLogin } : {}),
@@ -632,27 +610,6 @@ function createGitHubCliWithFakeGh(scenario: FakeGhScenario = {}): {
           cwd: input.cwd,
           args: ["pr", "checkout", input.reference, ...(input.force ? ["--force"] : [])],
         }).pipe(Effect.asVoid),
-      getPullRequestReviews: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "getPullRequestReviews",
-            detail: `Unexpected pull request reviews lookup: ${input.reference}`,
-          }),
-        ),
-      createPullRequestReview: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "createPullRequestReview",
-            detail: `Unexpected pull request review create: ${input.reference}`,
-          }),
-        ),
-      createPullRequestReviewWithComments: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "createPullRequestReviewWithComments",
-            detail: `Unexpected pull request review with comments create: ${input.reference}`,
-          }),
-        ),
     },
     ghCalls,
   };
@@ -1127,7 +1084,7 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
           state: "open",
         });
         expect(ghCalls).toContain(
-          "pr list --head jasonLaster:statemachine --state all --limit 20 --json number,title,url,baseRefName,headRefName,state,mergedAt,updatedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
+          "pr list --head jasonLaster:statemachine --state all --limit 20 --json number,title,url,baseRefName,headRefName,state,mergedAt,updatedAt,isCrossRepository,headRepository,headRepositoryOwner",
         );
       }),
     20_000,
@@ -1347,16 +1304,6 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
                 baseRefName: "main",
                 headRefName: "feature/status-open-over-merged",
                 state: "OPEN",
-                labels: [
-                  {
-                    name: "ready-for-agent",
-                    color: "0e8a16",
-                  },
-                  {
-                    name: "enhancement",
-                    color: "a2eeef",
-                  },
-                ],
                 updatedAt: "2026-01-30T10:00:00Z",
               },
             ]),
@@ -1373,16 +1320,6 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
         baseRef: "main",
         headRef: "feature/status-open-over-merged",
         state: "open",
-        labels: [
-          {
-            name: "ready-for-agent",
-            color: "#0e8a16",
-          },
-          {
-            name: "enhancement",
-            color: "#a2eeef",
-          },
-        ],
       });
     }),
   );

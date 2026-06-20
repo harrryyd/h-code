@@ -52,8 +52,10 @@ import {
   getSourceControlDiscoverySnapshot,
   refreshSourceControlDiscovery,
 } from "../lib/sourceControlDiscoveryState";
-import { startNewThreadFromContext } from "../lib/chatThreadActions";
-import { resolveProjectDefaultedNewThreadSeedContext } from "../lib/newThreadSeedContext";
+import {
+  startNewThreadInProjectFromContext,
+  startNewThreadFromContext,
+} from "../lib/chatThreadActions";
 import {
   appendBrowsePathSegment,
   canNavigateUp,
@@ -72,10 +74,6 @@ import {
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { getLatestThreadForProject } from "../lib/threadSort";
 import { cn, isMacPlatform, isWindowsPlatform, newCommandId, newProjectId } from "../lib/utils";
-import {
-  resolveProjectThreadEnvMode,
-  selectProjectThreadDefaultsSettings,
-} from "../logicalProject";
 import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
@@ -404,7 +402,6 @@ function OpenCommandPaletteDialog() {
   const queryClient = useQueryClient();
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
   const settings = useSettings();
-  const projectThreadDefaultsSettings = useSettings(selectProjectThreadDefaultsSettings);
   const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread } =
     useHandleNewThread();
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
@@ -615,9 +612,17 @@ function OpenCommandPaletteDialog() {
         return;
       }
 
-      await handleNewThread(scopeProjectRef(project.environmentId, project.id));
+      await handleNewThread(scopeProjectRef(project.environmentId, project.id), {
+        envMode: settings.defaultThreadEnvMode,
+      });
     },
-    [handleNewThread, navigate, settings.sidebarThreadSortOrder, threads],
+    [
+      handleNewThread,
+      navigate,
+      settings.defaultThreadEnvMode,
+      settings.sidebarThreadSortOrder,
+      threads,
+    ],
   );
 
   const projectSearchItems = useMemo(
@@ -650,37 +655,26 @@ function OpenCommandPaletteDialog() {
           />
         ),
         runProject: async (project) => {
-          const seedContext = resolveProjectDefaultedNewThreadSeedContext({
-            projectId: project.id,
-            defaultEnvMode: resolveProjectThreadEnvMode(project, projectThreadDefaultsSettings),
-            activeThread:
-              activeThread == null
-                ? null
-                : {
-                    projectId: activeThread.projectId,
-                    branch: activeThread.branch,
-                    worktreePath: activeThread.worktreePath,
-                  },
-            activeDraftThread:
-              activeDraftThread == null
-                ? null
-                : {
-                    projectId: activeDraftThread.projectId,
-                    branch: activeDraftThread.branch,
-                    worktreePath: activeDraftThread.worktreePath,
-                    envMode: activeDraftThread.envMode,
-                  },
-          });
-          await handleNewThread(scopeProjectRef(project.environmentId, project.id), {
-            ...(seedContext.branch !== undefined ? { branch: seedContext.branch } : {}),
-            ...(seedContext.worktreePath !== undefined
-              ? { worktreePath: seedContext.worktreePath }
-              : {}),
-            envMode: seedContext.envMode,
-          });
+          await startNewThreadInProjectFromContext(
+            {
+              activeDraftThread,
+              activeThread,
+              defaultProjectRef,
+              defaultThreadEnvMode: settings.defaultThreadEnvMode,
+              handleNewThread,
+            },
+            scopeProjectRef(project.environmentId, project.id),
+          );
         },
       }),
-    [activeDraftThread, activeThread, handleNewThread, projectThreadDefaultsSettings, projects],
+    [
+      activeDraftThread,
+      activeThread,
+      defaultProjectRef,
+      handleNewThread,
+      projects,
+      settings.defaultThreadEnvMode,
+    ],
   );
 
   const allThreadItems = useMemo(
@@ -971,17 +965,6 @@ function OpenCommandPaletteDialog() {
     openAddProjectFlow();
   }, [clearOpenIntent, openAddProjectFlow, openIntent]);
 
-  useLayoutEffect(() => {
-    if (openIntent?.kind !== "new-thread-in-project") {
-      return;
-    }
-    clearOpenIntent();
-    pushPaletteView({
-      addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
-      groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
-    });
-  }, [clearOpenIntent, openIntent, projectThreadItems]);
-
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
 
   if (projects.length > 0) {
@@ -1006,6 +989,7 @@ function OpenCommandPaletteDialog() {
             activeDraftThread,
             activeThread,
             defaultProjectRef,
+            defaultThreadEnvMode: settings.defaultThreadEnvMode,
             handleNewThread,
           });
         },
@@ -1019,7 +1003,6 @@ function OpenCommandPaletteDialog() {
       title: "New thread in...",
       icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
       addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
-      shortcutCommand: "chat.newInProject",
       groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
     });
   }
@@ -1077,27 +1060,9 @@ function OpenCommandPaletteDialog() {
 
   const handleAddProject = useCallback(
     async (rawCwd: string) => {
-      if (!browseEnvironmentId) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to add project",
-            description: "No environment selected. Ensure a backend is paired and connected.",
-          }),
-        );
-        return;
-      }
+      if (!browseEnvironmentId) return;
       const api = readEnvironmentApi(browseEnvironmentId);
-      if (!api) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to add project",
-            description: `Environment API not available for this environment. The WebSocket connection may not be established.`,
-          }),
-        );
-        return;
-      }
+      if (!api) return;
 
       if (isUnsupportedWindowsProjectPath(rawCwd.trim(), browseEnvironmentPlatform)) {
         toastManager.add(
@@ -1142,9 +1107,9 @@ function OpenCommandPaletteDialog() {
             ),
           });
         } else {
-          await handleNewThread(scopeProjectRef(existing.environmentId, existing.id)).catch(
-            () => undefined,
-          );
+          await handleNewThread(scopeProjectRef(existing.environmentId, existing.id), {
+            envMode: settings.defaultThreadEnvMode,
+          }).catch(() => undefined);
         }
         setOpen(false);
         return;
@@ -1165,9 +1130,9 @@ function OpenCommandPaletteDialog() {
           },
           createdAt: new Date().toISOString(),
         });
-        await handleNewThread(scopeProjectRef(browseEnvironmentId, projectId)).catch(
-          () => undefined,
-        );
+        await handleNewThread(scopeProjectRef(browseEnvironmentId, projectId), {
+          envMode: settings.defaultThreadEnvMode,
+        }).catch(() => undefined);
         setOpen(false);
       } catch (error) {
         toastManager.add(
@@ -1187,6 +1152,7 @@ function OpenCommandPaletteDialog() {
       navigate,
       projects,
       setOpen,
+      settings.defaultThreadEnvMode,
       settings.sidebarThreadSortOrder,
       threads,
     ],

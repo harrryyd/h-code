@@ -3,18 +3,14 @@ import { ProviderDriverKind } from "@t3tools/contracts";
 
 import {
   createThreadJumpHintVisibilityController,
-  getVisibleSidebarProjects,
   getSidebarThreadIdsToPrewarm,
   getVisibleSidebarThreadIds,
-  orderSidebarSectionProjectsByPreferredIds,
-  resolveEffectiveSidebarProjectSortOrder,
   resolveAdjacentThreadId,
   getFallbackThreadIdAfterDelete,
   getVisibleThreadsForProject,
   getProjectSortTimestamp,
   hasUnseenCompletion,
   isContextMenuPointerDown,
-  isWorkerThread,
   orderItemsByPreferredIds,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadSeedContext,
@@ -194,26 +190,6 @@ describe("resolveSidebarNewThreadEnvMode", () => {
   });
 });
 
-describe("resolveEffectiveSidebarProjectSortOrder", () => {
-  it("preserves manual sort order when no manual sidebar groups exist", () => {
-    expect(
-      resolveEffectiveSidebarProjectSortOrder({
-        sortOrder: "manual",
-        hasManualSidebarGroups: false,
-      }),
-    ).toBe("manual");
-  });
-
-  it("falls back to the default automatic sort when manual groups are present", () => {
-    expect(
-      resolveEffectiveSidebarProjectSortOrder({
-        sortOrder: "manual",
-        hasManualSidebarGroups: true,
-      }),
-    ).toBe("updated_at");
-  });
-});
-
 describe("resolveSidebarNewThreadSeedContext", () => {
   it("prefers the default worktree mode over active thread context", () => {
     expect(
@@ -256,7 +232,7 @@ describe("resolveSidebarNewThreadSeedContext", () => {
     });
   });
 
-  it("preserves the active draft branch while resetting worktree context to the project default", () => {
+  it("prefers the active draft thread context when it matches the target project", () => {
     expect(
       resolveSidebarNewThreadSeedContext({
         projectId: "project-1",
@@ -275,8 +251,8 @@ describe("resolveSidebarNewThreadSeedContext", () => {
       }),
     ).toEqual({
       branch: "feature/new-draft",
-      worktreePath: null,
-      envMode: "local",
+      worktreePath: "/repo/worktree",
+      envMode: "worktree",
     });
   });
 
@@ -461,69 +437,6 @@ describe("getVisibleSidebarThreadIds", () => {
         },
       ]),
     ).toEqual([ThreadId.make("thread-12"), ThreadId.make("thread-11")]);
-  });
-});
-
-describe("getVisibleSidebarProjects", () => {
-  it("skips projects inside collapsed manual groups while keeping ungrouped projects visible", () => {
-    expect(
-      getVisibleSidebarProjects({
-        sections: [
-          {
-            kind: "manual",
-            collapsed: true,
-            projects: ["hidden-a", "hidden-b"],
-          },
-          {
-            kind: "manual",
-            collapsed: false,
-            projects: ["shown-c"],
-          },
-          {
-            kind: "ungrouped",
-            collapsed: false,
-            projects: ["shown-d"],
-          },
-        ],
-      }),
-    ).toEqual(["shown-c", "shown-d"]);
-  });
-});
-
-describe("orderSidebarSectionProjectsByPreferredIds", () => {
-  it("reorders projects inside each section to match the computed sidebar sort order", () => {
-    expect(
-      orderSidebarSectionProjectsByPreferredIds({
-        preferredProjectKeys: ["manual-b", "ungrouped-b", "manual-a", "ungrouped-a"],
-        sections: [
-          {
-            id: "group:frontend",
-            kind: "manual" as const,
-            collapsed: false,
-            projects: [{ projectKey: "manual-a" }, { projectKey: "manual-b" }],
-          },
-          {
-            id: "ungrouped",
-            kind: "ungrouped" as const,
-            collapsed: false,
-            projects: [{ projectKey: "ungrouped-a" }, { projectKey: "ungrouped-b" }],
-          },
-        ],
-      }),
-    ).toEqual([
-      {
-        id: "group:frontend",
-        kind: "manual",
-        collapsed: false,
-        projects: [{ projectKey: "manual-b" }, { projectKey: "manual-a" }],
-      },
-      {
-        id: "ungrouped",
-        kind: "ungrouped",
-        collapsed: false,
-        projects: [{ projectKey: "ungrouped-b" }, { projectKey: "ungrouped-a" }],
-      },
-    ]);
   });
 });
 
@@ -829,7 +742,6 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     worktreePath: null,
     turnDiffSummaries: [],
     activities: [],
-    contextTrimPoints: [],
     ...overrides,
   };
 }
@@ -1055,21 +967,5 @@ describe("sortProjectsForSidebar", () => {
     );
 
     expect(timestamp).toBe(Date.parse("2026-03-09T10:10:00.000Z"));
-  });
-});
-
-describe("isWorkerThread", () => {
-  it("returns true when managerMetadata role is worker", () => {
-    expect(isWorkerThread({ managerMetadata: { role: "worker" } })).toBe(true);
-  });
-
-  it("returns false when managerMetadata role is not worker", () => {
-    expect(isWorkerThread({ managerMetadata: { role: "console" } })).toBe(false);
-    expect(isWorkerThread({ managerMetadata: { role: "refiner" } })).toBe(false);
-  });
-
-  it("returns false when managerMetadata is undefined or null", () => {
-    expect(isWorkerThread({})).toBe(false);
-    expect(isWorkerThread({ managerMetadata: null })).toBe(false);
   });
 });

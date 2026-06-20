@@ -1,12 +1,9 @@
 import { scopeProjectRef } from "@t3tools/client-runtime";
 import type { EnvironmentId, ScopedProjectRef } from "@t3tools/contracts";
-import type { ManualSidebarGroupColorPalette } from "@t3tools/contracts/settings";
 import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
   deriveProjectGroupLabel,
-  resolveProjectManualSidebarGroupId,
-  type ManualSidebarGroupsSettings,
   type ProjectGroupingSettings,
 } from "./logicalProject";
 import type { Project } from "./types";
@@ -26,31 +23,6 @@ export interface SidebarProjectSnapshot extends Project {
   memberProjects: readonly SidebarProjectGroupMember[];
   memberProjectRefs: readonly ScopedProjectRef[];
   remoteEnvironmentLabels: readonly string[];
-}
-
-export interface SidebarProjectSection {
-  id: string;
-  kind: "manual" | "ungrouped";
-  title: string;
-  color: ManualSidebarGroupColorPalette | null;
-  collapsed: boolean;
-  projectKeys: readonly string[];
-}
-
-export interface SidebarProjectCollection {
-  sections: readonly SidebarProjectSection[];
-  snapshots: readonly SidebarProjectSnapshot[];
-  physicalToSnapshotProjectKey: ReadonlyMap<string, string>;
-}
-
-const UNGROUPED_SIDEBAR_PROJECT_SECTION_ID = "ungrouped";
-
-function getSidebarProjectSectionId(groupId: string | null): string {
-  return groupId === null ? UNGROUPED_SIDEBAR_PROJECT_SECTION_ID : `group:${groupId}`;
-}
-
-function getSidebarProjectSnapshotKey(sectionId: string, logicalProjectKey: string): string {
-  return `${sectionId}::${logicalProjectKey}`;
 }
 
 export function buildPhysicalToLogicalProjectKeyMap(input: {
@@ -143,99 +115,4 @@ export function buildSidebarProjectSnapshots(input: {
   }
 
   return result;
-}
-
-export function buildSidebarProjectCollection(input: {
-  projects: ReadonlyArray<Project>;
-  groupingSettings: ProjectGroupingSettings;
-  manualGroupSettings: ManualSidebarGroupsSettings;
-  primaryEnvironmentId: EnvironmentId | null;
-  resolveEnvironmentLabel: (environmentId: EnvironmentId) => string | null;
-}): SidebarProjectCollection {
-  const projectsBySectionId = new Map<string, Project[]>();
-  for (const project of input.projects) {
-    const sectionId = getSidebarProjectSectionId(
-      resolveProjectManualSidebarGroupId(project, input.manualGroupSettings),
-    );
-    const existing = projectsBySectionId.get(sectionId);
-    if (existing) {
-      existing.push(project);
-    } else {
-      projectsBySectionId.set(sectionId, [project]);
-    }
-  }
-
-  const sections: SidebarProjectSection[] = [];
-  const snapshots: SidebarProjectSnapshot[] = [];
-  const physicalToSnapshotProjectKey = new Map<string, string>();
-
-  for (const group of input.manualGroupSettings.manualSidebarGroups) {
-    const sectionId = getSidebarProjectSectionId(group.id);
-    const baseSnapshots = buildSidebarProjectSnapshots({
-      projects: projectsBySectionId.get(sectionId) ?? [],
-      settings: input.groupingSettings,
-      primaryEnvironmentId: input.primaryEnvironmentId,
-      resolveEnvironmentLabel: input.resolveEnvironmentLabel,
-    });
-    const sectionProjectKeys = baseSnapshots.map((snapshot) => {
-      const projectKey = getSidebarProjectSnapshotKey(sectionId, snapshot.projectKey);
-      const nextSnapshot = {
-        ...snapshot,
-        projectKey,
-      };
-      snapshots.push(nextSnapshot);
-      for (const member of snapshot.memberProjects) {
-        physicalToSnapshotProjectKey.set(member.physicalProjectKey, projectKey);
-      }
-      return projectKey;
-    });
-
-    sections.push({
-      id: sectionId,
-      kind: "manual",
-      title: group.name,
-      color: group.color,
-      collapsed: group.collapsed,
-      projectKeys: sectionProjectKeys,
-    });
-  }
-
-  const ungroupedSnapshots = buildSidebarProjectSnapshots({
-    projects: projectsBySectionId.get(UNGROUPED_SIDEBAR_PROJECT_SECTION_ID) ?? [],
-    settings: input.groupingSettings,
-    primaryEnvironmentId: input.primaryEnvironmentId,
-    resolveEnvironmentLabel: input.resolveEnvironmentLabel,
-  });
-  const ungroupedProjectKeys = ungroupedSnapshots.map((snapshot) => {
-    const projectKey = getSidebarProjectSnapshotKey(
-      UNGROUPED_SIDEBAR_PROJECT_SECTION_ID,
-      snapshot.projectKey,
-    );
-    const nextSnapshot = {
-      ...snapshot,
-      projectKey,
-    };
-    snapshots.push(nextSnapshot);
-    for (const member of snapshot.memberProjects) {
-      physicalToSnapshotProjectKey.set(member.physicalProjectKey, projectKey);
-    }
-    return projectKey;
-  });
-
-  if (ungroupedProjectKeys.length > 0) {
-    sections.push({
-      id: UNGROUPED_SIDEBAR_PROJECT_SECTION_ID,
-      kind: "ungrouped",
-      title: "Ungrouped",
-      color: null,
-      collapsed: false,
-      projectKeys: ungroupedProjectKeys,
-    });
-  }
-
-  return {
-    sections,
-    snapshots,
-    physicalToSnapshotProjectKey,
-  };
 }

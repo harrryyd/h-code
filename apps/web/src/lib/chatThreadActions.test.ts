@@ -3,7 +3,6 @@ import { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   resolveThreadActionProjectRef,
-  startNewThreadInProjectFromContext,
   startNewLocalThreadFromContext,
   startNewThreadFromContext,
   type ChatThreadActionContext,
@@ -18,6 +17,7 @@ function createContext(overrides: Partial<ChatThreadActionContext> = {}): ChatTh
     activeDraftThread: null,
     activeThread: undefined,
     defaultProjectRef: scopeProjectRef(ENVIRONMENT_ID, FALLBACK_PROJECT_ID),
+    defaultThreadEnvMode: "local",
     handleNewThread: async () => {},
     ...overrides,
   };
@@ -80,35 +80,15 @@ describe("chatThreadActions", () => {
     const didStart = await startNewLocalThreadFromContext(
       createContext({
         defaultProjectRef: scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID),
+        defaultThreadEnvMode: "worktree",
         handleNewThread,
       }),
     );
 
     expect(didStart).toBe(true);
-    expect(handleNewThread).toHaveBeenCalledWith(scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID));
-  });
-
-  it("does not leak active thread context into a different project", async () => {
-    const handleNewThread = vi.fn<ChatThreadActionContext["handleNewThread"]>(async () => {});
-
-    await startNewThreadInProjectFromContext(
-      createContext({
-        activeDraftThread: {
-          environmentId: ENVIRONMENT_ID,
-          projectId: PROJECT_ID,
-          branch: "feature/refactor",
-          worktreePath: "/tmp/worktree",
-          envMode: "worktree",
-        },
-        handleNewThread,
-      }),
-      scopeProjectRef(ENVIRONMENT_ID, FALLBACK_PROJECT_ID),
-    );
-
-    expect(handleNewThread).toHaveBeenCalledWith(
-      scopeProjectRef(ENVIRONMENT_ID, FALLBACK_PROJECT_ID),
-      undefined,
-    );
+    expect(handleNewThread).toHaveBeenCalledWith(scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID), {
+      envMode: "worktree",
+    });
   });
 
   it("does not start a thread when there is no project context", async () => {

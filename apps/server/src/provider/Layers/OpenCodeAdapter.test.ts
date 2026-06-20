@@ -228,16 +228,6 @@ const advanceTestClock = (ms: number) =>
   TestClock.adjust(`${ms} millis`).pipe(Effect.andThen(Effect.yieldNow));
 
 it.layer(OpenCodeAdapterTestLayer)("OpenCodeAdapterLive", (it) => {
-  it.effect("declares MCP toggle capability", () =>
-    Effect.gen(function* () {
-      const adapter = yield* OpenCodeAdapter;
-      assert.deepStrictEqual(adapter.capabilities, {
-        sessionModelSwitch: "in-session",
-        supportsMcpToggle: false,
-      });
-    }),
-  );
-
   it.effect("reuses a configured OpenCode server URL instead of spawning a local server", () =>
     Effect.gen(function* () {
       const adapter = yield* OpenCodeAdapter;

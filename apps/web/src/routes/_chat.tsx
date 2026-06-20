@@ -7,20 +7,17 @@ import {
   startNewLocalThreadFromContext,
   startNewThreadFromContext,
 } from "../lib/chatThreadActions";
-import {
-  isEditableShortcutTarget,
-  isModalShortcutCaptureActive,
-} from "../lib/globalShortcutGuards";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { resolveShortcutCommand } from "../keybindings";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
+import { resolveSidebarNewThreadEnvMode } from "~/components/Sidebar.logic";
+import { useSettings } from "~/hooks/useSettings";
 import { useServerKeybindings } from "~/rpc/serverState";
 
 function ChatRouteGlobalShortcuts() {
   const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
   const selectedThreadKeysSize = useThreadSelectionStore((state) => state.selectedThreadKeys.size);
-  const openNewThreadInProject = useCommandPaletteStore((state) => state.openNewThreadInProject);
   const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread, routeThreadRef } =
     useHandleNewThread();
   const keybindings = useServerKeybindings();
@@ -29,6 +26,7 @@ function ChatRouteGlobalShortcuts() {
       ? selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef).terminalOpen
       : false,
   );
+  const appSettings = useSettings();
 
   useEffect(() => {
     const onWindowKeyDown = (event: KeyboardEvent) => {
@@ -57,6 +55,9 @@ function ChatRouteGlobalShortcuts() {
           activeDraftThread,
           activeThread,
           defaultProjectRef,
+          defaultThreadEnvMode: resolveSidebarNewThreadEnvMode({
+            defaultEnvMode: appSettings.defaultThreadEnvMode,
+          }),
           handleNewThread,
         });
         return;
@@ -69,21 +70,11 @@ function ChatRouteGlobalShortcuts() {
           activeDraftThread,
           activeThread,
           defaultProjectRef,
+          defaultThreadEnvMode: resolveSidebarNewThreadEnvMode({
+            defaultEnvMode: appSettings.defaultThreadEnvMode,
+          }),
           handleNewThread,
         });
-        return;
-      }
-
-      if (command === "chat.newInProject") {
-        if (
-          isModalShortcutCaptureActive(event.target) ||
-          isEditableShortcutTarget(event.target, { allowComposer: true })
-        ) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        openNewThreadInProject();
       }
     };
 
@@ -98,9 +89,9 @@ function ChatRouteGlobalShortcuts() {
     handleNewThread,
     keybindings,
     defaultProjectRef,
-    openNewThreadInProject,
     selectedThreadKeysSize,
     terminalOpen,
+    appSettings.defaultThreadEnvMode,
   ]);
 
   return null;

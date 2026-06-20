@@ -59,7 +59,6 @@ import {
 } from "../composerFooterLayout";
 import { type ComposerPromptEditorHandle, ComposerPromptEditor } from "../ComposerPromptEditor";
 import { ProviderModelPicker } from "./ProviderModelPicker";
-import { McpToggleButton } from "./McpToggleButton";
 import { type ComposerCommandItem, ComposerCommandMenu } from "./ComposerCommandMenu";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
@@ -480,9 +479,6 @@ export interface ChatComposerProps {
   scheduleComposerFocus: () => void;
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
   onExpandImage: (preview: ExpandedImagePreview) => void;
-
-  // Active turn guard
-  activeTurnInProgress: boolean;
 }
 
 // --------------------------------------------------------------------------
@@ -880,30 +876,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           command: "default",
           label: "/default",
           description: "Switch this thread back to normal build mode",
-        },
-        {
-          id: "slash:compact",
-          type: "slash-command",
-          command: "compact",
-          label: "/compact",
-          description: "Compact conversation context with provider-summarize",
-          disabled: props.activeTurnInProgress,
-        },
-        {
-          id: "slash:clear",
-          type: "slash-command",
-          command: "clear",
-          label: "/clear",
-          description: "Clear conversation context and restart session",
-          disabled: props.activeTurnInProgress,
-        },
-        {
-          id: "slash:new",
-          type: "slash-command",
-          command: "new",
-          label: "/new",
-          description: "Archive this thread and start a new one inheriting worktree",
-          disabled: props.activeTurnInProgress,
         },
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
       const providerSlashCommandItems = (selectedProviderStatus?.slashCommands ?? []).map(
@@ -1526,24 +1498,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           if (applied) {
             setComposerHighlightedItemId(null);
             setIsComposerModelPickerOpen(true);
-          }
-          return;
-        }
-        if (item.command === "clear" || item.command === "new" || item.command === "compact") {
-          const replacement = `/${item.command} `;
-          const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
-            snapshot.value,
-            trigger.rangeEnd,
-            replacement,
-          );
-          const applied = applyPromptReplacement(
-            trigger.rangeStart,
-            replacementRangeEnd,
-            replacement,
-            { expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd) },
-          );
-          if (applied) {
-            setComposerHighlightedItemId(null);
           }
           return;
         }
@@ -2355,13 +2309,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               )}
             >
               <div className="-m-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {selectedProviderEntry?.capabilities?.supportsMcpToggle && activeThreadId ? (
-                  <McpToggleButton
-                    threadId={activeThreadId}
-                    environmentId={environmentId}
-                    compact={isComposerFooterCompact}
-                  />
-                ) : null}
                 <ProviderModelPicker
                   compact={isComposerFooterCompact}
                   activeInstanceId={selectedInstanceId}

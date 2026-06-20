@@ -118,12 +118,6 @@ function createBrowserLocalApi(rpcClient?: WsRpcClient): LocalApi {
         removeBrowserSavedEnvironmentSecret(environmentId);
       },
     },
-    todos: {
-      load: () =>
-        rpcClient ? rpcClient.todos.load() : Promise.reject(unavailableLocalBackendError()),
-      mutate: (input) =>
-        rpcClient ? rpcClient.todos.mutate(input) : Promise.reject(unavailableLocalBackendError()),
-    },
     server: {
       getConfig: () =>
         rpcClient ? rpcClient.server.getConfig() : Promise.reject(unavailableLocalBackendError()),

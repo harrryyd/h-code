@@ -158,8 +158,7 @@ describe("ProviderSessionReaper", () => {
       respondToUserInput: () => unsupported(),
       stopSession,
       listSessions: () => Effect.succeed([]),
-      getCapabilities: () =>
-        Effect.succeed({ sessionModelSwitch: "in-session", supportsMcpToggle: false }),
+      getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
       getInstanceInfo: (instanceId) => {
         const driverKind = ProviderDriverKind.make(String(instanceId));
         return Effect.succeed({
@@ -171,14 +170,9 @@ describe("ProviderSessionReaper", () => {
             driverKind,
             continuationKey: `${driverKind}:instance:${instanceId}`,
           },
-          capabilities: {
-            sessionModelSwitch: "in-session",
-            supportsMcpToggle: false,
-          },
         });
       },
       rollbackConversation: () => unsupported(),
-      compactThread: () => unsupported(),
       streamEvents: Stream.empty,
     };
 

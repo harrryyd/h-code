@@ -164,22 +164,6 @@ export const make = Effect.fn("makeGitLabSourceControlProvider")(function* () {
       gitlab
         .checkoutMergeRequest(input)
         .pipe(Effect.mapError((error) => providerError("checkoutChangeRequest", error))),
-    getPullRequestReviews: (_input) =>
-      Effect.fail(
-        new SourceControlProviderError({
-          provider: "gitlab",
-          operation: "getPullRequestReviews",
-          detail: "Not implemented for this provider.",
-        }),
-      ),
-    createPullRequestReview: (_input) =>
-      Effect.fail(
-        new SourceControlProviderError({
-          provider: "gitlab",
-          operation: "createPullRequestReview",
-          detail: "Not implemented for this provider.",
-        }),
-      ),
   });
 });
 

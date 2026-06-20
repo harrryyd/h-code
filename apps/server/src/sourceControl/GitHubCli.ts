@@ -1,15 +1,12 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
-import type * as DateTime from "effect/DateTime";
 
 import {
   TrimmedNonEmptyString,
-  type ChangeRequestLabel,
   type SourceControlRepositoryVisibility,
   type VcsError,
 } from "@t3tools/contracts";
@@ -36,26 +33,9 @@ export interface GitHubPullRequestSummary {
   readonly baseRefName: string;
   readonly headRefName: string;
   readonly state?: "open" | "closed" | "merged";
-  readonly updatedAt?: Option.Option<DateTime.Utc>;
-  readonly labels?: ReadonlyArray<ChangeRequestLabel>;
   readonly isCrossRepository?: boolean;
   readonly headRepositoryNameWithOwner?: string | null;
   readonly headRepositoryOwnerLogin?: string | null;
-}
-
-export interface GitHubPullRequestReviewComment {
-  readonly id: string;
-  readonly path: string;
-  readonly line?: number;
-  readonly commitSHA: string;
-  readonly body: string;
-  readonly author: { readonly login: string };
-  readonly createdAt: string;
-  readonly replies?: ReadonlyArray<GitHubPullRequestReviewComment>;
-}
-
-export interface GitHubPullRequestReview {
-  readonly comments: ReadonlyArray<GitHubPullRequestReviewComment>;
 }
 
 export interface GitHubRepositoryCloneUrls {
@@ -110,100 +90,11 @@ export interface GitHubCliShape {
     readonly reference: string;
     readonly force?: boolean;
   }) => Effect.Effect<void, GitHubCliError>;
-
-  readonly getPullRequestReviews: (input: {
-    readonly cwd: string;
-    readonly reference: string;
-  }) => Effect.Effect<GitHubPullRequestReview, GitHubCliError>;
-
-  readonly createPullRequestReview: (input: {
-    readonly cwd: string;
-    readonly reference: string;
-    readonly bodyFile: string;
-  }) => Effect.Effect<void, GitHubCliError>;
-
-  /** Post a PR review with inline comments via the GitHub API.
-   *  Uses `gh api POST /repos/{owner}/{repo}/pulls/{pr}/reviews` with
-   *  a JSON payload containing both a body and per-file/line comments array. */
-  readonly createPullRequestReviewWithComments: (input: {
-    readonly cwd: string;
-    readonly reference: string;
-    readonly commentsJsonFile: string;
-  }) => Effect.Effect<void, GitHubCliError>;
 }
 
 export class GitHubCli extends Context.Service<GitHubCli, GitHubCliShape>()(
   "t3/sourceControl/GitHubCli",
 ) {}
-
-function gitHubPullRequestJsonFields(input: {
-  readonly includeUpdatedAt?: boolean;
-  readonly includeLabels: boolean;
-}): string {
-  return [
-    "number",
-    "title",
-    "url",
-    "baseRefName",
-    "headRefName",
-    "state",
-    "mergedAt",
-    ...(input.includeUpdatedAt ? ["updatedAt"] : []),
-    "isCrossRepository",
-    "headRepository",
-    "headRepositoryOwner",
-    ...(input.includeLabels ? ["labels"] : []),
-  ].join(",");
-}
-
-function isUnsupportedLabelsJsonFieldError(error: GitHubCliError): boolean {
-  const lower = error.detail.toLowerCase();
-  return (
-    lower.includes("labels") &&
-    (lower.includes("unknown field") ||
-      lower.includes("unknown json field") ||
-      lower.includes("invalid field"))
-  );
-}
-
-function toSummaryWithOptionalUpdatedAt(
-  record: GitHubPullRequestSummary & {
-    readonly updatedAt: Option.Option<DateTime.Utc>;
-  },
-): GitHubPullRequestSummary {
-  const { updatedAt, ...summary } = record;
-  return Option.isSome(updatedAt) ? { ...summary, updatedAt } : summary;
-}
-
-export function executeGitHubPullRequestJsonCommand(input: {
-  readonly execute: GitHubCliShape["execute"];
-  readonly cwd: string;
-  readonly argsPrefix: ReadonlyArray<string>;
-  readonly includeUpdatedAt?: boolean;
-  readonly timeoutMs?: number;
-}): Effect.Effect<VcsProcess.VcsProcessOutput, GitHubCliError> {
-  const run = (includeLabels: boolean) =>
-    input.execute({
-      cwd: input.cwd,
-      args: [
-        ...input.argsPrefix,
-        "--json",
-        gitHubPullRequestJsonFields({
-          includeLabels,
-          ...(input.includeUpdatedAt !== undefined
-            ? { includeUpdatedAt: input.includeUpdatedAt }
-            : {}),
-        }),
-      ],
-      ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
-    });
-
-  return run(true).pipe(
-    Effect.catch((error) =>
-      isUnsupportedLabelsJsonFieldError(error) ? run(false) : Effect.fail(error),
-    ),
-  );
-}
 
 function errorText(error: VcsError | unknown): string {
   if (typeof error === "object" && error !== null) {
@@ -352,10 +243,9 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
   return GitHubCli.of({
     execute,
     listOpenPullRequests: (input) =>
-      executeGitHubPullRequestJsonCommand({
-        execute,
+      execute({
         cwd: input.cwd,
-        argsPrefix: [
+        args: [
           "pr",
           "list",
           "--head",
@@ -364,6 +254,8 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
           "open",
           "--limit",
           String(input.limit ?? 1),
+          "--json",
+          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
         ],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),
@@ -382,16 +274,23 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
                     );
                   }
 
-                  return Effect.succeed(decoded.success.map(toSummaryWithOptionalUpdatedAt));
+                  return Effect.succeed(
+                    decoded.success.map(({ updatedAt: _updatedAt, ...summary }) => summary),
+                  );
                 }),
               ),
         ),
       ),
     getPullRequest: (input) =>
-      executeGitHubPullRequestJsonCommand({
-        execute,
+      execute({
         cwd: input.cwd,
-        argsPrefix: ["pr", "view", input.reference],
+        args: [
+          "pr",
+          "view",
+          input.reference,
+          "--json",
+          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
+        ],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),
         Effect.flatMap((raw) =>
@@ -469,76 +368,6 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
       execute({
         cwd: input.cwd,
         args: ["pr", "checkout", input.reference, ...(input.force ? ["--force"] : [])],
-      }).pipe(Effect.asVoid),
-    getPullRequestReviews: (input) =>
-      execute({
-        cwd: input.cwd,
-        args: ["pr", "view", input.reference, "--json", "reviews"],
-      }).pipe(
-        Effect.map((result) => result.stdout.trim()),
-        Effect.flatMap((raw) =>
-          Effect.sync(() => {
-            // @effect-diagnostics-next-line preferSchemaOverJson:off
-            const parsed = JSON.parse(raw);
-            const reviews = Array.isArray(parsed.reviews) ? parsed.reviews : [];
-            const comments: Array<GitHubPullRequestReviewComment> = [];
-            for (const review of reviews) {
-              if (review.comments && Array.isArray(review.comments)) {
-                for (const comment of review.comments) {
-                  comments.push({
-                    id: String(comment.id ?? ""),
-                    path: comment.path ?? "",
-                    line: typeof comment.line === "number" ? comment.line : undefined,
-                    commitSHA: comment.commit?.oid ?? "",
-                    body: comment.body ?? "",
-                    author: { login: comment.author?.login ?? "" },
-                    createdAt: comment.createdAt ?? "",
-                    replies:
-                      comment.replies?.nodes?.map((reply: Record<string, unknown>) => ({
-                        id: String(reply.id ?? ""),
-                        path: reply.path ?? "",
-                        line: typeof reply.line === "number" ? reply.line : undefined,
-                        commitSHA: (reply.commit as Record<string, unknown> | undefined)?.oid ?? "",
-                        body: reply.body ?? "",
-                        author: {
-                          login: (reply.author as Record<string, unknown> | undefined)?.login ?? "",
-                        },
-                        createdAt: reply.createdAt ?? "",
-                      })) ?? undefined,
-                  });
-                }
-              }
-            }
-            return { comments };
-          }),
-        ),
-      ),
-    createPullRequestReview: (input) =>
-      execute({
-        cwd: input.cwd,
-        args: ["pr", "review", input.reference, "--comment", "--body-file", input.bodyFile],
-      }).pipe(Effect.asVoid),
-    createPullRequestReviewWithComments: (input) =>
-      Effect.gen(function* () {
-        const repoResult = yield* execute({
-          cwd: input.cwd,
-          args: ["repo", "view", "--json", "nameWithOwner"],
-        });
-        const repoRaw = repoResult.stdout.trim();
-        let nameWithOwner = "";
-        try {
-          nameWithOwner = (JSON.parse(repoRaw) as { nameWithOwner: string }).nameWithOwner;
-        } catch {
-          return yield* new GitHubCliError({
-            operation: "createPullRequestReviewWithComments",
-            detail: "Failed to parse repo nameWithOwner from gh repo view output.",
-          });
-        }
-        const apiPath = `repos/${nameWithOwner}/pulls/${input.reference}/reviews`;
-        yield* execute({
-          cwd: input.cwd,
-          args: ["api", apiPath, "--input", input.commentsJsonFile],
-        });
       }).pipe(Effect.asVoid),
   });
 });

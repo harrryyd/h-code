@@ -14,8 +14,6 @@ import {
   deriveLogicalProjectKey,
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
-  resolveProjectThreadDefaultMode,
-  resolveProjectThreadEnvMode,
   resolveProjectGroupingMode,
 } from "./logicalProject";
 import type { Project, SidebarThreadSummary } from "./types";
@@ -41,10 +39,6 @@ const SHARED_REPO_CANONICAL_KEY = "github.com/example/shared-repo";
 const DEFAULT_GROUPING_SETTINGS = {
   sidebarProjectGroupingMode: "repository" as const,
   sidebarProjectGroupingOverrides: {},
-};
-const DEFAULT_THREAD_DEFAULT_SETTINGS = {
-  defaultThreadEnvMode: "local" as const,
-  projectThreadDefaults: {},
 };
 
 // ── Factory Helpers ──────────────────────────────────────────────────
@@ -452,52 +446,6 @@ describe("environment grouping", () => {
           },
         }),
       ).toBe(derivePhysicalProjectKey(project));
-    });
-  });
-
-  describe("project thread defaults", () => {
-    it("resolves explicit overrides by physical project identity before the global default", () => {
-      const primary = makeProject({
-        id: sharedProjectPrimaryId,
-        environmentId: primaryEnvId,
-        name: "shared-repo",
-      });
-      const remote = makeProject({
-        id: sharedProjectRemoteId,
-        environmentId: remoteEnvId,
-        name: "shared-repo",
-        cwd: primary.cwd,
-      });
-
-      const settings = {
-        ...DEFAULT_THREAD_DEFAULT_SETTINGS,
-        projectThreadDefaults: {
-          [derivePhysicalProjectKey(primary)]: "worktree" as const,
-        },
-      };
-
-      expect(resolveProjectThreadDefaultMode(primary, settings)).toBe("worktree");
-      expect(resolveProjectThreadEnvMode(primary, settings)).toBe("worktree");
-      expect(resolveProjectThreadDefaultMode(remote, settings)).toBe("inherit");
-      expect(resolveProjectThreadEnvMode(remote, settings)).toBe("local");
-    });
-
-    it("falls back to the global default when a project override explicitly inherits", () => {
-      const project = makeProject({
-        id: localOnlyProjectId,
-        environmentId: primaryEnvId,
-        name: "local-only",
-      });
-
-      const settings = {
-        defaultThreadEnvMode: "worktree" as const,
-        projectThreadDefaults: {
-          [derivePhysicalProjectKey(project)]: "inherit" as const,
-        },
-      };
-
-      expect(resolveProjectThreadDefaultMode(project, settings)).toBe("inherit");
-      expect(resolveProjectThreadEnvMode(project, settings)).toBe("worktree");
     });
   });
 

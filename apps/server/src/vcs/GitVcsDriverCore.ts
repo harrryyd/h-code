@@ -2278,21 +2278,6 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       fallbackErrorMessage: "git init failed",
     }).pipe(Effect.asVoid);
 
-  const getPrDiff: GitVcsDriver.GitVcsDriverShape["getPrDiff"] = (cwd, baseRef, headRef) =>
-    runGitStdout(
-      "GitVcsDriver.getPrDiff",
-      cwd,
-      [
-        "diff",
-        "--patch",
-        "--no-color",
-        "--no-ext-diff",
-        "--no-textconv",
-        `${baseRef}...${headRef}`,
-      ],
-      false,
-    );
-
   const listLocalBranchNames: GitVcsDriver.GitVcsDriverShape["listLocalBranchNames"] = (cwd) =>
     runGitStdout("GitVcsDriver.listLocalBranchNames", cwd, [
       "branch",
@@ -2338,6 +2323,5 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     switchRef,
     initRepo,
     listLocalBranchNames,
-    getPrDiff,
   });
 });

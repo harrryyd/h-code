@@ -29,7 +29,7 @@ const CURSOR_DRIVER = ProviderDriverKind.make("cursor");
 
 const fakeCodexAdapter: CodexAdapterShape = {
   provider: CODEX_DRIVER,
-  capabilities: { sessionModelSwitch: "in-session", supportsMcpToggle: false },
+  capabilities: { sessionModelSwitch: "in-session" },
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -40,14 +40,13 @@ const fakeCodexAdapter: CodexAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
-  compactThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };
 
 const fakeClaudeAdapter: ClaudeAdapterShape = {
   provider: CLAUDE_AGENT_DRIVER,
-  capabilities: { sessionModelSwitch: "in-session", supportsMcpToggle: true },
+  capabilities: { sessionModelSwitch: "in-session" },
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -58,16 +57,13 @@ const fakeClaudeAdapter: ClaudeAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
-  compactThread: vi.fn(),
-  toggleMcpServerOnThread: vi.fn(),
-  listMcpServersOnThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };
 
 const fakeOpenCodeAdapter: OpenCodeAdapterShape = {
   provider: OPENCODE_DRIVER,
-  capabilities: { sessionModelSwitch: "in-session", supportsMcpToggle: false },
+  capabilities: { sessionModelSwitch: "in-session" },
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -78,14 +74,13 @@ const fakeOpenCodeAdapter: OpenCodeAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
-  compactThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };
 
 const fakeCursorAdapter: CursorAdapterShape = {
   provider: CURSOR_DRIVER,
-  capabilities: { sessionModelSwitch: "in-session", supportsMcpToggle: false },
+  capabilities: { sessionModelSwitch: "in-session" },
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -96,7 +91,6 @@ const fakeCursorAdapter: CursorAdapterShape = {
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),
-  compactThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,
 };
@@ -176,10 +170,6 @@ it.layer(layer)("ProviderAdapterRegistryLive", (it) => {
         continuationIdentity: {
           driverKind: CLAUDE_AGENT_DRIVER,
           continuationKey: "claudeAgent:instance:claudeAgent",
-        },
-        capabilities: {
-          sessionModelSwitch: "in-session",
-          supportsMcpToggle: true,
         },
       });
 

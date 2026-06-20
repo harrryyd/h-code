@@ -2,11 +2,7 @@ import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools
 import { describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "./types";
-import {
-  formatWorktreePathForDisplay,
-  getOrphanedWorktreePathForThread,
-  getOrphanedWorktreePathsForThreads,
-} from "./worktreeCleanup";
+import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "./worktreeCleanup";
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
 
@@ -34,7 +30,6 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     latestTurn: null,
     branch: null,
     worktreePath: null,
-    contextTrimPoints: [],
     ...overrides,
   };
 }
@@ -111,71 +106,5 @@ describe("formatWorktreePathForDisplay", () => {
   it("ignores trailing slashes", () => {
     const result = formatWorktreePathForDisplay("/tmp/custom-worktrees/my-worktree/");
     expect(result).toBe("my-worktree");
-  });
-});
-
-describe("getOrphanedWorktreePathsForThreads", () => {
-  it("returns empty array when no selected threads have worktrees", () => {
-    const threads = [
-      makeThread({ id: ThreadId.make("a") }),
-      makeThread({ id: ThreadId.make("b") }),
-    ];
-    const result = getOrphanedWorktreePathsForThreads(
-      threads,
-      new Set([ThreadId.make("a"), ThreadId.make("b")]),
-    );
-    expect(result).toEqual([]);
-  });
-
-  it("returns empty array when selected threads is empty", () => {
-    const threads = [makeThread({ worktreePath: "/tmp/wt/foo" })];
-    const result = getOrphanedWorktreePathsForThreads(threads, new Set());
-    expect(result).toEqual([]);
-  });
-
-  it("returns the path when a selected thread is the sole owner of its worktree", () => {
-    const threads = [
-      makeThread({ id: ThreadId.make("a"), worktreePath: "/tmp/wt/feature-a" }),
-      makeThread({ id: ThreadId.make("b"), worktreePath: "/tmp/wt/feature-b" }),
-    ];
-    const result = getOrphanedWorktreePathsForThreads(threads, new Set([ThreadId.make("a")]));
-    expect(result).toEqual(["/tmp/wt/feature-a"]);
-  });
-
-  it("returns multiple orphaned paths from different selections", () => {
-    const threads = [
-      makeThread({ id: ThreadId.make("a"), worktreePath: "/tmp/wt/feature-a" }),
-      makeThread({ id: ThreadId.make("b"), worktreePath: "/tmp/wt/feature-b" }),
-    ];
-    const result = getOrphanedWorktreePathsForThreads(
-      threads,
-      new Set([ThreadId.make("a"), ThreadId.make("b")]),
-    );
-    expect(result).toEqual(["/tmp/wt/feature-a", "/tmp/wt/feature-b"]);
-  });
-
-  it("excludes a worktree shared by a surviving thread", () => {
-    const threads = [
-      makeThread({ id: ThreadId.make("a"), worktreePath: "/tmp/wt/shared" }),
-      makeThread({ id: ThreadId.make("b"), worktreePath: "/tmp/wt/shared" }),
-      makeThread({ id: ThreadId.make("c"), worktreePath: "/tmp/wt/unique" }),
-    ];
-    const result = getOrphanedWorktreePathsForThreads(
-      threads,
-      new Set([ThreadId.make("a"), ThreadId.make("c")]),
-    );
-    expect(result).toEqual(["/tmp/wt/unique"]);
-  });
-
-  it("deduplicates when multiple selected threads share the same worktree", () => {
-    const threads = [
-      makeThread({ id: ThreadId.make("a"), worktreePath: "/tmp/wt/shared" }),
-      makeThread({ id: ThreadId.make("b"), worktreePath: "/tmp/wt/shared" }),
-    ];
-    const result = getOrphanedWorktreePathsForThreads(
-      threads,
-      new Set([ThreadId.make("a"), ThreadId.make("b")]),
-    );
-    expect(result).toEqual(["/tmp/wt/shared"]);
   });
 });
