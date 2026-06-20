@@ -119,10 +119,6 @@ import { newCommandId, newDraftId, newMessageId, newThreadId } from "~/lib/utils
 import { getProviderModelCapabilities, resolveSelectableProvider } from "../providerModels";
 import { useSettings } from "../hooks/useSettings";
 import { resolveAppModelSelectionForInstance } from "../modelSelection";
-import {
-  isEditableShortcutTarget,
-  isModalShortcutCaptureActive,
-} from "../lib/globalShortcutGuards";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -2918,65 +2914,78 @@ export default function ChatView(props: ChatViewProps) {
           stackedThreadToast({
             type: "warning",
             title: "Turn in progress",
-            description: "Wait for the current generation to complete before clearing context or starting a new thread.",
+            description:
+              "Wait for the current generation to complete before clearing context or starting a new thread.",
           }),
         );
         return;
       }
-      if (typeof standaloneSlashCommand === "object" && standaloneSlashCommand.command === "clear") {
-        api.orchestration.dispatchCommand({
-          type: "thread.context.trim",
-          commandId: newCommandId(),
-          threadId: activeThread.id,
-          ...(standaloneSlashCommand.keepLastNTurns !== undefined
-            ? { keepLastNTurns: standaloneSlashCommand.keepLastNTurns }
-            : {}),
-          createdAt: new Date().toISOString(),
-        }).catch((error) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Failed to clear context",
-              description: error instanceof Error ? error.message : "An unexpected error occurred.",
-            }),
-          );
-        });
+      if (
+        typeof standaloneSlashCommand === "object" &&
+        standaloneSlashCommand.command === "clear"
+      ) {
+        api.orchestration
+          .dispatchCommand({
+            type: "thread.context.trim",
+            commandId: newCommandId(),
+            threadId: activeThread.id,
+            ...(standaloneSlashCommand.keepLastNTurns !== undefined
+              ? { keepLastNTurns: standaloneSlashCommand.keepLastNTurns }
+              : {}),
+            createdAt: new Date().toISOString(),
+          })
+          .catch((error) => {
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to clear context",
+                description:
+                  error instanceof Error ? error.message : "An unexpected error occurred.",
+              }),
+            );
+          });
       } else if (standaloneSlashCommand === "new") {
         const nextThreadId = newThreadId();
-        api.orchestration.dispatchCommand({
-          type: "thread.archive-and-new",
-          commandId: newCommandId(),
-          threadId: activeThread.id,
-          newThreadId: nextThreadId,
-          createdAt: new Date().toISOString(),
-        }).catch((error) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Failed to start new thread",
-              description: error instanceof Error ? error.message : "An unexpected error occurred.",
-            }),
-          );
-        });
+        api.orchestration
+          .dispatchCommand({
+            type: "thread.archive-and-new",
+            commandId: newCommandId(),
+            threadId: activeThread.id,
+            newThreadId: nextThreadId,
+            createdAt: new Date().toISOString(),
+          })
+          .catch((error) => {
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to start new thread",
+                description:
+                  error instanceof Error ? error.message : "An unexpected error occurred.",
+              }),
+            );
+          });
         void navigate({
           to: "/$environmentId/$threadId",
           params: { environmentId: activeThread.environmentId, threadId: nextThreadId },
         });
       } else if (standaloneSlashCommand === "compact") {
-        api.orchestration.dispatchCommand({
-          type: "thread.context.compact",
-          commandId: newCommandId(),
-          threadId: activeThread.id,
-          createdAt: new Date().toISOString(),
-        }).catch((error) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Failed to compact context",
-              description: error instanceof Error ? error.message : "An unexpected error occurred.",
-            }),
-          );
-        });
+        api.orchestration
+          .dispatchCommand({
+            type: "thread.context.compact",
+            commandId: newCommandId(),
+            threadId: activeThread.id,
+            createdAt: new Date().toISOString(),
+          })
+          .catch((error) => {
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to compact context",
+                description:
+                  error instanceof Error ? error.message : "An unexpected error occurred.",
+              }),
+            );
+          });
       } else if (standaloneSlashCommand === "default" || standaloneSlashCommand === "plan") {
         handleInteractionModeChange(standaloneSlashCommand);
       }

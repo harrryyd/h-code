@@ -89,24 +89,32 @@ describe("ChangeRequestBadge", () => {
     { state: "merged" as const, number: 9, hiddenLabel: "shipit" },
   ])(
     "keeps $state change requests compact by hiding labels",
-    ({ state, number, hiddenLabel }: { state: "closed" | "merged"; number: number; hiddenLabel: string }) => {
-    const markup = renderToStaticMarkup(
-      <ChangeRequestBadge
-        provider={githubProvider}
-        pr={{
-          number,
-          title: `${state} pull request`,
-          url: `https://github.com/pingdotgg/t3code/pull/${number}`,
-          baseRef: "main",
-          headRef: `feature/${state}`,
-          state,
-          labels: [{ name: hiddenLabel, color: "#5319e7" }],
-        }}
-      />,
-    );
+    ({
+      state,
+      number,
+      hiddenLabel,
+    }: {
+      state: "closed" | "merged";
+      number: number;
+      hiddenLabel: string;
+    }) => {
+      const markup = renderToStaticMarkup(
+        <ChangeRequestBadge
+          provider={githubProvider}
+          pr={{
+            number,
+            title: `${state} pull request`,
+            url: `https://github.com/pingdotgg/t3code/pull/${number}`,
+            baseRef: "main",
+            headRef: `feature/${state}`,
+            state,
+            labels: [{ name: hiddenLabel, color: "#5319e7" }],
+          }}
+        />,
+      );
 
-    expect(markup).toContain(`#${number}`);
-    expect(markup).not.toContain(hiddenLabel);
+      expect(markup).toContain(`#${number}`);
+      expect(markup).not.toContain(hiddenLabel);
     },
   );
 });

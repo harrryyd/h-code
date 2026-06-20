@@ -7,10 +7,6 @@ import {
   startNewLocalThreadFromContext,
   startNewThreadFromContext,
 } from "../lib/chatThreadActions";
-import {
-  isEditableShortcutTarget,
-  isModalShortcutCaptureActive,
-} from "../lib/globalShortcutGuards";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { resolveShortcutCommand } from "../keybindings";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
@@ -73,7 +69,6 @@ function ChatRouteGlobalShortcuts() {
         });
         return;
       }
-
     };
 
     window.addEventListener("keydown", onWindowKeyDown);

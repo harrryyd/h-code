@@ -632,20 +632,6 @@ function createGitHubCliWithFakeGh(scenario: FakeGhScenario = {}): {
           cwd: input.cwd,
           args: ["pr", "checkout", input.reference, ...(input.force ? ["--force"] : [])],
         }).pipe(Effect.asVoid),
-      getPullRequestReviews: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "getPullRequestReviews",
-            detail: `Unexpected pull request reviews lookup: ${input.reference}`,
-          }),
-        ),
-      createPullRequestReview: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "createPullRequestReview",
-            detail: `Unexpected pull request review create: ${input.reference}`,
-          }),
-        ),
     },
     ghCalls,
   };
@@ -1120,7 +1106,7 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
           state: "open",
         });
         expect(ghCalls).toContain(
-          "pr list --head jasonLaster:statemachine --state all --limit 20 --json number,title,url,baseRefName,headRefName,state,mergedAt,updatedAt,isCrossRepository,headRepository,headRepositoryOwner",
+          "pr list --head jasonLaster:statemachine --state all --limit 20 --json number,title,url,baseRefName,headRefName,state,mergedAt,updatedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
         );
       }),
     20_000,

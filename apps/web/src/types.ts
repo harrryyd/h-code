@@ -17,7 +17,6 @@ import type {
   ContextTrimPoint,
   ProviderInteractionMode,
   RuntimeMode,
-  ContextTrimPoint,
 } from "@t3tools/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
@@ -106,7 +105,6 @@ export interface Thread {
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
-  contextTrimPoints?: ContextTrimPoint[];
   proposedPlans: ProposedPlan[];
   error: string | null;
   createdAt: string;
@@ -118,7 +116,7 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
-  contextTrimPoints: ReadonlyArray<ContextTrimPoint>;
+  contextTrimPoints: ContextTrimPoint[];
 }
 
 export interface ThreadShell {

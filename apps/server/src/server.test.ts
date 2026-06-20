@@ -92,6 +92,10 @@ import {
   ProviderRegistry,
   type ProviderRegistryShape,
 } from "./provider/Services/ProviderRegistry.ts";
+import {
+  ProviderAdapterRegistry,
+  type ProviderAdapterRegistryShape,
+} from "./provider/Services/ProviderAdapterRegistry.ts";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "./provider/providerMaintenance.ts";
 import { ServerLifecycleEvents, type ServerLifecycleEventsShape } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup, type ServerRuntimeStartupShape } from "./serverRuntimeStartup.ts";
@@ -193,6 +197,7 @@ const makeDefaultOrchestrationReadModel = () => {
         activities: [],
         proposedPlans: [],
         checkpoints: [],
+        contextTrimPoints: [],
         deletedAt: null,
       },
     ],
@@ -341,6 +346,7 @@ const buildAppUnderTest = (options?: {
   layers?: {
     keybindings?: Partial<KeybindingsShape>;
     providerRegistry?: Partial<ProviderRegistryShape>;
+    providerAdapterRegistry?: Partial<ProviderAdapterRegistryShape>;
     serverSettings?: Partial<ServerSettingsShape>;
     externalLauncher?: Partial<ExternalLauncher.ExternalLauncherShape>;
     vcsDriver?: Partial<VcsDriver.VcsDriverShape>;
@@ -562,6 +568,11 @@ const buildAppUnderTest = (options?: {
           setProviderMaintenanceActionState: () => Effect.succeed([]),
           streamChanges: Stream.empty,
           ...options?.layers?.providerRegistry,
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(ProviderAdapterRegistry)({
+          ...options?.layers?.providerAdapterRegistry,
         }),
       ),
       Layer.provide(
@@ -5425,6 +5436,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             activities: [],
             proposedPlans: [],
             checkpoints: [],
+            contextTrimPoints: [],
             deletedAt: null,
           },
         ],

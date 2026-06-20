@@ -395,9 +395,8 @@ function SortableCategoryHeader({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <button
+      <div
         className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent/50"
-        onClick={onToggle}
         onContextMenu={onContextMenu}
         onDoubleClick={onDoubleClick}
         style={{ backgroundColor: category.color + "20" }}
@@ -405,8 +404,6 @@ function SortableCategoryHeader({
         <div className="shrink-0 cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>
           <GripVerticalIcon size={10} className="text-muted-foreground/50" />
         </div>
-        {collapsed ? <ChevronRightIcon size={14} /> : <ChevronDownIcon size={14} />}
-        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
         {renaming ? (
           <input
             className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
@@ -417,14 +414,21 @@ function SortableCategoryHeader({
             autoFocus
           />
         ) : (
-          <span className="truncate">{category.name}</span>
+          <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={onToggle}>
+            {collapsed ? <ChevronRightIcon size={14} /> : <ChevronDownIcon size={14} />}
+            <div
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: category.color }}
+            />
+            <span className="truncate">{category.name}</span>
+          </button>
         )}
         {jiraKey && (
           <a
             href={category.jiraLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 text-[10px] text-muted-foreground hover:underline flex items-center gap-0.5 ml-auto"
+            className="flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             <ExternalLinkIcon size={10} />
@@ -432,16 +436,13 @@ function SortableCategoryHeader({
           </a>
         )}
         <button
-          className="shrink-0 p-0.5 rounded hover:bg-accent/50 text-muted-foreground ml-auto"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddItem();
-          }}
+          className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent/50"
+          onClick={onAddItem}
           title="Add item"
         >
           <PlusIcon size={12} />
         </button>
-      </button>
+      </div>
     </div>
   );
 }

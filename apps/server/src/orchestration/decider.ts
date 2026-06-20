@@ -20,6 +20,7 @@ import {
   requireThreadArchived,
   requireThreadAbsent,
   requireThreadNotArchived,
+  requireTurnNotActive,
 } from "./commandInvariants.ts";
 import { projectEvent } from "./projector.ts";
 
@@ -298,6 +299,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      yield* requireTurnNotActive({ thread, command });
       yield* requireThreadAbsent({
         readModel,
         command,
@@ -629,10 +631,11 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      yield* requireTurnNotActive({ thread, command });
 
       const messagesByTurn = new Map<
         string,
-        { turnId: string; messages: typeof thread.messages }
+        { turnId: string; messages: Array<(typeof thread.messages)[number]> }
       >();
       for (const msg of thread.messages) {
         if (msg.turnId === null) continue;
@@ -686,7 +689,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       prunedMessageCount += unkeyedMessages.length;
 
       const occurredAt = yield* nowIso;
-      const trimPointId = EventId.make(crypto.randomUUID());
+      const crypto = yield* Crypto.Crypto;
+      const trimPointId = EventId.make(yield* crypto.randomUUIDv4);
       const trimPoint: ContextTrimPoint = {
         id: trimPointId,
         createdAt: occurredAt,
@@ -762,7 +766,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       });
       yield* requireTurnNotActive({ thread, command });
       const occurredAt = yield* nowIso;
-      const trimPointId = EventId.make(crypto.randomUUID());
+      const crypto = yield* Crypto.Crypto;
+      const trimPointId = EventId.make(yield* crypto.randomUUIDv4);
       return [
         {
           ...(yield* withEventBase({

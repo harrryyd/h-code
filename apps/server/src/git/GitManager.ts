@@ -311,7 +311,14 @@ function toPullRequestInfo(summary: ChangeRequest): PullRequestInfo {
     baseRefName: summary.baseRefName,
     headRefName: summary.headRefName,
     state: summary.state ?? "open",
-    ...(summary.labels ? { labels: [...summary.labels] } : {}),
+    ...(summary.labels
+      ? {
+          labels: summary.labels.map((label) => ({
+            name: label.name,
+            ...(label.color === undefined ? {} : { color: label.color }),
+          })),
+        }
+      : {}),
     updatedAt: summary.updatedAt,
     ...(summary.isCrossRepository !== undefined
       ? { isCrossRepository: summary.isCrossRepository }

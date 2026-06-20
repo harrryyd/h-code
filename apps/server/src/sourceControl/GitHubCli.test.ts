@@ -81,7 +81,7 @@ describe("GitHubCli.layer", () => {
           "view",
           "#42",
           "--json",
-          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
+          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
         ],
         cwd: "/repo",
         timeoutMs: 30_000,
@@ -183,6 +183,81 @@ describe("GitHubCli.layer", () => {
           state: "open",
         },
       ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("retries PR listings without labels when old gh rejects that JSON field", () =>
+    Effect.gen(function* () {
+      mockRun.mockReturnValueOnce(
+        Effect.fail(
+          new VcsProcessExitError({
+            operation: "GitHubCli.execute",
+            command: "gh pr list",
+            cwd: "/repo",
+            exitCode: 1,
+            detail: 'Unknown JSON field: "labels"',
+          }),
+        ),
+      );
+      mockRun.mockReturnValueOnce(
+        Effect.succeed(
+          processOutput(
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            JSON.stringify([
+              {
+                number: 43,
+                title: "Fallback PR",
+                url: "https://github.com/pingdotgg/codething-mvp/pull/43",
+                baseRefName: "main",
+                headRefName: "feature/pr-list",
+                state: "OPEN",
+              },
+            ]),
+          ),
+        ),
+      );
+
+      const gh = yield* GitHubCli.GitHubCli;
+      const result = yield* gh.listOpenPullRequests({
+        cwd: "/repo",
+        headSelector: "feature/pr-list",
+      });
+
+      assert.strictEqual(result[0]?.number, 43);
+      expect(mockRun).toHaveBeenCalledTimes(2);
+      const firstArgs = mockRun.mock.calls[0]?.[0].args ?? [];
+      const secondArgs = mockRun.mock.calls[1]?.[0].args ?? [];
+      assert.match(firstArgs.at(-1) ?? "", /labels/);
+      assert.notMatch(secondArgs.at(-1) ?? "", /labels/);
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("deduplicates PR labels case-insensitively", () =>
+    Effect.gen(function* () {
+      mockRun.mockReturnValueOnce(
+        Effect.succeed(
+          processOutput(
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            JSON.stringify({
+              number: 42,
+              title: "Duplicate labels",
+              url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+              baseRefName: "main",
+              headRefName: "feature/pr-threads",
+              state: "OPEN",
+              labels: [
+                { name: "bug", color: "d73a4a" },
+                { name: "Bug", color: "d73a4a" },
+              ],
+            }),
+          ),
+        ),
+      );
+
+      const gh = yield* GitHubCli.GitHubCli;
+      const result = yield* gh.getPullRequest({ cwd: "/repo", reference: "#42" });
+
+      assert.deepStrictEqual(result.labels, [{ name: "bug", color: "#d73a4a" }]);
     }).pipe(Effect.provide(layer)),
   );
 

@@ -151,11 +151,7 @@ describe("KeybindingsSettings.logic", () => {
     ] satisfies ResolvedKeybindingsConfig);
 
     expect(options).toEqual(
-      expect.arrayContaining([
-        "chat.new",
-        "thread.renameCurrent",
-        "script.setup-db.run",
-      ]),
+      expect.arrayContaining(["chat.new", "thread.renameCurrent", "script.setup-db.run"]),
     );
   });
 

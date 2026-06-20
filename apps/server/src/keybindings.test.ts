@@ -306,6 +306,31 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       }).pipe(Effect.provide(makeKeybindingsLayer())),
   );
 
+  it.effect("removes retired fork commands from persisted keybindings on startup", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const { keybindingsConfigPath } = yield* ServerConfig;
+      yield* fs.writeFileString(
+        keybindingsConfigPath,
+        // @effect-diagnostics-next-line preferSchemaOverJson:off
+        JSON.stringify([
+          { key: "mod+i", command: "chat.focus", when: "!terminalFocus" },
+          { key: "mod+alt+n", command: "chat.newInProject", when: "!terminalFocus" },
+          { key: "mod+shift+r", command: "script.run-tests.run" },
+        ]),
+      );
+
+      const keybindings = yield* Keybindings;
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+
+      const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
+      assert.isFalse(persisted.some((entry) => String(entry.command) === "chat.focus"));
+      assert.isFalse(persisted.some((entry) => String(entry.command) === "chat.newInProject"));
+      assert.isTrue(persisted.some((entry) => entry.command === "script.run-tests.run"));
+      assert.deepEqual((yield* keybindings.loadConfigState).issues, []);
+    }).pipe(Effect.provide(makeKeybindingsLayer())),
+  );
+
   it.effect("skips conflicting default keybindings on startup and logs a detailed warning", () => {
     const messages: string[] = [];
     const logger = Logger.make(({ message }) => {

@@ -1232,18 +1232,6 @@ async function waitForComposerEditor(): Promise<HTMLElement> {
   );
 }
 
-function readComposerSelectionOffset(): number {
-  const composerEditor = document.querySelector<HTMLElement>('[data-testid="composer-editor"]');
-  const selection = window.getSelection();
-  if (!composerEditor || !selection || selection.rangeCount === 0 || !selection.focusNode) {
-    throw new Error("Unable to resolve composer selection.");
-  }
-  const range = selection.getRangeAt(0).cloneRange();
-  range.selectNodeContents(composerEditor);
-  range.setEnd(selection.focusNode, selection.focusOffset);
-  return range.toString().length;
-}
-
 async function pressComposerKey(key: string): Promise<void> {
   const composerEditor = await waitForComposerEditor();
   composerEditor.focus();
@@ -1530,33 +1518,6 @@ function dispatchChatNewShortcut(): void {
     new KeyboardEvent("keydown", {
       key: "o",
       shiftKey: true,
-      metaKey: useMetaForMod,
-      ctrlKey: !useMetaForMod,
-      bubbles: true,
-      cancelable: true,
-    }),
-  );
-}
-
-function dispatchProjectPickerShortcut(): void {
-  const useMetaForMod = isMacPlatform(navigator.platform);
-  window.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "n",
-      altKey: true,
-      metaKey: useMetaForMod,
-      ctrlKey: !useMetaForMod,
-      bubbles: true,
-      cancelable: true,
-    }),
-  );
-}
-
-function dispatchFocusChatShortcut(): void {
-  const useMetaForMod = isMacPlatform(navigator.platform);
-  window.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "i",
       metaKey: useMetaForMod,
       ctrlKey: !useMetaForMod,
       bubbles: true,
@@ -4872,119 +4833,6 @@ describe("ChatView timeline estimator parity (full app)", () => {
         envMode: "local",
         worktreePath: null,
       });
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it.skip("removed project picker shortcut", async () => {
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-project-picker-shortcut-test" as MessageId,
-        targetText: "project picker shortcut test",
-      }),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          keybindings: [
-            {
-              command: "chat.newInProject" as never,
-              shortcut: {
-                key: "n",
-                metaKey: false,
-                ctrlKey: false,
-                shiftKey: false,
-                altKey: true,
-                modKey: true,
-              },
-              whenAst: {
-                type: "not",
-                node: { type: "identifier", name: "terminalFocus" },
-              },
-            },
-          ],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      dispatchProjectPickerShortcut();
-
-      const palette = page.getByTestId("command-palette");
-      await expect.element(palette).toBeInTheDocument();
-      await expect.element(palette.getByText("Project", { exact: true })).toBeInTheDocument();
-      await palette.getByText("Project", { exact: true }).click();
-
-      await waitForURL(
-        mounted.router,
-        (path) => UUID_ROUTE_RE.test(path),
-        "Route should have changed to a new draft thread UUID from the project picker shortcut.",
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it.skip("removed chat focus shortcut", async () => {
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-focus-chat-shortcut-test" as MessageId,
-        targetText: "focus chat shortcut test",
-      }),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          keybindings: [
-            {
-              command: "chat.focus" as never,
-              shortcut: {
-                key: "i",
-                metaKey: false,
-                ctrlKey: false,
-                shiftKey: false,
-                altKey: false,
-                modKey: true,
-              },
-              whenAst: {
-                type: "not",
-                node: { type: "identifier", name: "terminalFocus" },
-              },
-            },
-          ],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      useComposerDraftStore.getState().setPrompt(THREAD_REF, "Focus shortcut draft");
-      await waitForLayout();
-
-      const threadRow = page.getByTestId(`thread-row-${THREAD_ID}`);
-      await expect.element(threadRow).toBeInTheDocument();
-      (threadRow.element() as HTMLElement).focus();
-
-      dispatchFocusChatShortcut();
-      await waitForLayout();
-
-      const composerEditor = await waitForComposerEditor();
-      expect(document.activeElement).toBe(composerEditor);
-      expect(readComposerSelectionOffset()).toBe("Focus shortcut draft".length);
-
-      await openCommandPaletteFromTrigger();
-      const paletteInput = await waitForElement(
-        () => document.querySelector<HTMLInputElement>('[data-testid="command-palette"] input'),
-        "Command palette input did not render.",
-      );
-      paletteInput.focus();
-
-      dispatchFocusChatShortcut();
-      await waitForLayout();
-
-      expect(document.activeElement).toBe(paletteInput);
     } finally {
       await mounted.cleanup();
     }

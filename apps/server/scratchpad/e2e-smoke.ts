@@ -25,7 +25,6 @@
  *  - ws credential: tries /api/auth/websocket-ticket (?wsTicket) then
  *    /api/auth/ws-token (?wsToken)
  *  - RPC tags referenced as string literals (stable across the range)
- *  - SeededWorkItemWriteback layer imported dynamically (absent at range start)
  */
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -58,12 +57,6 @@ import { runServer } from "../src/server.ts";
 const BOOTSTRAP_TOKEN = "e2e-smoke-bootstrap-token";
 const STEP_TIMEOUT_SECONDS = 20;
 const BOOT_TIMEOUT_SECONDS = 45;
-
-// Optional at the start of the bisect range.
-const seededWritebackLayer: Layer.Layer<never> =
-  await import("../src/orchestration/Layers/SeededWorkItemWriteback.ts")
-    .then((m: any) => m.SeededWorkItemWritebackLive ?? Layer.empty)
-    .catch(() => Layer.empty);
 
 const findFreePort = () =>
   new Promise<number>((resolve, reject) => {
@@ -481,7 +474,5 @@ const program = Effect.gen(function* () {
 );
 
 NodeRuntime.runMain(
-  program.pipe(
-    Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer, seededWritebackLayer)),
-  ),
+  program.pipe(Effect.provide(NodeServices.layer), Effect.provide(NetService.layer)),
 );

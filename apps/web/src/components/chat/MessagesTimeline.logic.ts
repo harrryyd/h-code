@@ -282,9 +282,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return a.createdAt === (b as typeof a).createdAt;
 
     case "proposed-plan":
-      return (
-        a.proposedPlan === (b as typeof a).proposedPlan && a.hidden === (b as typeof a).hidden
-      );
+      return a.proposedPlan === (b as typeof a).proposedPlan && a.hidden === (b as typeof a).hidden;
 
     case "work":
       return (

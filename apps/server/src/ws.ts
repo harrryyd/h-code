@@ -175,6 +175,8 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.projectsWriteFile, AuthOrchestrationOperateScope],
   [WS_METHODS.shellOpenInEditor, AuthOrchestrationOperateScope],
   [WS_METHODS.filesystemBrowse, AuthOrchestrationReadScope],
+  [WS_METHODS.mcpListServers, AuthOrchestrationReadScope],
+  [WS_METHODS.mcpToggleServer, AuthOrchestrationOperateScope],
   [WS_METHODS.subscribeVcsStatus, AuthOrchestrationReadScope],
   [WS_METHODS.vcsRefreshStatus, AuthOrchestrationReadScope],
   [WS_METHODS.vcsPull, AuthOrchestrationOperateScope],
@@ -188,6 +190,8 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.vcsSwitchRef, AuthOrchestrationOperateScope],
   [WS_METHODS.vcsInit, AuthOrchestrationOperateScope],
   [WS_METHODS.reviewGetDiffPreview, AuthReviewWriteScope],
+  [WS_METHODS.todosLoad, AuthOrchestrationReadScope],
+  [WS_METHODS.todosMutate, AuthOrchestrationOperateScope],
   [WS_METHODS.terminalOpen, AuthTerminalOperateScope],
   [WS_METHODS.terminalAttach, AuthTerminalOperateScope],
   [WS_METHODS.terminalWrite, AuthTerminalOperateScope],
@@ -201,6 +205,14 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.subscribeServerLifecycle, AuthOrchestrationReadScope],
   [WS_METHODS.subscribeAuthAccess, AuthAccessReadScope],
 ]);
+
+export const missingRpcScopeDeclarations = (): ReadonlyArray<string> => {
+  const missing: string[] = [];
+  for (const tag of WsRpcGroup.requests.keys()) {
+    if (!RPC_REQUIRED_SCOPE.has(tag)) missing.push(tag);
+  }
+  return missing;
+};
 
 function toAuthAccessStreamEvent(
   change: PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange,
@@ -1214,12 +1226,12 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
               yield* writeTodos(config.todosDir, {
                 categories: deduped.categories,
                 items: deduped.items,
-                jiraBaseUrl: deduped.jiraBaseUrl,
+                ...(deduped.jiraBaseUrl === undefined ? {} : { jiraBaseUrl: deduped.jiraBaseUrl }),
               });
               return {
                 categories: deduped.categories,
                 items: deduped.items,
-                jiraBaseUrl: deduped.jiraBaseUrl,
+                ...(deduped.jiraBaseUrl === undefined ? {} : { jiraBaseUrl: deduped.jiraBaseUrl }),
               };
             }).pipe(
               Effect.mapError(

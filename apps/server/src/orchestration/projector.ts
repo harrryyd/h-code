@@ -23,7 +23,6 @@ import {
   ThreadMetaUpdatedPayload,
   ThreadProposedPlanUpsertedPayload,
   ThreadRuntimeModeSetPayload,
-  ThreadSeededWorkItemsUpsertedPayload,
   ThreadUnarchivedPayload,
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
@@ -271,6 +270,7 @@ export function projectEvent(
             proposedPlans: [],
             activities: [],
             checkpoints: [],
+            contextTrimPoints: [],
             session: null,
           },
           event.type,
@@ -297,20 +297,9 @@ export function projectEvent(
       );
 
     case "thread.seeded-work-items-upserted":
-      return decodeForEvent(
-        ThreadSeededWorkItemsUpsertedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            seededWorkItems: payload.seededWorkItems,
-            updatedAt: payload.updatedAt,
-          }),
-        })),
-      );
+    case "thread.seeded-work-item-writeback-requested":
+    case "thread.manager-queue-items-upserted":
+      return Effect.succeed(nextBase);
 
     case "thread.archived":
       return decodeForEvent(ThreadArchivedPayload, event.payload, event.type, "payload").pipe(
@@ -680,9 +669,10 @@ export function projectEvent(
           if (!thread) {
             return nextBase;
           }
-          const contextTrimPoints = [...(thread.contextTrimPoints ?? []), payload.trimPoint].toSorted(
-            (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-          );
+          const contextTrimPoints = [
+            ...(thread.contextTrimPoints ?? []),
+            payload.trimPoint,
+          ].toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
           return {
             ...nextBase,
             threads: updateThread(nextBase.threads, payload.threadId, {

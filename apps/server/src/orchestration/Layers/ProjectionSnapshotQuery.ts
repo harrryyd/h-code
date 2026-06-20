@@ -1,5 +1,6 @@
 import {
   ChatAttachment,
+  ContextTrimPoint,
   CheckpointRef,
   IsoDateTime,
   MessageId,
@@ -23,6 +24,7 @@ import {
   ModelSelection,
   ProjectId,
   ThreadId,
+  ThreadTrimPointCreatedPayload,
 } from "@t3tools/contracts";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
@@ -106,6 +108,11 @@ const ProjectionStateDbRowSchema = ProjectionState;
 const ProjectionCountsRowSchema = Schema.Struct({
   projectCount: Schema.Number,
   threadCount: Schema.Number,
+});
+const ContextTrimPointEventRowSchema = Schema.Struct({
+  threadId: ThreadId,
+  sequence: NonNegativeInt,
+  payload: Schema.fromJsonString(ThreadTrimPointCreatedPayload),
 });
 const WorkspaceRootLookupInput = Schema.Struct({
   workspaceRoot: Schema.String,
@@ -341,6 +348,30 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         FROM projection_threads
         ORDER BY created_at ASC, thread_id ASC
       `,
+  });
+
+  const listContextTrimPointRows = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: ContextTrimPointEventRowSchema,
+    execute: () => sql`
+      SELECT stream_id AS "threadId", sequence, payload_json AS "payload"
+      FROM orchestration_events
+      WHERE aggregate_kind = 'thread' AND event_type = 'thread.trim-point-created'
+      ORDER BY sequence ASC
+    `,
+  });
+
+  const listContextTrimPointRowsByThread = SqlSchema.findAll({
+    Request: ThreadIdLookupInput,
+    Result: ContextTrimPointEventRowSchema,
+    execute: ({ threadId }) => sql`
+      SELECT stream_id AS "threadId", sequence, payload_json AS "payload"
+      FROM orchestration_events
+      WHERE aggregate_kind = 'thread'
+        AND event_type = 'thread.trim-point-created'
+        AND stream_id = ${threadId}
+      ORDER BY sequence ASC
+    `,
   });
 
   const listActiveThreadRows = SqlSchema.findAll({
@@ -998,6 +1029,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listContextTrimPointRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getSnapshot:listContextTrimPoints:query",
+                "ProjectionSnapshotQuery.getSnapshot:listContextTrimPoints:decodeRows",
+              ),
+            ),
+          ),
           listProjectionStateRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1019,6 +1058,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionRows,
             checkpointRows,
             latestTurnRows,
+            contextTrimPointRows,
             stateRows,
           ]) =>
             Effect.gen(function* () {
@@ -1028,6 +1068,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               const checkpointsByThread = new Map<string, Array<OrchestrationCheckpointSummary>>();
               const sessionsByThread = new Map<string, OrchestrationSession>();
               const latestTurnByThread = new Map<string, OrchestrationLatestTurn>();
+              const contextTrimPointsByThread = new Map<string, ContextTrimPoint[]>();
 
               let updatedAt: string | null = null;
 
@@ -1055,6 +1096,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   updatedAt: row.updatedAt,
                 });
                 messagesByThread.set(row.threadId, threadMessages);
+              }
+
+              for (const row of contextTrimPointRows) {
+                const points = contextTrimPointsByThread.get(row.threadId) ?? [];
+                points.push(row.payload.trimPoint);
+                contextTrimPointsByThread.set(row.threadId, points);
               }
 
               for (const row of proposedPlanRows) {
@@ -1190,6 +1237,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                 activities: activitiesByThread.get(row.threadId) ?? [],
                 checkpoints: checkpointsByThread.get(row.threadId) ?? [],
+                contextTrimPoints: contextTrimPointsByThread.get(row.threadId) ?? [],
                 session: sessionsByThread.get(row.threadId) ?? null,
               }));
 
@@ -1235,6 +1283,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listThreadMessageRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getCommandReadModel:listThreadMessages:query",
+                "ProjectionSnapshotQuery.getCommandReadModel:listThreadMessages:decodeRows",
+              ),
+            ),
+          ),
           listThreadProposedPlanRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1259,6 +1315,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listContextTrimPointRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getCommandReadModel:listContextTrimPoints:query",
+                "ProjectionSnapshotQuery.getCommandReadModel:listContextTrimPoints:decodeRows",
+              ),
+            ),
+          ),
           listProjectionStateRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1271,11 +1335,22 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
       )
       .pipe(
         Effect.flatMap(
-          ([projectRows, threadRows, proposedPlanRows, sessionRows, latestTurnRows, stateRows]) =>
+          ([
+            projectRows,
+            threadRows,
+            messageRows,
+            proposedPlanRows,
+            sessionRows,
+            latestTurnRows,
+            contextTrimPointRows,
+            stateRows,
+          ]) =>
             Effect.sync(() => {
               let updatedAt: string | null = null;
               const projects: OrchestrationProject[] = [];
               const threads: OrchestrationThread[] = [];
+              const messagesByThread = new Map<string, OrchestrationMessage[]>();
+              const contextTrimPointsByThread = new Map<string, ContextTrimPoint[]>();
 
               for (let index = 0; index < projectRows.length; index += 1) {
                 const row = projectRows[index];
@@ -1300,6 +1375,25 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   continue;
                 }
                 updatedAt = maxIso(updatedAt, row.updatedAt);
+              }
+              for (const row of messageRows) {
+                const messages = messagesByThread.get(row.threadId) ?? [];
+                messages.push({
+                  id: row.messageId,
+                  role: row.role,
+                  text: row.text,
+                  ...(row.attachments !== null ? { attachments: row.attachments } : {}),
+                  turnId: row.turnId,
+                  streaming: row.isStreaming === 1,
+                  createdAt: row.createdAt,
+                  updatedAt: row.updatedAt,
+                });
+                messagesByThread.set(row.threadId, messages);
+              }
+              for (const row of contextTrimPointRows) {
+                const points = contextTrimPointsByThread.get(row.threadId) ?? [];
+                points.push(row.payload.trimPoint);
+                contextTrimPointsByThread.set(row.threadId, points);
               }
               for (let index = 0; index < proposedPlanRows.length; index += 1) {
                 const row = proposedPlanRows[index];
@@ -1384,10 +1478,11 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   updatedAt: row.updatedAt,
                   archivedAt: row.archivedAt,
                   deletedAt: row.deletedAt,
-                  messages: [],
+                  messages: messagesByThread.get(row.threadId) ?? [],
                   proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                   activities: [],
                   checkpoints: [],
+                  contextTrimPoints: contextTrimPointsByThread.get(row.threadId) ?? [],
                   session: sessionByThread.get(row.threadId) ?? null,
                 });
               }
@@ -1904,6 +1999,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         checkpointRows,
         latestTurnRow,
         sessionRow,
+        contextTrimPointRows,
       ] = yield* Effect.all([
         getActiveThreadRowById({ threadId }).pipe(
           Effect.mapError(
@@ -1958,6 +2054,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             toPersistenceSqlOrDecodeError(
               "ProjectionSnapshotQuery.getThreadDetailById:getSession:query",
               "ProjectionSnapshotQuery.getThreadDetailById:getSession:decodeRow",
+            ),
+          ),
+        ),
+        listContextTrimPointRowsByThread({ threadId }).pipe(
+          Effect.mapError(
+            toPersistenceSqlOrDecodeError(
+              "ProjectionSnapshotQuery.getThreadDetailById:listContextTrimPoints:query",
+              "ProjectionSnapshotQuery.getThreadDetailById:listContextTrimPoints:decodeRows",
             ),
           ),
         ),
@@ -2021,6 +2125,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           assistantMessageId: row.assistantMessageId,
           completedAt: row.completedAt,
         })),
+        contextTrimPoints: contextTrimPointRows.map((row) => row.payload.trimPoint),
         session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
       };
 

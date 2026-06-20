@@ -11,15 +11,11 @@ import {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
-  ManagerCreateRefinerThreadCommand,
-  ManagerRecordRefinementHandoffCommand,
-  ManagerBootstrapCommand,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
   OrchestrationProposedPlan,
   OrchestrationSession,
   ProjectCreateCommand,
-  RuntimeMode,
   ThreadMetaUpdatedPayload,
   ThreadTurnStartCommand,
   ThreadCreatedPayload,
@@ -37,13 +33,6 @@ const decodeTurnDiffInput = Schema.decodeUnknownEffect(OrchestrationGetTurnDiffI
 const decodeFullThreadDiffInput = Schema.decodeUnknownEffect(OrchestrationGetFullThreadDiffInput);
 const decodeThreadTurnDiff = Schema.decodeUnknownEffect(ThreadTurnDiff);
 const decodeProjectCreateCommand = Schema.decodeUnknownEffect(ProjectCreateCommand);
-const decodeManagerBootstrapCommand = Schema.decodeUnknownEffect(ManagerBootstrapCommand);
-const decodeManagerCreateRefinerThreadCommand = Schema.decodeUnknownEffect(
-  ManagerCreateRefinerThreadCommand,
-);
-const decodeManagerRecordRefinementHandoffCommand = Schema.decodeUnknownEffect(
-  ManagerRecordRefinementHandoffCommand,
-);
 const decodeProjectCreatedPayload = Schema.decodeUnknownEffect(ProjectCreatedPayload);
 const decodeProjectMetaUpdatedPayload = Schema.decodeUnknownEffect(ProjectMetaUpdatedPayload);
 const decodeThreadTurnStartCommand = Schema.decodeUnknownEffect(ThreadTurnStartCommand);
@@ -170,29 +159,6 @@ it.effect("decodes project.create with createWorkspaceRootIfMissing enabled", ()
   }),
 );
 
-it.effect(
-  "decodes manager.bootstrap with manager metadata defaults handled by the command shape",
-  () =>
-    Effect.gen(function* () {
-      const parsed = yield* decodeManagerBootstrapCommand({
-        type: "manager.bootstrap",
-        commandId: "cmd-manager-bootstrap",
-        projectId: "manager-workspace-1",
-        threadId: "manager-console-1",
-        workspaceRoot: "/tmp/manager-workspace",
-        modelSelection: {
-          provider: "codex",
-          model: "gpt-5-codex",
-        },
-        createdAt: "2026-01-01T00:00:00.000Z",
-      });
-
-      assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
-      assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
-      assert.strictEqual(parsed.modelSelection.instanceId, "codex");
-    }),
-);
-
 it.effect("decodes historical project.created payloads with a default provider", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeProjectCreatedPayload({
@@ -208,125 +174,6 @@ it.effect("decodes historical project.created payloads with a default provider",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
     assert.strictEqual(parsed.defaultModelSelection?.instanceId, "codex");
-    assert.strictEqual(parsed.managerMetadata, undefined);
-  }),
-);
-
-it.effect("decodes manager project and thread metadata on created payloads", () =>
-  Effect.gen(function* () {
-    const project = yield* decodeProjectCreatedPayload({
-      projectId: "manager-workspace-1",
-      title: "Manager Workspace",
-      workspaceRoot: "/tmp/manager-workspace",
-      managerMetadata: {
-        role: "workspace",
-      },
-      defaultModelSelection: {
-        provider: "codex",
-        model: "gpt-5-codex",
-      },
-      scripts: [],
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-    const thread = yield* decodeThreadCreatedPayload({
-      threadId: "manager-console-1",
-      projectId: "manager-workspace-1",
-      title: "Manager Console",
-      managerMetadata: {
-        role: "console",
-      },
-      modelSelection: {
-        provider: "codex",
-        model: "gpt-5-codex",
-      },
-      interactionMode: "default",
-      branch: null,
-      worktreePath: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-
-    assert.deepStrictEqual(project.managerMetadata, { role: "workspace" });
-    assert.deepStrictEqual(thread.managerMetadata, { role: "console" });
-  }),
-);
-
-it.effect("decodes refiner thread metadata on created payloads", () =>
-  Effect.gen(function* () {
-    const thread = yield* decodeThreadCreatedPayload({
-      threadId: "refiner-thread-1",
-      projectId: "project-1",
-      title: "Refine: Billing export",
-      managerMetadata: {
-        role: "refiner",
-        managerThreadId: "manager-console-1",
-        seededWorkItemId: "work-refine-1",
-      },
-      modelSelection: {
-        provider: "codex",
-        model: "gpt-5-codex",
-      },
-      interactionMode: "default",
-      branch: null,
-      worktreePath: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-
-    assert.deepStrictEqual(thread.managerMetadata, {
-      role: "refiner",
-      managerThreadId: "manager-console-1",
-      seededWorkItemId: "work-refine-1",
-    } as typeof thread.managerMetadata);
-  }),
-);
-
-it.effect("decodes manager refiner thread creation commands", () =>
-  Effect.gen(function* () {
-    const command = yield* decodeManagerCreateRefinerThreadCommand({
-      type: "manager.refiner-thread.create",
-      commandId: "cmd-refiner-create",
-      threadId: "refiner-thread-1",
-      managerThreadId: "manager-console-1",
-      seededWorkItemId: "work-refine-1",
-      modelSelection: {
-        provider: "codex",
-        model: "gpt-5-codex",
-      },
-      runtimeMode: "full-access",
-      interactionMode: "default",
-      branch: null,
-      worktreePath: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-    });
-
-    assert.strictEqual(command.type, "manager.refiner-thread.create");
-    assert.strictEqual(command.managerThreadId, "manager-console-1");
-    assert.strictEqual(command.seededWorkItemId, "work-refine-1");
-  }),
-);
-
-it.effect("decodes manager refinement handoff commands", () =>
-  Effect.gen(function* () {
-    const command = yield* decodeManagerRecordRefinementHandoffCommand({
-      type: "manager.refinement-handoff.record",
-      commandId: "cmd-refinement-handoff",
-      refinerThreadId: "refiner-thread-1",
-      refinedProblemStatement: " Tighten the billing export brief. ",
-      acceptanceCriteria: [" Export action is visible ", " CSV includes invoice rows "],
-      targetProjectId: " project-1 ",
-      createdAt: "2026-01-01T00:00:05.000Z",
-    });
-
-    assert.strictEqual(command.type, "manager.refinement-handoff.record");
-    assert.strictEqual(command.refinerThreadId, "refiner-thread-1");
-    assert.strictEqual(command.refinedProblemStatement, "Tighten the billing export brief.");
-    assert.deepStrictEqual(command.acceptanceCriteria, [
-      "Export action is visible",
-      "CSV includes invoice rows",
-    ]);
-    assert.strictEqual(command.targetProjectId, "project-1");
   }),
 );
 
@@ -892,7 +739,9 @@ it.effect("ModelSelection encodes to the canonical instanceId wire form", () =>
 
 const decodeThreadContextTrimCommand = Schema.decodeUnknownEffect(ThreadContextTrimCommand);
 const decodeContextTrimPoint = Schema.decodeUnknownEffect(ContextTrimPoint);
-const decodeThreadTrimPointCreatedPayload = Schema.decodeUnknownEffect(ThreadTrimPointCreatedPayload);
+const decodeThreadTrimPointCreatedPayload = Schema.decodeUnknownEffect(
+  ThreadTrimPointCreatedPayload,
+);
 const decodeOrchestrationThread = Schema.decodeUnknownEffect(OrchestrationThread);
 
 it.effect("decodes thread.context.trim command", () =>
@@ -1072,10 +921,16 @@ import {
   ThreadContextCompactedPayload,
 } from "./orchestration.ts";
 
-const decodeThreadContextSummarizeCommand = Schema.decodeUnknownEffect(ThreadContextSummarizeCommand);
-const decodeThreadContextSummarizedPayload = Schema.decodeUnknownEffect(ThreadContextSummarizedPayload);
+const decodeThreadContextSummarizeCommand = Schema.decodeUnknownEffect(
+  ThreadContextSummarizeCommand,
+);
+const decodeThreadContextSummarizedPayload = Schema.decodeUnknownEffect(
+  ThreadContextSummarizedPayload,
+);
 const decodeThreadContextCompactCommand = Schema.decodeUnknownEffect(ThreadContextCompactCommand);
-const decodeThreadContextCompactedPayload = Schema.decodeUnknownEffect(ThreadContextCompactedPayload);
+const decodeThreadContextCompactedPayload = Schema.decodeUnknownEffect(
+  ThreadContextCompactedPayload,
+);
 
 it.effect("decodes thread.context.summarize command", () =>
   Effect.gen(function* () {

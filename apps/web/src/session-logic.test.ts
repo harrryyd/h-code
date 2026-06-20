@@ -1533,9 +1533,7 @@ describe("deriveTimelineEntries with context trim points", () => {
       createdAt: overrides.createdAt ?? "2026-02-23T00:00:05.000Z",
       beforeEntryId: overrides.beforeEntryId ?? "msg-surviving",
       prunedMessageCount: overrides.prunedMessageCount ?? 5,
-      prunedTurnIds: (overrides.prunedTurnIds ?? ["turn-1", "turn-2"]).map((id) =>
-        TurnId.make(id),
-      ),
+      prunedTurnIds: (overrides.prunedTurnIds ?? ["turn-1", "turn-2"]).map((id) => TurnId.make(id)),
     };
   }
 
