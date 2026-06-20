@@ -248,7 +248,7 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     interactionMode: thread.interactionMode,
     session: thread.session ? mapSession(thread.session) : null,
     messages: thread.messages.map((message) => mapMessage(environmentId, message)),
-    contextTrimPoints: [...thread.contextTrimPoints],
+    contextTrimPoints: [...(thread.contextTrimPoints ?? [])],
     proposedPlans: thread.proposedPlans.map(mapProposedPlan),
     error: sanitizeThreadErrorMessage(thread.session?.lastError),
     createdAt: thread.createdAt,
@@ -260,7 +260,6 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     worktreePath: thread.worktreePath,
     turnDiffSummaries: thread.checkpoints.map(mapTurnDiffSummary),
     activities: thread.activities.map((activity) => ({ ...activity })),
-    contextTrimPoints: thread.contextTrimPoints,
   };
 }
 
@@ -1283,7 +1282,6 @@ function applyEnvironmentOrchestrationEvent(
           proposedPlans: [],
           activities: [],
           checkpoints: [],
-          contextTrimPoints: [],
           session: null,
         },
         environmentId,

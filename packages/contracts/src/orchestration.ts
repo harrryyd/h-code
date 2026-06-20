@@ -501,9 +501,7 @@ export const OrchestrationThread = Schema.Struct({
   ),
   activities: Schema.Array(OrchestrationThreadActivity),
   checkpoints: Schema.Array(OrchestrationCheckpointSummary),
-  contextTrimPoints: Schema.Array(ContextTrimPoint).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
-  ),
+  contextTrimPoints: Schema.optional(Schema.Array(ContextTrimPoint)),
   session: Schema.NullOr(OrchestrationSession),
 });
 export type OrchestrationThread = typeof OrchestrationThread.Type;

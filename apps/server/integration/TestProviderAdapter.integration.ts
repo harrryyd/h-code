@@ -488,15 +488,10 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
         sessions.clear();
       });
 
-    const compactThread: ProviderAdapterShape<ProviderAdapterError>["compactThread"] = (
-      _threadId,
-    ) => Effect.succeed({ summary: "compacted", durationMs: 0 });
-
     const adapter: ProviderAdapterShape<ProviderAdapterError> = {
       provider,
       capabilities: {
         sessionModelSwitch: "in-session",
-        supportsMcpToggle: false,
       },
       startSession,
       sendTurn,
@@ -508,7 +503,6 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
       hasSession,
       readThread,
       rollbackThread,
-      compactThread,
       stopAll,
       streamEvents: Stream.fromQueue(runtimeEvents),
     };

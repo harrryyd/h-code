@@ -680,7 +680,7 @@ export function projectEvent(
           if (!thread) {
             return nextBase;
           }
-          const contextTrimPoints = [...thread.contextTrimPoints, payload.trimPoint].toSorted(
+          const contextTrimPoints = [...(thread.contextTrimPoints ?? []), payload.trimPoint].toSorted(
             (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
           );
           return {

@@ -88,11 +88,6 @@ import {
 } from "./orchestration/Services/ProjectionSnapshotQuery.ts";
 import { SqlitePersistenceMemory } from "./persistence/Layers/Sqlite.ts";
 import { PersistenceSqlError } from "./persistence/Errors.ts";
-import { ProviderUnsupportedError } from "./provider/Errors.ts";
-import {
-  ProviderAdapterRegistry,
-  type ProviderAdapterRegistryShape,
-} from "./provider/Services/ProviderAdapterRegistry.ts";
 import {
   ProviderRegistry,
   type ProviderRegistryShape,
@@ -131,9 +126,6 @@ import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as ReviewService from "./review/ReviewService.ts";
 import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
-import * as SourceControlDiscovery from "./sourceControl/SourceControlDiscovery.ts";
-import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
-import * as BackgroundAgentService from "./review/BackgroundAgentService.ts";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
@@ -201,7 +193,6 @@ const makeDefaultOrchestrationReadModel = () => {
         activities: [],
         proposedPlans: [],
         checkpoints: [],
-        contextTrimPoints: [],
         deletedAt: null,
       },
     ],
@@ -544,24 +535,6 @@ const buildAppUnderTest = (options?: {
           ...options.layers.vcsStatusBroadcaster,
         })
       : VcsStatusBroadcaster.layer.pipe(Layer.provide(gitWorkflowLayer));
-    const providerAdapterRegistryLayer = Layer.mock(ProviderAdapterRegistry)({
-      getByInstance: (instanceId) =>
-        Effect.fail(
-          new ProviderUnsupportedError({
-            provider: instanceId,
-          }),
-        ),
-      getInstanceInfo: (instanceId) =>
-        Effect.fail(
-          new ProviderUnsupportedError({
-            provider: instanceId,
-          }),
-        ),
-      listInstances: () => Effect.succeed([]),
-      listProviders: () => Effect.succeed([]),
-      streamChanges: Stream.empty,
-      subscribeChanges: Effect.die("ProviderAdapterRegistry.subscribeChanges not implemented."),
-    } satisfies ProviderAdapterRegistryShape);
 
     const servedRoutesLayer = HttpRouter.serve(makeRoutesLayer, {
       disableListenLog: true,
@@ -591,7 +564,6 @@ const buildAppUnderTest = (options?: {
           ...options?.layers?.providerRegistry,
         }),
       ),
-      Layer.provide(providerAdapterRegistryLayer),
       Layer.provide(
         Layer.mock(ServerSettingsService)({
           start: Effect.void,
@@ -818,23 +790,6 @@ const buildAppUnderTest = (options?: {
         }),
       ),
       Layer.provideMerge(makeAuthTestLayer()),
-      Layer.provide(
-        Layer.mock(SourceControlDiscovery.SourceControlDiscovery)({
-          discover: Effect.succeed({ versionControlSystems: [], sourceControlProviders: [] }),
-        }),
-      ),
-      Layer.provide(
-        Layer.mock(ProviderMaintenanceRunner.ProviderMaintenanceRunner)({
-          updateProvider: () =>
-            Effect.die("ProviderMaintenanceRunner.updateProvider not implemented in test"),
-        }),
-      ),
-      Layer.provide(
-        Layer.mock(BackgroundAgentService.BackgroundAgentService)({
-          runBackgroundAgent: () => Stream.empty,
-          runBatchAgents: () => Stream.empty,
-        }),
-      ),
       Layer.provideMerge(ServerSecretStore.layer),
       Layer.provide(workspaceAndProjectServicesLayer),
       Layer.provideMerge(FetchHttpClient.layer),
@@ -5470,7 +5425,6 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             activities: [],
             proposedPlans: [],
             checkpoints: [],
-            contextTrimPoints: [],
             deletedAt: null,
           },
         ],
