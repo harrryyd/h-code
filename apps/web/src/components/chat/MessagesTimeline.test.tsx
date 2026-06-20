@@ -1,4 +1,4 @@
-import { EnvironmentId, MessageId } from "@t3tools/contracts";
+import { EnvironmentId, EventId, MessageId, TurnId } from "@t3tools/contracts";
 import { createRef, type ReactNode, type Ref } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
@@ -320,11 +320,11 @@ describe("MessagesTimeline", () => {
             kind: "context-trim",
             createdAt: "2026-01-01T00:00:05Z",
             trimPoint: {
-              id: "trim-1",
+              id: EventId.make("trim-1"),
               createdAt: "2026-01-01T00:00:05Z",
               beforeEntryId: "entry-user-1",
               prunedMessageCount: 5,
-              prunedTurnIds: ["turn-1"],
+              prunedTurnIds: [TurnId.make("turn-1")],
             },
           },
           {
@@ -371,7 +371,7 @@ describe("MessagesTimeline", () => {
             kind: "context-trim",
             createdAt: "2026-01-01T00:00:05Z",
             trimPoint: {
-              id: "trim-1",
+              id: EventId.make("trim-1"),
               createdAt: "2026-01-01T00:00:05Z",
               beforeEntryId: "entry-user-1",
               prunedMessageCount: 1,
@@ -423,11 +423,11 @@ describe("MessagesTimeline", () => {
             kind: "context-trim",
             createdAt: "2026-01-01T00:00:05Z",
             trimPoint: {
-              id: "trim-1",
+              id: EventId.make("trim-1"),
               createdAt: "2026-01-01T00:00:05Z",
               beforeEntryId: "entry-user-1",
               prunedMessageCount: 2,
-              prunedTurnIds: ["turn-1"],
+              prunedTurnIds: [TurnId.make("turn-1")],
             },
           },
           {
@@ -447,11 +447,11 @@ describe("MessagesTimeline", () => {
             kind: "context-trim",
             createdAt: "2026-01-01T00:00:15Z",
             trimPoint: {
-              id: "trim-2",
+              id: EventId.make("trim-2"),
               createdAt: "2026-01-01T00:00:15Z",
               beforeEntryId: "entry-user-2",
               prunedMessageCount: 3,
-              prunedTurnIds: ["turn-2"],
+              prunedTurnIds: [TurnId.make("turn-2")],
             },
           },
           {

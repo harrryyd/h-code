@@ -92,6 +92,7 @@ export function applyThreadDetailEvent(
           archivedAt: null,
           deletedAt: null,
           messages: [],
+          contextTrimPoints: [],
           proposedPlans: [],
           activities: [],
           checkpoints: [],

@@ -1,6 +1,6 @@
 import type { VcsStatusResult } from "@t3tools/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { ChangeRequestBadge } from "./ThreadStatusIndicators";
 
@@ -87,7 +87,9 @@ describe("ChangeRequestBadge", () => {
   it.each([
     { state: "closed" as const, number: 8, hiddenLabel: "release" },
     { state: "merged" as const, number: 9, hiddenLabel: "shipit" },
-  ])("keeps $state change requests compact by hiding labels", ({ state, number, hiddenLabel }) => {
+  ])(
+    "keeps $state change requests compact by hiding labels",
+    ({ state, number, hiddenLabel }: { state: "closed" | "merged"; number: number; hiddenLabel: string }) => {
     const markup = renderToStaticMarkup(
       <ChangeRequestBadge
         provider={githubProvider}
@@ -105,5 +107,6 @@ describe("ChangeRequestBadge", () => {
 
     expect(markup).toContain(`#${number}`);
     expect(markup).not.toContain(hiddenLabel);
-  });
+    },
+  );
 });

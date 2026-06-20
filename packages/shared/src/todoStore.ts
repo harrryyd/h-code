@@ -62,6 +62,7 @@ export function createCategory(state: TodoState, name = "New Category", color?: 
   const trimmedName = name.trim();
   if (!trimmedName) return state;
   const category: TodoCategory = {
+    // @effect-diagnostics-next-line cryptoRandomUUID:off
     id: crypto.randomUUID(),
     name: trimmedName,
     color: color?.trim() || getRandomColor(),
@@ -130,6 +131,7 @@ export function createItem(state: TodoState, categoryId: string, title: string):
   const maxOrder = categoryItems.reduce((max, item) => Math.max(max, item.sortOrder), -1);
 
   const item: TodoItem = {
+    // @effect-diagnostics-next-line cryptoRandomUUID:off
     id: crypto.randomUUID(),
     categoryId,
     title,

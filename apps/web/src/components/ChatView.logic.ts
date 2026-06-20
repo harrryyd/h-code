@@ -42,6 +42,7 @@ export function buildLocalDraftThread(
     interactionMode: draftThread.interactionMode,
     session: null,
     messages: [],
+    contextTrimPoints: [],
     error,
     createdAt: draftThread.createdAt,
     archivedAt: null,

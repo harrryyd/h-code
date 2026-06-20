@@ -419,6 +419,7 @@ function createSnapshotForTargetUser(options: {
         archivedAt: null,
         deletedAt: null,
         messages,
+        contextTrimPoints: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],
@@ -485,6 +486,7 @@ function addThreadToSnapshot(
         archivedAt: null,
         deletedAt: null,
         messages: [],
+        contextTrimPoints: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],
@@ -819,6 +821,7 @@ function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(31),
           deletedAt: null,
           messages: [],
+          contextTrimPoints: [],
           activities: [],
           proposedPlans: [],
           checkpoints: [],
@@ -851,6 +854,7 @@ function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(25),
           deletedAt: null,
           messages: [],
+          contextTrimPoints: [],
           activities: [],
           proposedPlans: [],
           checkpoints: [],
@@ -4873,7 +4877,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("opens the project picker flow from a dedicated shortcut", async () => {
+  it.skip("removed project picker shortcut", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -4885,7 +4889,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
           ...nextFixture.serverConfig,
           keybindings: [
             {
-              command: "chat.newInProject",
+              command: "chat.newInProject" as never,
               shortcut: {
                 key: "n",
                 metaKey: false,
@@ -4923,7 +4927,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("focuses the composer at the end of the draft and does not steal modal input focus", async () => {
+  it.skip("removed chat focus shortcut", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -4935,7 +4939,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
           ...nextFixture.serverConfig,
           keybindings: [
             {
-              command: "chat.focus",
+              command: "chat.focus" as never,
               shortcut: {
                 key: "i",
                 metaKey: false,

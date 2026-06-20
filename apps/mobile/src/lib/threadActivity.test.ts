@@ -44,6 +44,7 @@ function makeThread(
     checkpoints: [],
     session: null,
     ...input,
+    contextTrimPoints: input.contextTrimPoints ?? [],
   };
 }
 

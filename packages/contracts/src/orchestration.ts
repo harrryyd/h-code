@@ -118,7 +118,6 @@ export const RuntimeMode = Schema.Literals([
   "approval-required",
   "auto-accept-edits",
   "full-access",
-  "review",
 ]);
 export type RuntimeMode = typeof RuntimeMode.Type;
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
@@ -955,12 +954,6 @@ export type ThreadContextCompactCommand = typeof ThreadContextCompactCommand.Typ
 
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
-  ManagerBootstrapCommand,
-  ManagerSeedWorkItemsCommand,
-  ThreadSeededWorkItemWritebackRequestCommand,
-  ManagerCreateRefinerThreadCommand,
-  ManagerRecordRefinementHandoffCommand,
-  WorkerDelegateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -971,9 +964,6 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
-  WorkerEscalateCommand,
-  ManagerResolveQueueItemCommand,
-  ManagerDismissQueueItemCommand,
   ThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -988,12 +978,6 @@ export type DispatchableClientOrchestrationCommand =
 
 export const ClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
-  ManagerBootstrapCommand,
-  ManagerSeedWorkItemsCommand,
-  ThreadSeededWorkItemWritebackRequestCommand,
-  ManagerCreateRefinerThreadCommand,
-  ManagerRecordRefinementHandoffCommand,
-  WorkerDelegateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -1004,9 +988,6 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
-  WorkerEscalateCommand,
-  ManagerResolveQueueItemCommand,
-  ManagerDismissQueueItemCommand,
   ClientThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,

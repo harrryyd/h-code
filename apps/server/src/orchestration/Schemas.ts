@@ -23,7 +23,6 @@ import {
   ThreadApprovalResponseRequestedPayload as ContractsThreadApprovalResponseRequestedPayloadSchema,
   ThreadCheckpointRevertRequestedPayload as ContractsThreadCheckpointRevertRequestedPayloadSchema,
   ThreadSessionStopRequestedPayload as ContractsThreadSessionStopRequestedPayloadSchema,
-  ThreadManagerQueueItemsUpsertedPayload as ContractsThreadManagerQueueItemsUpsertedPayloadSchema,
   ThreadTrimPointCreatedPayload as ContractsThreadTrimPointCreatedPayloadSchema,
 } from "@t3tools/contracts";
 
@@ -60,8 +59,5 @@ export const ThreadApprovalResponseRequestedPayload =
 export const ThreadCheckpointRevertRequestedPayload =
   ContractsThreadCheckpointRevertRequestedPayloadSchema;
 export const ThreadSessionStopRequestedPayload = ContractsThreadSessionStopRequestedPayloadSchema;
-
-export const ThreadManagerQueueItemsUpsertedPayload =
-  ContractsThreadManagerQueueItemsUpsertedPayloadSchema;
 
 export const ThreadTrimPointCreatedPayload = ContractsThreadTrimPointCreatedPayloadSchema;

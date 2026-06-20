@@ -28,7 +28,6 @@ import {
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
   ThreadTurnDiffCompletedPayload,
-  ThreadManagerQueueItemsUpsertedPayload,
   ThreadTrimPointCreatedPayload,
 } from "./Schemas.ts";
 
@@ -187,9 +186,6 @@ export function projectEvent(
             id: payload.projectId,
             title: payload.title,
             workspaceRoot: payload.workspaceRoot,
-            ...(payload.managerMetadata !== undefined
-              ? { managerMetadata: payload.managerMetadata }
-              : {}),
             defaultModelSelection: payload.defaultModelSelection,
             scripts: payload.scripts,
             createdAt: payload.createdAt,
@@ -261,9 +257,6 @@ export function projectEvent(
             id: payload.threadId,
             projectId: payload.projectId,
             title: payload.title,
-            ...(payload.managerMetadata !== undefined
-              ? { managerMetadata: payload.managerMetadata }
-              : {}),
             modelSelection: payload.modelSelection,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,
@@ -275,8 +268,6 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
-            seededWorkItems: [],
-            managerQueueItems: [],
             proposedPlans: [],
             activities: [],
             checkpoints: [],
@@ -677,22 +668,6 @@ export function projectEvent(
         }),
       );
 
-    case "thread.manager-queue-items-upserted":
-      return decodeForEvent(
-        ThreadManagerQueueItemsUpsertedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            managerQueueItems: payload.managerQueueItems,
-            updatedAt: payload.updatedAt,
-          }),
-        })),
-      );
-
     case "thread.trim-point-created":
       return decodeForEvent(
         ThreadTrimPointCreatedPayload,
@@ -739,9 +714,6 @@ export function projectEvent(
             id: payload.newThreadId,
             projectId: oldThread.projectId,
             title: oldThread.title,
-            ...(oldThread.managerMetadata !== undefined
-              ? { managerMetadata: oldThread.managerMetadata }
-              : {}),
             modelSelection: oldThread.modelSelection,
             runtimeMode: oldThread.runtimeMode,
             interactionMode: oldThread.interactionMode,
@@ -753,8 +725,6 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
-            seededWorkItems: [],
-            managerQueueItems: [],
             proposedPlans: [],
             activities: [],
             checkpoints: [],

@@ -1772,13 +1772,9 @@ export default function ChatView(props: ChatViewProps) {
         timelineMessages,
         activeThread?.proposedPlans ?? [],
         workLogEntries,
-        activeThread?.managerMetadata,
-        activeThread?.createdAt,
         activeThread?.contextTrimPoints,
       ),
     [
-      activeThread?.managerMetadata,
-      activeThread?.createdAt,
       activeThread?.proposedPlans,
       activeThread?.contextTrimPoints,
       timelineMessages,
@@ -2720,19 +2716,6 @@ export default function ChatView(props: ChatViewProps) {
       });
       if (!command) return;
 
-      if (command === "chat.focus") {
-        if (
-          isModalShortcutCaptureActive(event.target) ||
-          isEditableShortcutTarget(event.target, { allowComposer: true })
-        ) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        focusComposer();
-        return;
-      }
-
       if (command === "terminal.toggle") {
         event.preventDefault();
         event.stopPropagation();
@@ -2976,8 +2959,8 @@ export default function ChatView(props: ChatViewProps) {
           );
         });
         void navigate({
-          to: "/thread/$threadId",
-          params: { threadId: nextThreadId },
+          to: "/$environmentId/$threadId",
+          params: { environmentId: activeThread.environmentId, threadId: nextThreadId },
         });
       } else if (standaloneSlashCommand === "compact") {
         api.orchestration.dispatchCommand({
@@ -2994,7 +2977,7 @@ export default function ChatView(props: ChatViewProps) {
             }),
           );
         });
-      } else {
+      } else if (standaloneSlashCommand === "default" || standaloneSlashCommand === "plan") {
         handleInteractionModeChange(standaloneSlashCommand);
       }
       promptRef.current = "";

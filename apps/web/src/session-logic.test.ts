@@ -1559,8 +1559,6 @@ describe("deriveTimelineEntries with context trim points", () => {
       ],
       [],
       [],
-      undefined,
-      undefined,
       [
         makeTrimPoint({
           id: "trim-1",
@@ -1581,8 +1579,6 @@ describe("deriveTimelineEntries with context trim points", () => {
       [],
       [],
       [],
-      undefined,
-      undefined,
       [
         makeTrimPoint({
           id: "trim-2",
@@ -1609,7 +1605,7 @@ describe("deriveTimelineEntries with context trim points", () => {
       prunedTurnIds: ["turn-a", "turn-b"],
       beforeEntryId: "msg-abc",
     });
-    const entries = deriveTimelineEntries([], [], [], undefined, undefined, [trimPoint]);
+    const entries = deriveTimelineEntries([], [], [], [trimPoint]);
 
     expect(entries).toHaveLength(1);
     if (entries[0]?.kind === "context-trim") {

@@ -74,17 +74,6 @@ function ChatRouteGlobalShortcuts() {
         return;
       }
 
-      if (command === "chat.newInProject") {
-        if (
-          isModalShortcutCaptureActive(event.target) ||
-          isEditableShortcutTarget(event.target, { allowComposer: true })
-        ) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        openNewThreadInProject();
-      }
     };
 
     window.addEventListener("keydown", onWindowKeyDown);

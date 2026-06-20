@@ -228,7 +228,7 @@ export type WsMcpToggleServerResult = typeof WsMcpToggleServerResult.Type;
 export class McpToggleError extends Schema.TaggedErrorClass<McpToggleError>()("McpToggleError", {
   kind: Schema.Literals(["provider-not-claude", "session-not-found", "sdk-failure"]),
   detail: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {
   override get message(): string {
     return `MCP toggle error (${this.kind}): ${this.detail}`;
@@ -483,7 +483,7 @@ export type TodosLoadResult = typeof TodosLoadResult.Type;
 export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("TodosLoadError", {
   kind: Schema.Literals(["io-failure", "parse-failure"]),
   detail: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {
   override get message(): string {
     return `Todo load error (${this.kind}): ${this.detail}`;
@@ -637,7 +637,7 @@ export class TodosMutateError extends Schema.TaggedErrorClass<TodosMutateError>(
   {
     kind: Schema.Literals(["io-failure", "validation-failure"]),
     detail: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   },
 ) {
   override get message(): string {

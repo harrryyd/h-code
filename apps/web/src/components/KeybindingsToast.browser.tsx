@@ -218,6 +218,7 @@ function createMinimalSnapshot(): OrchestrationReadModel {
             updatedAt: NOW_ISO,
           },
         ],
+        contextTrimPoints: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],
