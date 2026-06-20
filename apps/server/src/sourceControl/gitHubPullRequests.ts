@@ -63,12 +63,8 @@ function trimOptionalString(value: string | null | undefined): string | null {
 
 function normalizeGitHubLabelColor(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? "";
-  if (/^[0-9a-f]{6}$/iu.test(trimmed)) {
-    return `#${trimmed.toLowerCase()}`;
-  }
-  if (/^#[0-9a-f]{6}$/iu.test(trimmed)) {
-    return trimmed.toLowerCase();
-  }
+  if (/^[0-9a-f]{6}$/iu.test(trimmed)) return `#${trimmed.toLowerCase()}`;
+  if (/^#[0-9a-f]{6}$/iu.test(trimmed)) return trimmed.toLowerCase();
   return null;
 }
 
@@ -107,8 +103,9 @@ function normalizeGitHubPullRequestRecord(
       };
     })
     .filter(
-      (label, index, labels) =>
-        labels.findIndex((item) => item.name.toLowerCase() === label.name.toLowerCase()) === index,
+      (label, index, allLabels) =>
+        allLabels.findIndex((item) => item.name.toLowerCase() === label.name.toLowerCase()) ===
+        index,
     );
 
   return {

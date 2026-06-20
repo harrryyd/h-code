@@ -8,7 +8,6 @@ import type {
   SourceControlProviderKind,
   SourceControlRepositoryCloneUrls,
   SourceControlRepositoryVisibility,
-  ReviewComment,
 } from "@t3tools/contracts";
 
 export interface SourceControlProviderContext {
@@ -94,17 +93,6 @@ export interface SourceControlProviderShape {
     readonly context?: SourceControlProviderContext;
     readonly reference: string;
     readonly force?: boolean;
-  }) => Effect.Effect<void, SourceControlProviderError>;
-  readonly getPullRequestReviews: (input: {
-    readonly cwd: string;
-    readonly context?: SourceControlProviderContext;
-    readonly reference: string;
-  }) => Effect.Effect<ReadonlyArray<ReviewComment>, SourceControlProviderError>;
-  readonly createPullRequestReview: (input: {
-    readonly cwd: string;
-    readonly context?: SourceControlProviderContext;
-    readonly reference: string;
-    readonly bodyFile: string;
   }) => Effect.Effect<void, SourceControlProviderError>;
 }
 

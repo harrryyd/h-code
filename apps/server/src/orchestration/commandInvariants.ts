@@ -1,5 +1,4 @@
 import type {
-  ManagerSeededWorkItem,
   OrchestrationCommand,
   OrchestrationProject,
   OrchestrationReadModel,
@@ -39,68 +38,21 @@ export function listThreadsByProjectId(
   return readModel.threads.filter((thread) => thread.projectId === projectId);
 }
 
-export function findManagerWorkspace(
-  readModel: OrchestrationReadModel,
-): OrchestrationProject | undefined {
-  return readModel.projects.find((project) => project.managerMetadata?.role === "workspace");
-}
-
-export function findManagerConsole(
-  readModel: OrchestrationReadModel,
-): OrchestrationThread | undefined {
-  return readModel.threads.find((thread) => thread.managerMetadata?.role === "console");
-}
-
-export function findSeededWorkItemOnManagerConsole(
-  readModel: OrchestrationReadModel,
-  managerThreadId: ThreadId,
-  seededWorkItemId: string,
-): ManagerSeededWorkItem | undefined {
-  const managerConsole = findThreadById(readModel, managerThreadId);
-  if (managerConsole?.managerMetadata?.role !== "console") {
-    return undefined;
-  }
-  return (managerConsole.seededWorkItems ?? []).find((item) => item.itemId === seededWorkItemId);
-}
-
-export function findActiveRefinerThreadForSeededWorkItem(
-  readModel: OrchestrationReadModel,
-  managerThreadId: ThreadId,
-  seededWorkItemId: string,
-): OrchestrationThread | undefined {
-  return readModel.threads.find(
-    (thread) =>
-      thread.deletedAt === null &&
-      thread.archivedAt === null &&
-      thread.managerMetadata?.role === "refiner" &&
-      thread.managerMetadata.managerThreadId === managerThreadId &&
-      thread.managerMetadata.seededWorkItemId === seededWorkItemId,
-  );
-}
-
 export function requireProject(input: {
   readonly readModel: OrchestrationReadModel;
   readonly command: OrchestrationCommand;
   readonly projectId: ProjectId;
 }): Effect.Effect<OrchestrationProject, OrchestrationCommandInvariantError> {
   const project = findProjectById(input.readModel, input.projectId);
-  if (!project) {
-    return Effect.fail(
-      invariantError(
-        input.command.type,
-        `Project '${input.projectId}' does not exist for command '${input.command.type}'.`,
-      ),
-    );
+  if (project) {
+    return Effect.succeed(project);
   }
-  if (project.deletedAt !== null) {
-    return Effect.fail(
-      invariantError(
-        input.command.type,
-        `Project '${input.projectId}' has been deleted and cannot handle command '${input.command.type}'.`,
-      ),
-    );
-  }
-  return Effect.succeed(project);
+  return Effect.fail(
+    invariantError(
+      input.command.type,
+      `Project '${input.projectId}' does not exist for command '${input.command.type}'.`,
+    ),
+  );
 }
 
 export function requireProjectAbsent(input: {
@@ -108,8 +60,7 @@ export function requireProjectAbsent(input: {
   readonly command: OrchestrationCommand;
   readonly projectId: ProjectId;
 }): Effect.Effect<void, OrchestrationCommandInvariantError> {
-  const existing = findProjectById(input.readModel, input.projectId);
-  if (!existing || existing.deletedAt !== null) {
+  if (!findProjectById(input.readModel, input.projectId)) {
     return Effect.void;
   }
   return Effect.fail(
@@ -126,23 +77,15 @@ export function requireThread(input: {
   readonly threadId: ThreadId;
 }): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
   const thread = findThreadById(input.readModel, input.threadId);
-  if (!thread) {
-    return Effect.fail(
-      invariantError(
-        input.command.type,
-        `Thread '${input.threadId}' does not exist for command '${input.command.type}'.`,
-      ),
-    );
+  if (thread) {
+    return Effect.succeed(thread);
   }
-  if (thread.deletedAt !== null) {
-    return Effect.fail(
-      invariantError(
-        input.command.type,
-        `Thread '${input.threadId}' has been deleted and cannot handle command '${input.command.type}'.`,
-      ),
-    );
-  }
-  return Effect.succeed(thread);
+  return Effect.fail(
+    invariantError(
+      input.command.type,
+      `Thread '${input.threadId}' does not exist for command '${input.command.type}'.`,
+    ),
+  );
 }
 
 export function requireThreadArchived(input: {
@@ -183,32 +126,12 @@ export function requireThreadNotArchived(input: {
   );
 }
 
-export function requireManagerConsole(input: {
-  readonly readModel: OrchestrationReadModel;
-  readonly command: OrchestrationCommand;
-  readonly threadId: ThreadId;
-}): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
-  return requireThread(input).pipe(
-    Effect.flatMap((thread) =>
-      thread.managerMetadata?.role === "console"
-        ? Effect.succeed(thread)
-        : Effect.fail(
-            invariantError(
-              input.command.type,
-              `Thread '${input.threadId}' is not the Manager Console for command '${input.command.type}'.`,
-            ),
-          ),
-    ),
-  );
-}
-
 export function requireThreadAbsent(input: {
   readonly readModel: OrchestrationReadModel;
   readonly command: OrchestrationCommand;
   readonly threadId: ThreadId;
 }): Effect.Effect<void, OrchestrationCommandInvariantError> {
-  const existing = findThreadById(input.readModel, input.threadId);
-  if (!existing || existing.deletedAt !== null) {
+  if (!findThreadById(input.readModel, input.threadId)) {
     return Effect.void;
   }
   return Effect.fail(

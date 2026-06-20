@@ -151,34 +151,6 @@ interface BranchHeadContext {
   isCrossRepository: boolean;
 }
 
-interface PullRequestLabelInfo {
-  name: string;
-  color?: string;
-}
-
-function clonePullRequestLabels(
-  labels:
-    | ReadonlyArray<{
-        readonly name: string;
-        readonly color?: string | undefined;
-      }>
-    | undefined,
-):
-  | ReadonlyArray<{
-      name: string;
-      color?: string;
-    }>
-  | undefined {
-  if (!labels || labels.length === 0) {
-    return undefined;
-  }
-
-  return labels.map((label) => ({
-    name: label.name,
-    ...(label.color !== undefined ? { color: label.color } : {}),
-  }));
-}
-
 function parseRepositoryNameFromPullRequestUrl(url: string): string | null {
   const trimmed = url.trim();
   const match = /^https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/\d+(?:\/.*)?$/i.exec(trimmed);
@@ -332,7 +304,6 @@ function matchesBranchHeadContext(
 }
 
 function toPullRequestInfo(summary: ChangeRequest): PullRequestInfo {
-  const labels = clonePullRequestLabels(summary.labels);
   return {
     number: summary.number,
     title: summary.title,
@@ -340,7 +311,14 @@ function toPullRequestInfo(summary: ChangeRequest): PullRequestInfo {
     baseRefName: summary.baseRefName,
     headRefName: summary.headRefName,
     state: summary.state ?? "open",
-    ...(labels ? { labels } : {}),
+    ...(summary.labels
+      ? {
+          labels: summary.labels.map((label) => ({
+            name: label.name,
+            ...(label.color === undefined ? {} : { color: label.color }),
+          })),
+        }
+      : {}),
     updatedAt: summary.updatedAt,
     ...(summary.isCrossRepository !== undefined
       ? { isCrossRepository: summary.isCrossRepository }
@@ -503,9 +481,11 @@ function toStatusPr(pr: PullRequestInfo): {
   baseRef: string;
   headRef: string;
   state: "open" | "closed" | "merged";
-  labels?: ReadonlyArray<PullRequestLabelInfo>;
+  labels?: ReadonlyArray<{
+    name: string;
+    color?: string;
+  }>;
 } {
-  const labels = clonePullRequestLabels(pr.labels);
   return {
     number: pr.number,
     title: pr.title,
@@ -513,7 +493,7 @@ function toStatusPr(pr: PullRequestInfo): {
     baseRef: pr.baseRefName,
     headRef: pr.headRefName,
     state: pr.state,
-    ...(labels ? { labels } : {}),
+    ...(pr.labels ? { labels: [...pr.labels] } : {}),
   };
 }
 
@@ -956,7 +936,6 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
         matchesBranchHeadContext(pullRequest, headContext),
       );
       if (firstPullRequest) {
-        const labels = clonePullRequestLabels(firstPullRequest.labels);
         return {
           number: firstPullRequest.number,
           title: firstPullRequest.title,
@@ -964,7 +943,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
           baseRefName: firstPullRequest.baseRefName,
           headRefName: firstPullRequest.headRefName,
           state: "open",
-          ...(labels ? { labels } : {}),
+          ...(firstPullRequest.labels ? { labels: [...firstPullRequest.labels] } : {}),
           updatedAt: Option.none(),
         } satisfies PullRequestInfo;
       }

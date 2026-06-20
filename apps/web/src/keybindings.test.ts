@@ -111,17 +111,11 @@ const DEFAULT_BINDINGS = compile([
     whenAst: whenNot(whenIdentifier("terminalFocus")),
   },
   {
-    shortcut: modShortcut("i"),
-    command: "chat.focus",
-    whenAst: whenNot(whenIdentifier("terminalFocus")),
-  },
-  {
     shortcut: modShortcut("m", { shiftKey: true }),
     command: "modelPicker.toggle",
     whenAst: whenNot(whenIdentifier("terminalFocus")),
   },
   { shortcut: modShortcut("o", { shiftKey: true }), command: "chat.new" },
-  { shortcut: modShortcut("n", { altKey: true }), command: "chat.newInProject" },
   { shortcut: modShortcut("n", { shiftKey: true }), command: "chat.newLocal" },
   { shortcut: modShortcut("o"), command: "editor.openFavorite" },
   {
@@ -303,11 +297,6 @@ describe("shortcutLabelForCommand", () => {
       shortcutLabelForCommand(DEFAULT_BINDINGS, "commandPalette.toggle", "MacIntel"),
       "⌘K",
     );
-    assert.strictEqual(shortcutLabelForCommand(DEFAULT_BINDINGS, "chat.focus", "Linux"), "Ctrl+I");
-    assert.strictEqual(
-      shortcutLabelForCommand(DEFAULT_BINDINGS, "chat.newInProject", "MacIntel"),
-      "⌥⌘N",
-    );
     assert.strictEqual(
       shortcutLabelForCommand(DEFAULT_BINDINGS, "modelPicker.toggle", "Linux"),
       "Ctrl+Shift+M",
@@ -465,21 +454,7 @@ describe("chat/editor shortcuts", () => {
     );
   });
 
-  it("matches chat.focus and chat.newInProject shortcuts", () => {
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "i", metaKey: true }), DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-        context: { terminalFocus: false },
-      }),
-      "chat.focus",
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "n", ctrlKey: true, altKey: true }), DEFAULT_BINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: false },
-      }),
-      "chat.newInProject",
-    );
+  it("matches thread.renameCurrent shortcut", () => {
     assert.strictEqual(
       resolveShortcutCommand(event({ key: "e", ctrlKey: true, shiftKey: true }), DEFAULT_BINDINGS, {
         platform: "Linux",

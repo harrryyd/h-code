@@ -126,27 +126,12 @@ export interface WsRpcClient {
       typeof WS_METHODS.gitPreparePullRequestThread
     >;
   };
-  readonly mcp: {
-    readonly listServers: RpcUnaryMethod<typeof WS_METHODS.mcpListServers>;
-    readonly toggleServer: RpcUnaryMethod<typeof WS_METHODS.mcpToggleServer>;
-  };
   readonly review: {
     readonly getDiffPreview: RpcUnaryMethod<typeof WS_METHODS.reviewGetDiffPreview>;
   };
-  readonly changeRequest: {
-    readonly getPrDiff: RpcUnaryMethod<typeof WS_METHODS.changeRequestGetPrDiff>;
-    readonly getReviewDraft: RpcUnaryMethod<typeof WS_METHODS.changeRequestGetReviewDraft>;
-    readonly upsertReviewComment: RpcUnaryMethod<
-      typeof WS_METHODS.changeRequestUpsertReviewComment
-    >;
-    readonly deleteReviewComment: RpcUnaryMethod<
-      typeof WS_METHODS.changeRequestDeleteReviewComment
-    >;
-    readonly submitReview: RpcUnaryMethod<typeof WS_METHODS.changeRequestSubmitReview>;
-    readonly runBackgroundAgent: RpcInputStreamMethod<
-      typeof WS_METHODS.changeRequestRunBackgroundAgent
-    >;
-    readonly runBatchAgents: RpcInputStreamMethod<typeof WS_METHODS.changeRequestRunBatchAgents>;
+  readonly mcp: {
+    readonly listServers: RpcUnaryMethod<typeof WS_METHODS.mcpListServers>;
+    readonly toggleServer: RpcUnaryMethod<typeof WS_METHODS.mcpToggleServer>;
   };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
@@ -309,39 +294,15 @@ export function createWsRpcClient(
       preparePullRequestThread: (input) =>
         transport.request((client) => client[WS_METHODS.gitPreparePullRequestThread](input)),
     },
+    review: {
+      getDiffPreview: (input) =>
+        transport.request((client) => client[WS_METHODS.reviewGetDiffPreview](input)),
+    },
     mcp: {
       listServers: (input) =>
         transport.request((client) => client[WS_METHODS.mcpListServers](input)),
       toggleServer: (input) =>
         transport.request((client) => client[WS_METHODS.mcpToggleServer](input)),
-    },
-    review: {
-      getDiffPreview: (input) =>
-        transport.request((client) => client[WS_METHODS.reviewGetDiffPreview](input)),
-    },
-    changeRequest: {
-      getPrDiff: (input) =>
-        transport.request((client) => client[WS_METHODS.changeRequestGetPrDiff](input)),
-      getReviewDraft: (input) =>
-        transport.request((client) => client[WS_METHODS.changeRequestGetReviewDraft](input)),
-      upsertReviewComment: (input) =>
-        transport.request((client) => client[WS_METHODS.changeRequestUpsertReviewComment](input)),
-      deleteReviewComment: (input) =>
-        transport.request((client) => client[WS_METHODS.changeRequestDeleteReviewComment](input)),
-      submitReview: (input) =>
-        transport.request((client) => client[WS_METHODS.changeRequestSubmitReview](input)),
-      runBackgroundAgent: (input, listener, options) =>
-        transport.subscribe(
-          (client) => client[WS_METHODS.changeRequestRunBackgroundAgent](input),
-          listener,
-          subscriptionOptions(options, WS_METHODS.changeRequestRunBackgroundAgent),
-        ),
-      runBatchAgents: (input, listener, options) =>
-        transport.subscribe(
-          (client) => client[WS_METHODS.changeRequestRunBatchAgents](input),
-          listener,
-          subscriptionOptions(options, WS_METHODS.changeRequestRunBatchAgents),
-        ),
     },
     server: {
       getConfig: () => transport.request((client) => client[WS_METHODS.serverGetConfig]({})),

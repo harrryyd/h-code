@@ -31,6 +31,10 @@
       "types": "./src/observability.ts",
       "import": "./src/observability.ts"
     },
+    "./httpObservability": {
+      "types": "./src/httpObservability.ts",
+      "import": "./src/httpObservability.ts"
+    },
     "./shell": {
       "types": "./src/shell.ts",
       "import": "./src/shell.ts"
@@ -135,10 +139,6 @@
       "types": "./src/keybindings.ts",
       "import": "./src/keybindings.ts"
     },
-    "./todoStore": {
-      "types": "./src/todoStore.ts",
-      "import": "./src/todoStore.ts"
-    },
     "./composerTrigger": {
       "types": "./src/composerTrigger.ts",
       "import": "./src/composerTrigger.ts"
@@ -150,6 +150,10 @@
     "./relayClient": {
       "types": "./src/relayClient.ts",
       "import": "./src/relayClient.ts"
+    },
+    "./todoStore": {
+      "types": "./src/todoStore.ts",
+      "import": "./src/todoStore.ts"
     }
   },
   "scripts": {

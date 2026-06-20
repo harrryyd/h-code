@@ -186,6 +186,18 @@ export interface KeybindingsChangeEvent {
   readonly issues: readonly ServerConfigIssue[];
 }
 
+const REMOVED_FORK_KEYBINDING_COMMANDS = new Set(["chat.focus", "chat.newInProject"]);
+
+function isRemovedForkKeybindingEntry(entry: unknown): boolean {
+  return (
+    typeof entry === "object" &&
+    entry !== null &&
+    "command" in entry &&
+    typeof entry.command === "string" &&
+    REMOVED_FORK_KEYBINDING_COMMANDS.has(entry.command)
+  );
+}
+
 function trimIssueMessage(message: string): string {
   const trimmed = message.trim();
   return trimmed.length > 0 ? trimmed : "Invalid keybindings configuration.";
@@ -376,11 +388,12 @@ const makeKeybindings = Effect.gen(function* () {
     {
       readonly keybindings: readonly KeybindingRule[];
       readonly issues: readonly ServerConfigIssue[];
+      readonly removedForkEntries: number;
     },
     KeybindingsConfigError
   > {
     if (!(yield* readConfigExists)) {
-      return { keybindings: [], issues: [] };
+      return { keybindings: [], issues: [], removedForkEntries: 0 };
     }
 
     const rawConfig = yield* readRawConfig;
@@ -390,12 +403,18 @@ const makeKeybindings = Effect.gen(function* () {
       return {
         keybindings: [],
         issues: [malformedConfigIssue(detail)],
+        removedForkEntries: 0,
       };
     }
 
     const keybindings: KeybindingRule[] = [];
     const issues: ServerConfigIssue[] = [];
+    let removedForkEntries = 0;
     for (const [index, entry] of decodedEntries.value.entries()) {
+      if (isRemovedForkKeybindingEntry(entry)) {
+        removedForkEntries++;
+        continue;
+      }
       const decodedRule = decodeKeybindingRuleExit(entry);
       if (decodedRule._tag === "Failure") {
         const detail = Cause.pretty(decodedRule.cause);
@@ -424,7 +443,7 @@ const makeKeybindings = Effect.gen(function* () {
       keybindings.push(decodedRule.value);
     }
 
-    return { keybindings, issues };
+    return { keybindings, issues, removedForkEntries };
   });
 
   const writeConfigAtomically = (rules: readonly KeybindingRule[]) => {
@@ -534,7 +553,7 @@ const makeKeybindings = Effect.gen(function* () {
           reason: "shortcut context already used by existing rule",
         });
       }
-      if (missingDefaults.length === 0) {
+      if (missingDefaults.length === 0 && runtimeConfig.removedForkEntries === 0) {
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }

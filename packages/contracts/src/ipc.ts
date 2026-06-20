@@ -19,17 +19,6 @@ import type {
   VcsStatusResult,
 } from "./git.ts";
 import type { ReviewDiffPreviewInput, ReviewDiffPreviewResult } from "./review.ts";
-import type {
-  BackgroundAgentResponseEvent,
-  ChangeRequestGetPrDiffInput,
-  ChangeRequestGetPrDiffResult,
-  ChangeRequestRunBackgroundAgentInput,
-  WsChangeRequestDeleteReviewCommentInput,
-  WsChangeRequestGetReviewDraftInput,
-  WsChangeRequestRunBatchAgentsInput,
-  WsChangeRequestSubmitReviewInput,
-  WsChangeRequestUpsertReviewCommentInput,
-} from "./rpc.ts";
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem.ts";
 import type {
   ProjectSearchEntriesInput,
@@ -89,7 +78,6 @@ import { EditorId } from "./editor.ts";
 import { ExecutionEnvironmentDescriptor } from "./environment.ts";
 import type { ClientSettings, ServerSettings, ServerSettingsPatch } from "./settings.ts";
 import type {
-  ReviewDraft,
   SourceControlCloneRepositoryInput,
   SourceControlCloneRepositoryResult,
   SourceControlDiscoveryResult,
@@ -611,35 +599,12 @@ export interface EnvironmentApi {
       input: GitPreparePullRequestThreadInput,
     ) => Promise<GitPreparePullRequestThreadResult>;
   };
-  mcp: {
-    listServers: (input: WsMcpListServersInput) => Promise<WsMcpListServersResult>;
-    toggleServer: (input: WsMcpToggleServerInput) => Promise<WsMcpToggleServerResult>;
-  };
   review: {
     getDiffPreview: (input: ReviewDiffPreviewInput) => Promise<ReviewDiffPreviewResult>;
   };
-  changeRequest: {
-    getPrDiff: (input: ChangeRequestGetPrDiffInput) => Promise<ChangeRequestGetPrDiffResult>;
-    getReviewDraft: (input: WsChangeRequestGetReviewDraftInput) => Promise<ReviewDraft | null>;
-    upsertReviewComment: (input: WsChangeRequestUpsertReviewCommentInput) => Promise<ReviewDraft>;
-    deleteReviewComment: (
-      input: WsChangeRequestDeleteReviewCommentInput,
-    ) => Promise<ReviewDraft | null>;
-    submitReview: (input: WsChangeRequestSubmitReviewInput) => Promise<ReviewDraft>;
-    runBackgroundAgent: (
-      input: ChangeRequestRunBackgroundAgentInput,
-      callback: (event: BackgroundAgentResponseEvent) => void,
-      options?: {
-        onResubscribe?: () => void;
-      },
-    ) => () => void;
-    runBatchAgents: (
-      input: WsChangeRequestRunBatchAgentsInput,
-      callback: (event: BackgroundAgentResponseEvent) => void,
-      options?: {
-        onResubscribe?: () => void;
-      },
-    ) => () => void;
+  mcp: {
+    listServers: (input: WsMcpListServersInput) => Promise<WsMcpListServersResult>;
+    toggleServer: (input: WsMcpToggleServerInput) => Promise<WsMcpToggleServerResult>;
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;

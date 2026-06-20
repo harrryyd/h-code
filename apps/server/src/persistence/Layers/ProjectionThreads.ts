@@ -2,10 +2,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Struct from "effect/Struct";
 
-import { ManagerSeededWorkItem, ManagerThreadMetadata, ModelSelection } from "@t3tools/contracts";
 import { toPersistenceSqlError } from "../Errors.ts";
 import {
   DeleteProjectionThreadInput,
@@ -15,53 +14,14 @@ import {
   ProjectionThreadRepository,
   type ProjectionThreadRepositoryShape,
 } from "../Services/ProjectionThreads.ts";
+import { ModelSelection } from "@t3tools/contracts";
 
-const ProjectionThreadDbRow = Schema.Struct({
-  threadId: ProjectionThread.fields.threadId,
-  projectId: ProjectionThread.fields.projectId,
-  title: ProjectionThread.fields.title,
-  managerMetadata: Schema.NullOr(Schema.fromJsonString(ManagerThreadMetadata)),
-  modelSelection: Schema.fromJsonString(ModelSelection),
-  runtimeMode: ProjectionThread.fields.runtimeMode,
-  interactionMode: ProjectionThread.fields.interactionMode,
-  branch: ProjectionThread.fields.branch,
-  worktreePath: ProjectionThread.fields.worktreePath,
-  latestTurnId: ProjectionThread.fields.latestTurnId,
-  createdAt: ProjectionThread.fields.createdAt,
-  updatedAt: ProjectionThread.fields.updatedAt,
-  archivedAt: ProjectionThread.fields.archivedAt,
-  seededWorkItems: Schema.fromJsonString(Schema.Array(ManagerSeededWorkItem)),
-  latestUserMessageAt: ProjectionThread.fields.latestUserMessageAt,
-  pendingApprovalCount: ProjectionThread.fields.pendingApprovalCount,
-  pendingUserInputCount: ProjectionThread.fields.pendingUserInputCount,
-  hasActionableProposedPlan: ProjectionThread.fields.hasActionableProposedPlan,
-  deletedAt: ProjectionThread.fields.deletedAt,
-});
+const ProjectionThreadDbRow = ProjectionThread.mapFields(
+  Struct.assign({
+    modelSelection: Schema.fromJsonString(ModelSelection),
+  }),
+);
 type ProjectionThreadDbRow = typeof ProjectionThreadDbRow.Type;
-
-function mapProjectionThreadRow(row: ProjectionThreadDbRow) {
-  return {
-    threadId: row.threadId,
-    projectId: row.projectId,
-    title: row.title,
-    ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
-    modelSelection: row.modelSelection,
-    runtimeMode: row.runtimeMode,
-    interactionMode: row.interactionMode,
-    branch: row.branch,
-    worktreePath: row.worktreePath,
-    latestTurnId: row.latestTurnId,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    archivedAt: row.archivedAt,
-    seededWorkItems: row.seededWorkItems,
-    latestUserMessageAt: row.latestUserMessageAt,
-    pendingApprovalCount: row.pendingApprovalCount,
-    pendingUserInputCount: row.pendingUserInputCount,
-    hasActionableProposedPlan: row.hasActionableProposedPlan,
-    deletedAt: row.deletedAt,
-  };
-}
 
 const makeProjectionThreadRepository = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
@@ -74,7 +34,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           thread_id,
           project_id,
           title,
-          manager_metadata_json,
           model_selection_json,
           runtime_mode,
           interaction_mode,
@@ -84,7 +43,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at,
           updated_at,
           archived_at,
-          seeded_work_items_json,
           latest_user_message_at,
           pending_approval_count,
           pending_user_input_count,
@@ -95,7 +53,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.threadId},
           ${row.projectId},
           ${row.title},
-          ${row.managerMetadata !== undefined ? JSON.stringify(row.managerMetadata) : null},
           ${JSON.stringify(row.modelSelection)},
           ${row.runtimeMode},
           ${row.interactionMode},
@@ -105,7 +62,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.createdAt},
           ${row.updatedAt},
           ${row.archivedAt},
-          ${JSON.stringify(row.seededWorkItems)},
           ${row.latestUserMessageAt},
           ${row.pendingApprovalCount},
           ${row.pendingUserInputCount},
@@ -116,7 +72,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
         DO UPDATE SET
           project_id = excluded.project_id,
           title = excluded.title,
-          manager_metadata_json = excluded.manager_metadata_json,
           model_selection_json = excluded.model_selection_json,
           runtime_mode = excluded.runtime_mode,
           interaction_mode = excluded.interaction_mode,
@@ -126,7 +81,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at = excluded.created_at,
           updated_at = excluded.updated_at,
           archived_at = excluded.archived_at,
-          seeded_work_items_json = excluded.seeded_work_items_json,
           latest_user_message_at = excluded.latest_user_message_at,
           pending_approval_count = excluded.pending_approval_count,
           pending_user_input_count = excluded.pending_user_input_count,
@@ -144,7 +98,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
-          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -154,7 +107,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
-          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -174,7 +126,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
-          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -184,7 +135,6 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
-          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -212,13 +162,11 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
 
   const getById: ProjectionThreadRepositoryShape["getById"] = (input) =>
     getProjectionThreadRow(input).pipe(
-      Effect.map(Option.map(mapProjectionThreadRow)),
       Effect.mapError(toPersistenceSqlError("ProjectionThreadRepository.getById:query")),
     );
 
   const listByProjectId: ProjectionThreadRepositoryShape["listByProjectId"] = (input) =>
     listProjectionThreadRows(input).pipe(
-      Effect.map((rows) => rows.map(mapProjectionThreadRow)),
       Effect.mapError(toPersistenceSqlError("ProjectionThreadRepository.listByProjectId:query")),
     );
 

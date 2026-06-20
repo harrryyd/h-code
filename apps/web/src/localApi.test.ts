@@ -90,21 +90,12 @@ const rpcClientMock = {
     resolvePullRequest: vi.fn(),
     preparePullRequestThread: vi.fn(),
   },
-  mcp: {
-    listServers: vi.fn(),
-    toggleServer: vi.fn(),
-  },
   review: {
     getDiffPreview: vi.fn(),
   },
-  changeRequest: {
-    getPrDiff: vi.fn(),
-    getReviewDraft: vi.fn(),
-    upsertReviewComment: vi.fn(),
-    deleteReviewComment: vi.fn(),
-    submitReview: vi.fn(),
-    runBackgroundAgent: vi.fn(),
-    runBatchAgents: vi.fn(),
+  mcp: {
+    listServers: vi.fn(),
+    toggleServer: vi.fn(),
   },
   server: {
     getConfig: vi.fn(),

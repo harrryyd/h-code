@@ -72,8 +72,8 @@ import { ServerSettingsService } from "../../serverSettings.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
 import {
   getClaudeModelCapabilities,
-  type McpServerSnapshot,
   isClaudeUltracodeEffort,
+  type McpServerSnapshot,
   normalizeClaudeCliEffort,
   resolveClaudeApiModelId,
   resolveClaudeEffort,
@@ -1057,9 +1057,9 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig;
+  const crypto = yield* Crypto.Crypto;
   const settingsService = yield* ServerSettingsService;
   const threadMcpToggleRepository = yield* ThreadMcpToggleRepository;
-  const crypto = yield* Crypto.Crypto;
   const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, options?.environment).pipe(
     Effect.provideService(Path.Path, path),
   );

@@ -119,10 +119,6 @@ import { newCommandId, newDraftId, newMessageId, newThreadId } from "~/lib/utils
 import { getProviderModelCapabilities, resolveSelectableProvider } from "../providerModels";
 import { useSettings } from "../hooks/useSettings";
 import { resolveAppModelSelectionForInstance } from "../modelSelection";
-import {
-  isEditableShortcutTarget,
-  isModalShortcutCaptureActive,
-} from "../lib/globalShortcutGuards";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -133,7 +129,7 @@ import {
   useSavedEnvironmentRegistryStore,
   useSavedEnvironmentRuntimeStore,
 } from "../environments/runtime";
-import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../threadRoutes";
+import { buildDraftThreadRouteParams } from "../threadRoutes";
 import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
@@ -1772,13 +1768,9 @@ export default function ChatView(props: ChatViewProps) {
         timelineMessages,
         activeThread?.proposedPlans ?? [],
         workLogEntries,
-        activeThread?.managerMetadata,
-        activeThread?.createdAt,
         activeThread?.contextTrimPoints,
       ),
     [
-      activeThread?.managerMetadata,
-      activeThread?.createdAt,
       activeThread?.proposedPlans,
       activeThread?.contextTrimPoints,
       timelineMessages,
@@ -2720,19 +2712,6 @@ export default function ChatView(props: ChatViewProps) {
       });
       if (!command) return;
 
-      if (command === "chat.focus") {
-        if (
-          isModalShortcutCaptureActive(event.target) ||
-          isEditableShortcutTarget(event.target, { allowComposer: true })
-        ) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        focusComposer();
-        return;
-      }
-
       if (command === "terminal.toggle") {
         event.preventDefault();
         event.stopPropagation();
@@ -2941,7 +2920,10 @@ export default function ChatView(props: ChatViewProps) {
         );
         return;
       }
-      if (typeof standaloneSlashCommand === "object") {
+      if (
+        typeof standaloneSlashCommand === "object" &&
+        standaloneSlashCommand.command === "clear"
+      ) {
         api.orchestration
           .dispatchCommand({
             type: "thread.context.trim",
@@ -2984,7 +2966,7 @@ export default function ChatView(props: ChatViewProps) {
           });
         void navigate({
           to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(scopeThreadRef(activeThread.environmentId, nextThreadId)),
+          params: { environmentId: activeThread.environmentId, threadId: nextThreadId },
         });
       } else if (standaloneSlashCommand === "compact") {
         api.orchestration
@@ -3004,7 +2986,7 @@ export default function ChatView(props: ChatViewProps) {
               }),
             );
           });
-      } else {
+      } else if (standaloneSlashCommand === "default" || standaloneSlashCommand === "plan") {
         handleInteractionModeChange(standaloneSlashCommand);
       }
       promptRef.current = "";

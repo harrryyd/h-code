@@ -7,7 +7,6 @@
  * @module ProjectionThreadSessionRepository
  */
 import {
-  DEFAULT_RUNTIME_MODE,
   RuntimeMode,
   IsoDateTime,
   OrchestrationSessionStatus,
@@ -15,10 +14,10 @@ import {
   ThreadId,
   TurnId,
 } from "@t3tools/contracts";
-import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Context from "effect/Context";
+import type * as Effect from "effect/Effect";
 
 import type { ProjectionRepositoryError } from "../Errors.ts";
 
@@ -27,7 +26,7 @@ export const ProjectionThreadSession = Schema.Struct({
   status: OrchestrationSessionStatus,
   providerName: Schema.NullOr(Schema.String),
   providerInstanceId: Schema.NullOr(ProviderInstanceId),
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: RuntimeMode,
   activeTurnId: Schema.NullOr(TurnId),
   lastError: Schema.NullOr(Schema.String),
   updatedAt: IsoDateTime,

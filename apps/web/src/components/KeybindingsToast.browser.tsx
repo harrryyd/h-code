@@ -158,6 +158,7 @@ function createBaseServerConfig(): ServerConfig {
           launchArgs: "",
         },
         cursor: { enabled: true, binaryPath: "", apiEndpoint: "", customModels: [] },
+        grok: { enabled: true, binaryPath: "", customModels: [] },
         opencode: {
           enabled: true,
           binaryPath: "",
@@ -217,10 +218,10 @@ function createMinimalSnapshot(): OrchestrationReadModel {
             updatedAt: NOW_ISO,
           },
         ],
+        contextTrimPoints: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],
-        contextTrimPoints: [],
         session: {
           threadId: THREAD_ID,
           status: "ready",

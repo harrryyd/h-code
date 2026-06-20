@@ -310,7 +310,6 @@ projectionSnapshotLayer("ProjectionSnapshotQuery", (it) => {
           updatedAt: "2026-02-24T00:00:03.000Z",
           archivedAt: null,
           deletedAt: null,
-          seededWorkItems: [],
           messages: [
             {
               id: asMessageId("message-1"),

@@ -6,7 +6,6 @@
  * @module ProviderSessionRuntimeRepository
  */
 import {
-  DEFAULT_RUNTIME_MODE,
   IsoDateTime,
   ProviderInstanceId,
   ProviderSessionRuntimeStatus,
@@ -16,7 +15,7 @@ import {
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 
 import type { ProviderSessionRuntimeRepositoryError } from "../Errors.ts";
 
@@ -32,7 +31,7 @@ export const ProviderSessionRuntime = Schema.Struct({
    */
   providerInstanceId: Schema.NullOr(ProviderInstanceId),
   adapterKey: Schema.String,
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: RuntimeMode,
   status: ProviderSessionRuntimeStatus,
   lastSeenAt: IsoDateTime,
   resumeCursor: Schema.NullOr(Schema.Unknown),

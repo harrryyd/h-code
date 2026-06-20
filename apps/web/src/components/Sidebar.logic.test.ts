@@ -14,7 +14,6 @@ import {
   getProjectSortTimestamp,
   hasUnseenCompletion,
   isContextMenuPointerDown,
-  isWorkerThread,
   orderItemsByPreferredIds,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadSeedContext,
@@ -1055,21 +1054,5 @@ describe("sortProjectsForSidebar", () => {
     );
 
     expect(timestamp).toBe(Date.parse("2026-03-09T10:10:00.000Z"));
-  });
-});
-
-describe("isWorkerThread", () => {
-  it("returns true when managerMetadata role is worker", () => {
-    expect(isWorkerThread({ managerMetadata: { role: "worker" } })).toBe(true);
-  });
-
-  it("returns false when managerMetadata role is not worker", () => {
-    expect(isWorkerThread({ managerMetadata: { role: "console" } })).toBe(false);
-    expect(isWorkerThread({ managerMetadata: { role: "refiner" } })).toBe(false);
-  });
-
-  it("returns false when managerMetadata is undefined or null", () => {
-    expect(isWorkerThread({})).toBe(false);
-    expect(isWorkerThread({ managerMetadata: null })).toBe(false);
   });
 });

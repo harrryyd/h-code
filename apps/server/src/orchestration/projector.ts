@@ -23,12 +23,10 @@ import {
   ThreadMetaUpdatedPayload,
   ThreadProposedPlanUpsertedPayload,
   ThreadRuntimeModeSetPayload,
-  ThreadSeededWorkItemsUpsertedPayload,
   ThreadUnarchivedPayload,
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
   ThreadTurnDiffCompletedPayload,
-  ThreadManagerQueueItemsUpsertedPayload,
   ThreadTrimPointCreatedPayload,
 } from "./Schemas.ts";
 
@@ -187,9 +185,6 @@ export function projectEvent(
             id: payload.projectId,
             title: payload.title,
             workspaceRoot: payload.workspaceRoot,
-            ...(payload.managerMetadata !== undefined
-              ? { managerMetadata: payload.managerMetadata }
-              : {}),
             defaultModelSelection: payload.defaultModelSelection,
             scripts: payload.scripts,
             createdAt: payload.createdAt,
@@ -261,9 +256,6 @@ export function projectEvent(
             id: payload.threadId,
             projectId: payload.projectId,
             title: payload.title,
-            ...(payload.managerMetadata !== undefined
-              ? { managerMetadata: payload.managerMetadata }
-              : {}),
             modelSelection: payload.modelSelection,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,
@@ -275,11 +267,10 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
-            seededWorkItems: [],
-            managerQueueItems: [],
             proposedPlans: [],
             activities: [],
             checkpoints: [],
+            contextTrimPoints: [],
             session: null,
           },
           event.type,
@@ -306,20 +297,9 @@ export function projectEvent(
       );
 
     case "thread.seeded-work-items-upserted":
-      return decodeForEvent(
-        ThreadSeededWorkItemsUpsertedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            seededWorkItems: payload.seededWorkItems,
-            updatedAt: payload.updatedAt,
-          }),
-        })),
-      );
+    case "thread.seeded-work-item-writeback-requested":
+    case "thread.manager-queue-items-upserted":
+      return Effect.succeed(nextBase);
 
     case "thread.archived":
       return decodeForEvent(ThreadArchivedPayload, event.payload, event.type, "payload").pipe(
@@ -677,22 +657,6 @@ export function projectEvent(
         }),
       );
 
-    case "thread.manager-queue-items-upserted":
-      return decodeForEvent(
-        ThreadManagerQueueItemsUpsertedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            managerQueueItems: payload.managerQueueItems,
-            updatedAt: payload.updatedAt,
-          }),
-        })),
-      );
-
     case "thread.trim-point-created":
       return decodeForEvent(
         ThreadTrimPointCreatedPayload,
@@ -705,9 +669,10 @@ export function projectEvent(
           if (!thread) {
             return nextBase;
           }
-          const contextTrimPoints = [...thread.contextTrimPoints, payload.trimPoint].toSorted(
-            (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-          );
+          const contextTrimPoints = [
+            ...(thread.contextTrimPoints ?? []),
+            payload.trimPoint,
+          ].toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
           return {
             ...nextBase,
             threads: updateThread(nextBase.threads, payload.threadId, {
@@ -737,9 +702,6 @@ export function projectEvent(
             id: payload.newThreadId,
             projectId: oldThread.projectId,
             title: oldThread.title,
-            ...(oldThread.managerMetadata !== undefined
-              ? { managerMetadata: oldThread.managerMetadata }
-              : {}),
             modelSelection: oldThread.modelSelection,
             runtimeMode: oldThread.runtimeMode,
             interactionMode: oldThread.interactionMode,
@@ -751,8 +713,6 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
-            seededWorkItems: [],
-            managerQueueItems: [],
             proposedPlans: [],
             activities: [],
             checkpoints: [],

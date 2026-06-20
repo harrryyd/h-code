@@ -1019,7 +1019,6 @@ function OpenCommandPaletteDialog() {
       title: "New thread in...",
       icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
       addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
-      shortcutCommand: "chat.newInProject",
       groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
     });
   }
@@ -1077,27 +1076,9 @@ function OpenCommandPaletteDialog() {
 
   const handleAddProject = useCallback(
     async (rawCwd: string) => {
-      if (!browseEnvironmentId) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to add project",
-            description: "No environment selected. Ensure a backend is paired and connected.",
-          }),
-        );
-        return;
-      }
+      if (!browseEnvironmentId) return;
       const api = readEnvironmentApi(browseEnvironmentId);
-      if (!api) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to add project",
-            description: `Environment API not available for this environment. The WebSocket connection may not be established.`,
-          }),
-        );
-        return;
-      }
+      if (!api) return;
 
       if (isUnsupportedWindowsProjectPath(rawCwd.trim(), browseEnvironmentPlatform)) {
         toastManager.add(

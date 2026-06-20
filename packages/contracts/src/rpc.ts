@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
-import { ThreadId, TrimmedNonEmptyString, PositiveInt } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
   AuthAccessStreamError,
@@ -114,9 +114,6 @@ import {
   SourceControlRepositoryError,
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
-  ReviewComment,
-  ReviewCommentAgentStatus,
-  ReviewDraft,
 } from "./sourceControl.ts";
 import { TodoCategory, TodoItem, TodoItemPriority } from "./todos.ts";
 import { VcsError } from "./vcs.ts";
@@ -156,15 +153,6 @@ export const WS_METHODS = {
 
   // Review methods
   reviewGetDiffPreview: "review.getDiffPreview",
-
-  // Change request review methods
-  changeRequestGetReviewDraft: "changeRequest.getReviewDraft",
-  changeRequestUpsertReviewComment: "changeRequest.upsertReviewComment",
-  changeRequestDeleteReviewComment: "changeRequest.deleteReviewComment",
-  changeRequestGetPrDiff: "changeRequest.getPrDiff",
-  changeRequestSubmitReview: "changeRequest.submitReview",
-  changeRequestRunBackgroundAgent: "changeRequest.runBackgroundAgent",
-  changeRequestRunBatchAgents: "changeRequest.runBatchAgents",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -483,163 +471,6 @@ export const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPrevie
   payload: ReviewDiffPreviewInput,
   success: ReviewDiffPreviewResult,
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
-});
-
-export const WsChangeRequestGetReviewDraftInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-});
-export type WsChangeRequestGetReviewDraftInput = typeof WsChangeRequestGetReviewDraftInput.Type;
-
-export const WsChangeRequestGetReviewDraftRpc = Rpc.make(WS_METHODS.changeRequestGetReviewDraft, {
-  payload: WsChangeRequestGetReviewDraftInput,
-  success: Schema.NullOr(ReviewDraft),
-  error: EnvironmentAuthorizationError,
-});
-
-export const WsChangeRequestUpsertReviewCommentInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  prHeadSHA: TrimmedNonEmptyString,
-  comment: ReviewComment,
-});
-export type WsChangeRequestUpsertReviewCommentInput =
-  typeof WsChangeRequestUpsertReviewCommentInput.Type;
-
-export const WsChangeRequestUpsertReviewCommentRpc = Rpc.make(
-  WS_METHODS.changeRequestUpsertReviewComment,
-  {
-    payload: WsChangeRequestUpsertReviewCommentInput,
-    success: ReviewDraft,
-    error: EnvironmentAuthorizationError,
-  },
-);
-
-export const WsChangeRequestDeleteReviewCommentInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  commentId: TrimmedNonEmptyString,
-});
-export type WsChangeRequestDeleteReviewCommentInput =
-  typeof WsChangeRequestDeleteReviewCommentInput.Type;
-
-export const WsChangeRequestDeleteReviewCommentRpc = Rpc.make(
-  WS_METHODS.changeRequestDeleteReviewComment,
-  {
-    payload: WsChangeRequestDeleteReviewCommentInput,
-    success: Schema.NullOr(ReviewDraft),
-    error: EnvironmentAuthorizationError,
-  },
-);
-export class ChangeRequestGetPrDiffError extends Schema.TaggedErrorClass<ChangeRequestGetPrDiffError>()(
-  "ChangeRequestGetPrDiffError",
-  {
-    kind: Schema.Literals(["diff-failed", "not-a-repo", "pr-not-found"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `PR diff error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const ChangeRequestGetPrDiffInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-});
-export type ChangeRequestGetPrDiffInput = typeof ChangeRequestGetPrDiffInput.Type;
-
-export const ChangeRequestGetPrDiffResult = Schema.Struct({
-  diff: Schema.String,
-  prHeadSHA: TrimmedNonEmptyString,
-});
-export type ChangeRequestGetPrDiffResult = typeof ChangeRequestGetPrDiffResult.Type;
-
-export const WsChangeRequestGetPrDiffRpc = Rpc.make(WS_METHODS.changeRequestGetPrDiff, {
-  payload: ChangeRequestGetPrDiffInput,
-  success: ChangeRequestGetPrDiffResult,
-  error: Schema.Union([ChangeRequestGetPrDiffError, EnvironmentAuthorizationError]),
-});
-
-export class ChangeRequestRunBackgroundAgentError extends Schema.TaggedErrorClass<ChangeRequestRunBackgroundAgentError>()(
-  "ChangeRequestRunBackgroundAgentError",
-  {
-    kind: Schema.Literals(["thread-not-found", "no-worktree", "agent-failed"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Background agent error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const ChangeRequestRunBackgroundAgentInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  commentId: TrimmedNonEmptyString,
-});
-export type ChangeRequestRunBackgroundAgentInput = typeof ChangeRequestRunBackgroundAgentInput.Type;
-
-export const BackgroundAgentResponseEvent = Schema.Struct({
-  type: Schema.Literals(["text", "detail", "status", "done", "error"]),
-  commentId: TrimmedNonEmptyString,
-  content: Schema.optional(Schema.String),
-  agentStatus: Schema.optional(ReviewCommentAgentStatus),
-  title: Schema.optional(Schema.String),
-  message: Schema.optional(Schema.String),
-});
-export type BackgroundAgentResponseEvent = typeof BackgroundAgentResponseEvent.Type;
-
-export const WsChangeRequestRunBackgroundAgentRpc = Rpc.make(
-  WS_METHODS.changeRequestRunBackgroundAgent,
-  {
-    payload: ChangeRequestRunBackgroundAgentInput,
-    success: BackgroundAgentResponseEvent,
-    error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
-    stream: true,
-  },
-);
-
-export const WsChangeRequestRunBatchAgentsInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  commentIds: Schema.Array(TrimmedNonEmptyString),
-});
-export type WsChangeRequestRunBatchAgentsInput = typeof WsChangeRequestRunBatchAgentsInput.Type;
-
-export const WsChangeRequestRunBatchAgentsRpc = Rpc.make(WS_METHODS.changeRequestRunBatchAgents, {
-  payload: WsChangeRequestRunBatchAgentsInput,
-  success: BackgroundAgentResponseEvent,
-  error: Schema.Union([ChangeRequestRunBackgroundAgentError, EnvironmentAuthorizationError]),
-  stream: true,
-});
-
-export class ChangeRequestSubmitReviewError extends Schema.TaggedErrorClass<ChangeRequestSubmitReviewError>()(
-  "ChangeRequestSubmitReviewError",
-  {
-    kind: Schema.Literals(["no-draft", "review-failed", "not-a-repo"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Submit review error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const WsChangeRequestSubmitReviewInput = Schema.Struct({
-  threadId: ThreadId,
-  prNumber: PositiveInt,
-  runBatchAgents: Schema.optional(Schema.Boolean),
-});
-export type WsChangeRequestSubmitReviewInput = typeof WsChangeRequestSubmitReviewInput.Type;
-
-export const WsChangeRequestSubmitReviewRpc = Rpc.make(WS_METHODS.changeRequestSubmitReview, {
-  payload: WsChangeRequestSubmitReviewInput,
-  success: ReviewDraft,
-  error: Schema.Union([ChangeRequestSubmitReviewError, EnvironmentAuthorizationError]),
 });
 
 export const TodosLoadResult = Schema.Struct({
@@ -986,16 +817,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsCreateRefRpc,
   WsVcsSwitchRefRpc,
   WsVcsInitRpc,
+  WsReviewGetDiffPreviewRpc,
   WsTodosLoadRpc,
   WsTodosMutateRpc,
-  WsReviewGetDiffPreviewRpc,
-  WsChangeRequestGetReviewDraftRpc,
-  WsChangeRequestUpsertReviewCommentRpc,
-  WsChangeRequestDeleteReviewCommentRpc,
-  WsChangeRequestGetPrDiffRpc,
-  WsChangeRequestSubmitReviewRpc,
-  WsChangeRequestRunBackgroundAgentRpc,
-  WsChangeRequestRunBatchAgentsRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,

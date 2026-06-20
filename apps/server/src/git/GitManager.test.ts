@@ -632,27 +632,6 @@ function createGitHubCliWithFakeGh(scenario: FakeGhScenario = {}): {
           cwd: input.cwd,
           args: ["pr", "checkout", input.reference, ...(input.force ? ["--force"] : [])],
         }).pipe(Effect.asVoid),
-      getPullRequestReviews: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "getPullRequestReviews",
-            detail: `Unexpected pull request reviews lookup: ${input.reference}`,
-          }),
-        ),
-      createPullRequestReview: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "createPullRequestReview",
-            detail: `Unexpected pull request review create: ${input.reference}`,
-          }),
-        ),
-      createPullRequestReviewWithComments: (input) =>
-        Effect.fail(
-          new GitHubCliError({
-            operation: "createPullRequestReviewWithComments",
-            detail: `Unexpected pull request review with comments create: ${input.reference}`,
-          }),
-        ),
     },
     ghCalls,
   };

@@ -91,8 +91,8 @@ function gitStatusTargetKey(input: {
   return `${input.environmentId}:${input.cwd}`;
 }
 
-vi.mock("../lib/gitStatusState", () => ({
-  useGitStatus: (input: { environmentId: EnvironmentId | null; cwd: string | null }) => {
+vi.mock("../lib/vcsStatusState", () => ({
+  getVcsStatusSnapshot: (input: { environmentId: EnvironmentId | null; cwd: string | null }) => {
     const targetKey = gitStatusTargetKey(input);
     return {
       data: targetKey ? (mockedGitStatusesRef.current.get(targetKey) ?? null) : null,
@@ -101,43 +101,19 @@ vi.mock("../lib/gitStatusState", () => ({
       isPending: false,
     };
   },
-  useGitStatuses: () => new Map(),
-  refreshGitStatus: () => Promise.resolve(null),
-  resetGitStatusStateForTests: () => undefined,
+  useVcsStatus: (input: { environmentId: EnvironmentId | null; cwd: string | null }) => {
+    const targetKey = gitStatusTargetKey(input);
+    return {
+      data: targetKey ? (mockedGitStatusesRef.current.get(targetKey) ?? null) : null,
+      error: null,
+      cause: null,
+      isPending: false,
+    };
+  },
+  useVcsStatuses: () => new Map(),
+  refreshVcsStatus: () => Promise.resolve(null),
+  resetVcsStatusStateForTests: () => undefined,
 }));
-
-vi.mock("../lib/vcsStatusState", () => {
-  const status = {
-    data: {
-      isRepo: true,
-      sourceControlProvider: {
-        kind: "github",
-        name: "GitHub",
-        baseUrl: "https://github.com",
-      },
-      hasPrimaryRemote: true,
-      isDefaultRef: true,
-      refName: "main",
-      hasWorkingTreeChanges: false,
-      workingTree: { files: [], insertions: 0, deletions: 0 },
-      hasUpstream: true,
-      aheadCount: 0,
-      behindCount: 0,
-      pr: null,
-    },
-    error: null,
-    cause: null,
-    isPending: false,
-  };
-
-  return {
-    getVcsStatusSnapshot: () => status,
-    useVcsStatus: () => status,
-    useVcsStatuses: () => new Map(),
-    refreshVcsStatus: () => Promise.resolve(null),
-    resetVcsStatusStateForTests: () => undefined,
-  };
-});
 
 const THREAD_ID = "thread-browser-test" as ThreadId;
 const THREAD_TITLE = "Browser test thread";
@@ -284,6 +260,7 @@ function createMockEnvironmentApi(input: {
     sourceControl: {} as EnvironmentApi["sourceControl"],
     vcs: {} as EnvironmentApi["vcs"],
     git: {} as EnvironmentApi["git"],
+    review: {} as EnvironmentApi["review"],
     mcp: {
       listServers: (() => {
         throw new Error("Not implemented in browser test.");
@@ -292,8 +269,6 @@ function createMockEnvironmentApi(input: {
         throw new Error("Not implemented in browser test.");
       }) as EnvironmentApi["mcp"]["toggleServer"],
     },
-    review: {} as EnvironmentApi["review"],
-    changeRequest: {} as EnvironmentApi["changeRequest"],
     orchestration: {
       dispatchCommand: input.dispatchCommand,
       getTurnDiff: (() => {
@@ -444,10 +419,10 @@ function createSnapshotForTargetUser(options: {
         archivedAt: null,
         deletedAt: null,
         messages,
+        contextTrimPoints: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],
-        contextTrimPoints: [],
         session: {
           threadId: THREAD_ID,
           status: options.sessionStatus ?? "ready",
@@ -511,10 +486,10 @@ function addThreadToSnapshot(
         archivedAt: null,
         deletedAt: null,
         messages: [],
+        contextTrimPoints: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],
-        contextTrimPoints: [],
         session: {
           threadId,
           status: "ready",
@@ -534,7 +509,6 @@ function toShellThread(thread: OrchestrationReadModel["threads"][number]) {
     id: thread.id,
     projectId: thread.projectId,
     title: thread.title,
-    ...(thread.managerMetadata ? { managerMetadata: thread.managerMetadata } : {}),
     modelSelection: thread.modelSelection,
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
@@ -560,7 +534,6 @@ function toShellSnapshot(snapshot: OrchestrationReadModel) {
       id: project.id,
       title: project.title,
       workspaceRoot: project.workspaceRoot,
-      ...(project.managerMetadata ? { managerMetadata: project.managerMetadata } : {}),
       repositoryIdentity: project.repositoryIdentity ?? null,
       defaultModelSelection: project.defaultModelSelection,
       scripts: project.scripts,
@@ -848,10 +821,10 @@ function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(31),
           deletedAt: null,
           messages: [],
+          contextTrimPoints: [],
           activities: [],
           proposedPlans: [],
           checkpoints: [],
-          contextTrimPoints: [],
           session: {
             threadId: "thread-secondary-project" as ThreadId,
             status: "ready",
@@ -881,10 +854,10 @@ function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(25),
           deletedAt: null,
           messages: [],
+          contextTrimPoints: [],
           activities: [],
           proposedPlans: [],
           checkpoints: [],
-          contextTrimPoints: [],
           session: {
             threadId: ARCHIVED_SECONDARY_THREAD_ID,
             status: "ready",
@@ -915,74 +888,6 @@ function createSnapshotWithSecondaryProject(options?: {
       },
     ],
     threads: [...snapshot.threads, ...secondaryThreads, ...archivedSecondaryThreads],
-  };
-}
-
-function createSnapshotWithManagerConsole(): OrchestrationReadModel {
-  const snapshot = createSnapshotForTargetUser({
-    targetMessageId: "msg-user-manager-console-target" as MessageId,
-    targetText: "manager console",
-  });
-
-  return {
-    ...snapshot,
-    projects: [
-      {
-        id: "manager-workspace-1" as ProjectId,
-        title: "Manager Workspace",
-        workspaceRoot: "/repo/.t3/manager",
-        managerMetadata: {
-          role: "workspace",
-        },
-        defaultModelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
-        scripts: [],
-        createdAt: isoAt(5),
-        updatedAt: isoAt(5),
-        deletedAt: null,
-      },
-      ...snapshot.projects,
-    ],
-    threads: [
-      {
-        id: "manager-console-1" as ThreadId,
-        projectId: "manager-workspace-1" as ProjectId,
-        title: "Manager Console",
-        managerMetadata: {
-          role: "console",
-        },
-        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
-        interactionMode: "default",
-        runtimeMode: "full-access",
-        branch: null,
-        worktreePath: null,
-        latestTurn: null,
-        createdAt: isoAt(6),
-        updatedAt: isoAt(7),
-        archivedAt: null,
-        deletedAt: null,
-        messages: [
-          createUserMessage({
-            id: "msg-user-manager-console" as MessageId,
-            text: "Manager inbox work",
-            offsetSeconds: 6,
-          }),
-        ],
-        activities: [],
-        proposedPlans: [],
-        checkpoints: [],
-        contextTrimPoints: [],
-        session: {
-          threadId: "manager-console-1" as ThreadId,
-          status: "ready",
-          providerName: "codex",
-          runtimeMode: "full-access",
-          activeTurnId: null,
-          lastError: null,
-          updatedAt: isoAt(7),
-        },
-      },
-      ...snapshot.threads,
-    ],
   };
 }
 
@@ -1327,18 +1232,6 @@ async function waitForComposerEditor(): Promise<HTMLElement> {
   );
 }
 
-function readComposerSelectionOffset(): number {
-  const composerEditor = document.querySelector<HTMLElement>('[data-testid="composer-editor"]');
-  const selection = window.getSelection();
-  if (!composerEditor || !selection || selection.rangeCount === 0 || !selection.focusNode) {
-    throw new Error("Unable to resolve composer selection.");
-  }
-  const range = selection.getRangeAt(0).cloneRange();
-  range.selectNodeContents(composerEditor);
-  range.setEnd(selection.focusNode, selection.focusOffset);
-  return range.toString().length;
-}
-
 async function pressComposerKey(key: string): Promise<void> {
   const composerEditor = await waitForComposerEditor();
   composerEditor.focus();
@@ -1625,33 +1518,6 @@ function dispatchChatNewShortcut(): void {
     new KeyboardEvent("keydown", {
       key: "o",
       shiftKey: true,
-      metaKey: useMetaForMod,
-      ctrlKey: !useMetaForMod,
-      bubbles: true,
-      cancelable: true,
-    }),
-  );
-}
-
-function dispatchProjectPickerShortcut(): void {
-  const useMetaForMod = isMacPlatform(navigator.platform);
-  window.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "n",
-      altKey: true,
-      metaKey: useMetaForMod,
-      ctrlKey: !useMetaForMod,
-      bubbles: true,
-      cancelable: true,
-    }),
-  );
-}
-
-function dispatchFocusChatShortcut(): void {
-  const useMetaForMod = isMacPlatform(navigator.platform);
-  window.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "i",
       metaKey: useMetaForMod,
       ctrlKey: !useMetaForMod,
       bubbles: true,
@@ -2772,7 +2638,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("shows the pull request badge for a worktree-backed thread row even when stored branch metadata is stale", async () => {
+  it("shows the pull request badge for a worktree-backed thread row", async () => {
     const snapshotBase = createSnapshotForTargetUser({
       targetMessageId: "msg-user-pr-badge-target" as MessageId,
       targetText: "show pr badge",
@@ -2780,14 +2646,15 @@ describe("ChatView timeline estimator parity (full app)", () => {
     const worktreePath = "/repo/worktrees/pr-1359";
     const snapshot = {
       ...snapshotBase,
-      threads: snapshotBase.threads.map((thread) => {
-        if (thread.id !== THREAD_ID) return thread;
-        const copy = Object.assign({}, thread, {
-          branch: "feature/archive-settings-overhaul",
-          worktreePath,
-        });
-        return copy;
-      }),
+      threads: snapshotBase.threads.map((thread) =>
+        thread.id === THREAD_ID
+          ? {
+              ...thread,
+              branch: "archive-settings-overhaul",
+              worktreePath,
+            }
+          : thread,
+      ),
     };
 
     mockedGitStatusesRef.current.set(`${LOCAL_ENVIRONMENT_ID}:${worktreePath}`, {
@@ -4167,43 +4034,6 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("renders the manager console in a dedicated manager inbox sidebar section", async () => {
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotWithManagerConsole(),
-    });
-
-    try {
-      await expect.element(page.getByText("Manager Inbox", { exact: true })).toBeInTheDocument();
-      await expect.element(page.getByTestId("thread-title-manager-console-1")).toBeInTheDocument();
-      await expect.element(page.getByTestId(`thread-title-${THREAD_ID}`)).toBeInTheDocument();
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("opens the manager console conversation when selected from the manager inbox", async () => {
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotWithManagerConsole(),
-    });
-
-    try {
-      await page.getByTestId("thread-row-manager-console-1").click();
-
-      const nextPath = await waitForURL(
-        mounted.router,
-        (path) => path === serverThreadPath("manager-console-1" as ThreadId),
-        "Route should change to the manager console thread.",
-      );
-
-      expect(nextPath).toBe(serverThreadPath("manager-console-1" as ThreadId));
-      await expect.element(page.getByText("Manager inbox work", { exact: true })).toBeVisible();
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
   it("shows the sidebar terminal indicator from terminal metadata activity", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
@@ -5003,119 +4833,6 @@ describe("ChatView timeline estimator parity (full app)", () => {
         envMode: "local",
         worktreePath: null,
       });
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("opens the project picker flow from a dedicated shortcut", async () => {
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-project-picker-shortcut-test" as MessageId,
-        targetText: "project picker shortcut test",
-      }),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          keybindings: [
-            {
-              command: "chat.newInProject",
-              shortcut: {
-                key: "n",
-                metaKey: false,
-                ctrlKey: false,
-                shiftKey: false,
-                altKey: true,
-                modKey: true,
-              },
-              whenAst: {
-                type: "not",
-                node: { type: "identifier", name: "terminalFocus" },
-              },
-            },
-          ],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      dispatchProjectPickerShortcut();
-
-      const palette = page.getByTestId("command-palette");
-      await expect.element(palette).toBeInTheDocument();
-      await expect.element(palette.getByText("Project", { exact: true })).toBeInTheDocument();
-      await palette.getByText("Project", { exact: true }).click();
-
-      await waitForURL(
-        mounted.router,
-        (path) => UUID_ROUTE_RE.test(path),
-        "Route should have changed to a new draft thread UUID from the project picker shortcut.",
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("focuses the composer at the end of the draft and does not steal modal input focus", async () => {
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-focus-chat-shortcut-test" as MessageId,
-        targetText: "focus chat shortcut test",
-      }),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          keybindings: [
-            {
-              command: "chat.focus",
-              shortcut: {
-                key: "i",
-                metaKey: false,
-                ctrlKey: false,
-                shiftKey: false,
-                altKey: false,
-                modKey: true,
-              },
-              whenAst: {
-                type: "not",
-                node: { type: "identifier", name: "terminalFocus" },
-              },
-            },
-          ],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      useComposerDraftStore.getState().setPrompt(THREAD_REF, "Focus shortcut draft");
-      await waitForLayout();
-
-      const threadRow = page.getByTestId(`thread-row-${THREAD_ID}`);
-      await expect.element(threadRow).toBeInTheDocument();
-      (threadRow.element() as HTMLElement).focus();
-
-      dispatchFocusChatShortcut();
-      await waitForLayout();
-
-      const composerEditor = await waitForComposerEditor();
-      expect(document.activeElement).toBe(composerEditor);
-      expect(readComposerSelectionOffset()).toBe("Focus shortcut draft".length);
-
-      await openCommandPaletteFromTrigger();
-      const paletteInput = await waitForElement(
-        () => document.querySelector<HTMLInputElement>('[data-testid="command-palette"] input'),
-        "Command palette input did not render.",
-      );
-      paletteInput.focus();
-
-      dispatchFocusChatShortcut();
-      await waitForLayout();
-
-      expect(document.activeElement).toBe(paletteInput);
     } finally {
       await mounted.cleanup();
     }

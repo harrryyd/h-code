@@ -332,7 +332,6 @@ export const OrchestrationProject = Schema.Struct({
   id: ProjectId,
   title: TrimmedNonEmptyString,
   workspaceRoot: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerProjectMetadata),
   repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
   scripts: Schema.Array(ProjectScript),
@@ -476,7 +475,6 @@ export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerThreadMetadata),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode.pipe(
@@ -490,12 +488,6 @@ export const OrchestrationThread = Schema.Struct({
   archivedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
-  seededWorkItems: Schema.optional(
-    Schema.Array(ManagerSeededWorkItem).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-  ),
-  managerQueueItems: Schema.optional(
-    Schema.Array(ManagerQueueItem).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-  ),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -520,7 +512,6 @@ export const OrchestrationProjectShell = Schema.Struct({
   id: ProjectId,
   title: TrimmedNonEmptyString,
   workspaceRoot: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerProjectMetadata),
   repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
   scripts: Schema.Array(ProjectScript),
@@ -533,7 +524,6 @@ export const OrchestrationThreadShell = Schema.Struct({
   id: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerThreadMetadata),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode.pipe(
@@ -611,126 +601,10 @@ export const ProjectCreateCommand = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   workspaceRoot: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerProjectMetadata),
   createWorkspaceRootIfMissing: Schema.optional(Schema.Boolean),
   defaultModelSelection: Schema.optional(Schema.NullOr(ModelSelection)),
   createdAt: IsoDateTime,
 });
-
-export const ManagerBootstrapCommand = Schema.Struct({
-  type: Schema.Literal("manager.bootstrap"),
-  commandId: CommandId,
-  projectId: ProjectId,
-  threadId: ThreadId,
-  workspaceRoot: TrimmedNonEmptyString,
-  modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
-  ),
-  createdAt: IsoDateTime,
-});
-export type ManagerBootstrapCommand = typeof ManagerBootstrapCommand.Type;
-
-const ManagerSeedWorkItemsCommand = Schema.Struct({
-  type: Schema.Literal("manager.seed-work-items"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  sourceKind: SeededWorkSourceKind,
-  sourceLabel: TrimmedNonEmptyString,
-  items: Schema.Array(ManagerSeededWorkItemInput),
-  createdAt: IsoDateTime,
-});
-export type ManagerSeedWorkItemsCommand = typeof ManagerSeedWorkItemsCommand.Type;
-
-const ThreadSeededWorkItemWritebackRequestCommand = Schema.Struct({
-  type: Schema.Literal("thread.seeded-work-item-writeback.request"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  itemId: SeededWorkItemId,
-  writebackKind: SeededWorkItemWritebackKind,
-  body: TrimmedNonEmptyString,
-  createdAt: IsoDateTime,
-});
-export type ThreadSeededWorkItemWritebackRequestCommand =
-  typeof ThreadSeededWorkItemWritebackRequestCommand.Type;
-
-export const ManagerCreateRefinerThreadCommand = Schema.Struct({
-  type: Schema.Literal("manager.refiner-thread.create"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  managerThreadId: ThreadId,
-  seededWorkItemId: SeededWorkItemId,
-  modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
-  ),
-  branch: Schema.NullOr(TrimmedNonEmptyString),
-  worktreePath: Schema.NullOr(TrimmedNonEmptyString),
-  createdAt: IsoDateTime,
-});
-export type ManagerCreateRefinerThreadCommand = typeof ManagerCreateRefinerThreadCommand.Type;
-
-export const ManagerRecordRefinementHandoffCommand = Schema.Struct({
-  type: Schema.Literal("manager.refinement-handoff.record"),
-  commandId: CommandId,
-  refinerThreadId: ThreadId,
-  refinedProblemStatement: TrimmedNonEmptyString,
-  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString),
-  targetProjectId: ProjectId,
-  createdAt: IsoDateTime,
-});
-export type ManagerRecordRefinementHandoffCommand =
-  typeof ManagerRecordRefinementHandoffCommand.Type;
-
-export const WorkerDelegateCommand = Schema.Struct({
-  type: Schema.Literal("worker.delegate"),
-  commandId: CommandId,
-  workerThreadId: ThreadId,
-  refinerThreadId: ThreadId,
-  modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
-  ),
-  branch: Schema.NullOr(TrimmedNonEmptyString),
-  worktreePath: Schema.NullOr(TrimmedNonEmptyString),
-  createdAt: IsoDateTime,
-});
-export type WorkerDelegateCommand = typeof WorkerDelegateCommand.Type;
-
-export const WorkerEscalateCommand = Schema.Struct({
-  type: Schema.Literal("worker.escalate"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  escalationId: TrimmedNonEmptyString,
-  category: ManagerQueueItemCategory,
-  summary: TrimmedNonEmptyString,
-  detail: Schema.String,
-  createdAt: IsoDateTime,
-});
-export type WorkerEscalateCommand = typeof WorkerEscalateCommand.Type;
-
-export const ManagerResolveQueueItemCommand = Schema.Struct({
-  type: Schema.Literal("manager.resolve-queue-item"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  itemId: TrimmedNonEmptyString,
-  instruction: TrimmedNonEmptyString,
-  createdAt: IsoDateTime,
-});
-export type ManagerResolveQueueItemCommand = typeof ManagerResolveQueueItemCommand.Type;
-
-export const ManagerDismissQueueItemCommand = Schema.Struct({
-  type: Schema.Literal("manager.dismiss-queue-item"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  itemId: TrimmedNonEmptyString,
-  reason: Schema.optional(Schema.String),
-  createdAt: IsoDateTime,
-});
-export type ManagerDismissQueueItemCommand = typeof ManagerDismissQueueItemCommand.Type;
 
 const ProjectMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("project.meta.update"),
@@ -755,7 +629,6 @@ const ThreadCreateCommand = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerThreadMetadata),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode.pipe(
@@ -954,12 +827,6 @@ export type ThreadContextCompactCommand = typeof ThreadContextCompactCommand.Typ
 
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
-  ManagerBootstrapCommand,
-  ManagerSeedWorkItemsCommand,
-  ThreadSeededWorkItemWritebackRequestCommand,
-  ManagerCreateRefinerThreadCommand,
-  ManagerRecordRefinementHandoffCommand,
-  WorkerDelegateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -970,9 +837,6 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
-  WorkerEscalateCommand,
-  ManagerResolveQueueItemCommand,
-  ManagerDismissQueueItemCommand,
   ThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -987,12 +851,6 @@ export type DispatchableClientOrchestrationCommand =
 
 export const ClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
-  ManagerBootstrapCommand,
-  ManagerSeedWorkItemsCommand,
-  ThreadSeededWorkItemWritebackRequestCommand,
-  ManagerCreateRefinerThreadCommand,
-  ManagerRecordRefinementHandoffCommand,
-  WorkerDelegateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
   ThreadCreateCommand,
@@ -1003,9 +861,6 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadMetaUpdateCommand,
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
-  WorkerEscalateCommand,
-  ManagerResolveQueueItemCommand,
-  ManagerDismissQueueItemCommand,
   ClientThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -1141,7 +996,6 @@ export const ProjectCreatedPayload = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   workspaceRoot: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerProjectMetadata),
   repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
   scripts: Schema.Array(ProjectScript),
@@ -1168,7 +1022,6 @@ export const ThreadCreatedPayload = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
-  managerMetadata: Schema.optional(ManagerThreadMetadata),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
   interactionMode: ProviderInteractionMode.pipe(
@@ -1230,7 +1083,7 @@ export const ThreadMetaUpdatedPayload = Schema.Struct({
 
 export const ThreadRuntimeModeSetPayload = Schema.Struct({
   threadId: ThreadId,
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: RuntimeMode,
   updatedAt: IsoDateTime,
 });
 

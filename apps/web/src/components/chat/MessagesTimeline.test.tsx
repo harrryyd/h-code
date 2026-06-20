@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import type { LegendListRef } from "@legendapp/list/react";
 
+let MessagesTimeline: typeof import("./MessagesTimeline").MessagesTimeline;
+
 vi.mock("@legendapp/list/react", async () => {
   const legendListTestId = "legend-list";
 
@@ -54,7 +56,7 @@ function matchMedia() {
   };
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   const classList = {
     add: () => {},
     remove: () => {},
@@ -85,7 +87,9 @@ beforeAll(() => {
       offsetHeight: 0,
     },
   });
-});
+
+  ({ MessagesTimeline } = await import("./MessagesTimeline"));
+}, 30_000);
 
 const ACTIVE_THREAD_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
 const MESSAGE_CREATED_AT = "2026-03-17T19:12:28.000Z";
@@ -138,7 +142,6 @@ function buildUserTimelineEntry(text: string) {
 
 describe("MessagesTimeline", () => {
   it("renders collapse controls for long user messages", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -153,7 +156,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("does not render collapse controls for short user messages", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -166,7 +168,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("renders inline terminal labels with the composer chip UI", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -193,7 +194,6 @@ describe("MessagesTimeline", () => {
   }, 20_000);
 
   it("keeps the copy button for collapsed long user messages", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -207,7 +207,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("renders context compaction entries in the normal work log", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -232,7 +231,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("formats changed file paths from the workspace root", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -259,7 +257,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("renders review comment contexts as structured cards instead of raw tags", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -298,7 +295,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("renders context-trim divider with collapsed state by default", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -349,7 +345,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("renders rows before a collapsed trim point with dimmed styling", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}
@@ -401,7 +396,6 @@ describe("MessagesTimeline", () => {
   });
 
   it("renders context-trim divider for each trim point independently", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...buildProps()}

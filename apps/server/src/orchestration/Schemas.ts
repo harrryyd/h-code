@@ -3,8 +3,6 @@ import {
   ProjectMetaUpdatedPayload as ContractsProjectMetaUpdatedPayloadSchema,
   ProjectDeletedPayload as ContractsProjectDeletedPayloadSchema,
   ThreadCreatedPayload as ContractsThreadCreatedPayloadSchema,
-  ThreadSeededWorkItemsUpsertedPayload as ContractsThreadSeededWorkItemsUpsertedPayloadSchema,
-  ThreadSeededWorkItemWritebackRequestedPayload as ContractsThreadSeededWorkItemWritebackRequestedPayloadSchema,
   ThreadArchivedPayload as ContractsThreadArchivedPayloadSchema,
   ThreadArchivedAndNewCreatedPayload as ContractsThreadArchivedAndNewCreatedPayloadSchema,
   ThreadMetaUpdatedPayload as ContractsThreadMetaUpdatedPayloadSchema,
@@ -23,7 +21,6 @@ import {
   ThreadApprovalResponseRequestedPayload as ContractsThreadApprovalResponseRequestedPayloadSchema,
   ThreadCheckpointRevertRequestedPayload as ContractsThreadCheckpointRevertRequestedPayloadSchema,
   ThreadSessionStopRequestedPayload as ContractsThreadSessionStopRequestedPayloadSchema,
-  ThreadManagerQueueItemsUpsertedPayload as ContractsThreadManagerQueueItemsUpsertedPayloadSchema,
   ThreadTrimPointCreatedPayload as ContractsThreadTrimPointCreatedPayloadSchema,
 } from "@t3tools/contracts";
 
@@ -33,10 +30,6 @@ export const ProjectMetaUpdatedPayload = ContractsProjectMetaUpdatedPayloadSchem
 export const ProjectDeletedPayload = ContractsProjectDeletedPayloadSchema;
 
 export const ThreadCreatedPayload = ContractsThreadCreatedPayloadSchema;
-export const ThreadSeededWorkItemsUpsertedPayload =
-  ContractsThreadSeededWorkItemsUpsertedPayloadSchema;
-export const ThreadSeededWorkItemWritebackRequestedPayload =
-  ContractsThreadSeededWorkItemWritebackRequestedPayloadSchema;
 export const ThreadArchivedPayload = ContractsThreadArchivedPayloadSchema;
 export const ThreadArchivedAndNewCreatedPayload = ContractsThreadArchivedAndNewCreatedPayloadSchema;
 export const ThreadMetaUpdatedPayload = ContractsThreadMetaUpdatedPayloadSchema;
@@ -60,8 +53,5 @@ export const ThreadApprovalResponseRequestedPayload =
 export const ThreadCheckpointRevertRequestedPayload =
   ContractsThreadCheckpointRevertRequestedPayloadSchema;
 export const ThreadSessionStopRequestedPayload = ContractsThreadSessionStopRequestedPayloadSchema;
-
-export const ThreadManagerQueueItemsUpsertedPayload =
-  ContractsThreadManagerQueueItemsUpsertedPayloadSchema;
 
 export const ThreadTrimPointCreatedPayload = ContractsThreadTrimPointCreatedPayloadSchema;

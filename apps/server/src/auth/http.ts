@@ -196,15 +196,7 @@ export const authHttpApiLayer = HttpApiBuilder.group(
           function* (args) {
             yield* annotateEnvironmentRequest(args.endpoint.name);
             const request = yield* HttpServerRequest.HttpServerRequest;
-            const sessionState = yield* serverAuth.getSessionState(request);
-            yield* Effect.logDebug("auth.session resolved", {
-              authenticated: sessionState.authenticated,
-              hasSessionCookie:
-                typeof request.cookies[sessionState.auth.sessionCookieName] === "string",
-              hasAuthorizationHeader: request.headers.authorization !== undefined,
-              sessionMethods: sessionState.auth.sessionMethods.join(","),
-            });
-            return sessionState;
+            return yield* serverAuth.getSessionState(request);
           },
           Effect.catchTag("ServerAuthInternalError", (error) =>
             failEnvironmentInternal("internal_error", error),
@@ -234,12 +226,6 @@ export const authHttpApiLayer = HttpApiBuilder.group(
               Effect.succeed(HttpServerResponse.mergeCookies(response, sessionCookies)),
             );
             yield* appendCredentialResponseHeaders;
-            yield* Effect.logDebug("auth.browserSession response prepared", {
-              sessionCookieName: sessions.cookieName,
-              authenticated: result.response.authenticated,
-              sessionMethod: result.response.sessionMethod,
-              scopeCount: result.response.scopes.length,
-            });
             return result.response;
           },
           Effect.catchTags({
@@ -318,14 +304,7 @@ export const authHttpApiLayer = HttpApiBuilder.group(
             yield* annotateEnvironmentRequest(args.endpoint.name);
             const session = yield* EnvironmentAuthenticatedPrincipal;
             yield* appendCredentialResponseHeaders;
-            const issued = yield* serverAuth.issueWebSocketTicket(session);
-            yield* Effect.logDebug("auth.webSocketTicket response prepared", {
-              sessionId: session.sessionId,
-              sessionMethod: session.method,
-              scopeCount: session.scopes.size,
-              expiresAt: DateTime.formatIso(issued.expiresAt),
-            });
-            return issued;
+            return yield* serverAuth.issueWebSocketTicket(session);
           },
           Effect.catchTag("ServerAuthInternalError", (error) =>
             failEnvironmentInternal("websocket_ticket_issuance_failed", error),

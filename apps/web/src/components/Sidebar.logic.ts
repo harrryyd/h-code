@@ -555,7 +555,3 @@ export function sortProjectsForSidebar<
     return left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
   });
 }
-
-export function isWorkerThread(thread: { managerMetadata?: { role: string } | null }): boolean {
-  return thread.managerMetadata?.role === "worker";
-}

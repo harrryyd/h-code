@@ -2,7 +2,7 @@ import type { VcsStatusResult } from "@t3tools/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
 
-import { ChangeRequestBadge, resolveThreadPr } from "./ThreadStatusIndicators";
+import { ChangeRequestBadge } from "./ThreadStatusIndicators";
 
 const githubProvider: VcsStatusResult["sourceControlProvider"] = {
   kind: "github",
@@ -87,71 +87,34 @@ describe("ChangeRequestBadge", () => {
   it.each([
     { state: "closed" as const, number: 8, hiddenLabel: "release" },
     { state: "merged" as const, number: 9, hiddenLabel: "shipit" },
-  ])("keeps $state change requests compact by hiding labels", ({ state, number, hiddenLabel }) => {
-    const markup = renderToStaticMarkup(
-      <ChangeRequestBadge
-        provider={githubProvider}
-        pr={{
-          number,
-          title: `${state} pull request`,
-          url: `https://github.com/pingdotgg/t3code/pull/${number}`,
-          baseRef: "main",
-          headRef: `feature/${state}`,
-          state,
-          labels: [{ name: hiddenLabel, color: "#5319e7" }],
-        }}
-      />,
-    );
+  ])(
+    "keeps $state change requests compact by hiding labels",
+    ({
+      state,
+      number,
+      hiddenLabel,
+    }: {
+      state: "closed" | "merged";
+      number: number;
+      hiddenLabel: string;
+    }) => {
+      const markup = renderToStaticMarkup(
+        <ChangeRequestBadge
+          provider={githubProvider}
+          pr={{
+            number,
+            title: `${state} pull request`,
+            url: `https://github.com/pingdotgg/t3code/pull/${number}`,
+            baseRef: "main",
+            headRef: `feature/${state}`,
+            state,
+            labels: [{ name: hiddenLabel, color: "#5319e7" }],
+          }}
+        />,
+      );
 
-    expect(markup).toContain(`#${number}`);
-    expect(markup).not.toContain(hiddenLabel);
-  });
-});
-
-describe("resolveThreadPr", () => {
-  const gitStatus: VcsStatusResult = {
-    isRepo: true,
-    sourceControlProvider: githubProvider,
-    hasPrimaryRemote: true,
-    isDefaultRef: false,
-    refName: "t3code/pr-14/h-code",
-    hasWorkingTreeChanges: false,
-    workingTree: {
-      files: [],
-      insertions: 0,
-      deletions: 0,
+      expect(markup).toContain(`#${number}`);
+      expect(markup).not.toContain(hiddenLabel);
     },
-    hasUpstream: true,
-    aheadCount: 0,
-    behindCount: 0,
-    aheadOfDefaultCount: 0,
-    pr: {
-      number: 14,
-      title: "Fix sidebar change request badge",
-      url: "https://github.com/harrryyd/h-code/pull/14",
-      baseRef: "main",
-      headRef: "h-code/sidebar-pr-badge",
-      state: "open",
-    },
-  };
-
-  it("returns the live change request for worktree-backed threads even when stored branch metadata is stale", () => {
-    expect(
-      resolveThreadPr({
-        threadBranch: "h-code/sidebar-pr-badge",
-        worktreePath: "/repo/.t3/worktrees/h-code/t3code-9b53fbcb",
-        gitStatus,
-      }),
-    ).toEqual(gitStatus.pr);
-  });
-
-  it("keeps local-checkout threads branch-matched to avoid showing the wrong badge", () => {
-    expect(
-      resolveThreadPr({
-        threadBranch: "h-code/sidebar-pr-badge",
-        worktreePath: null,
-        gitStatus,
-      }),
-    ).toBeNull();
-  });
+  );
 });

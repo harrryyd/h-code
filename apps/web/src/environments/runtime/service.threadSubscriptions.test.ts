@@ -81,10 +81,6 @@ vi.mock("@t3tools/client-runtime", async (importOriginal) => {
     dispose: async () => undefined,
     reconnect: async () => undefined,
     isHeartbeatFresh: () => false,
-    cloud: {
-      getRelayClientStatus: vi.fn(),
-      installRelayClient: vi.fn(),
-    },
     todos: {
       load: vi.fn(),
       mutate: vi.fn(),
@@ -93,14 +89,9 @@ vi.mock("@t3tools/client-runtime", async (importOriginal) => {
       listServers: vi.fn(),
       toggleServer: vi.fn(),
     },
-    changeRequest: {
-      getPrDiff: vi.fn(),
-      getReviewDraft: vi.fn(),
-      upsertReviewComment: vi.fn(),
-      deleteReviewComment: vi.fn(),
-      submitReview: vi.fn(),
-      runBackgroundAgent: vi.fn(() => () => undefined),
-      runBatchAgents: vi.fn(() => () => undefined),
+    cloud: {
+      getRelayClientStatus: vi.fn(),
+      installRelayClient: vi.fn(),
     },
     orchestration: {
       dispatchCommand: vi.fn(),

@@ -74,8 +74,6 @@ function unsupportedProvider(
     createRepository: () => unsupported("createRepository"),
     getDefaultBranch: () => unsupported("getDefaultBranch"),
     checkoutChangeRequest: () => unsupported("checkoutChangeRequest"),
-    getPullRequestReviews: () => unsupported("getPullRequestReviews"),
-    createPullRequestReview: () => unsupported("createPullRequestReview"),
   });
 }
 
@@ -152,16 +150,6 @@ function bindProviderContext(
       }),
     checkoutChangeRequest: (input) =>
       provider.checkoutChangeRequest({
-        ...input,
-        context: input.context ?? context,
-      }),
-    getPullRequestReviews: (input) =>
-      provider.getPullRequestReviews({
-        ...input,
-        context: input.context ?? context,
-      }),
-    createPullRequestReview: (input) =>
-      provider.createPullRequestReview({
         ...input,
         context: input.context ?? context,
       }),

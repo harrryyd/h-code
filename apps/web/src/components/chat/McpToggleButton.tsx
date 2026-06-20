@@ -12,6 +12,7 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 const LOADING_INDICATOR_DELAY_MS = 150;
+
 const STATUS_COPY: Record<McpServerSnapshot["status"], { label: string; dotClassName: string }> = {
   connected: {
     label: "Connected",
@@ -66,13 +67,6 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
     }
   }, []);
 
-  const invalidateLoads = useCallback(() => {
-    loadGenerationRef.current += 1;
-    clearLoadingIndicatorDelay();
-    setIsLoading(false);
-    setShowLoadingIndicator(false);
-  }, [clearLoadingIndicatorDelay]);
-
   const queueLoadingIndicator = useCallback(
     (generation: number) => {
       clearLoadingIndicatorDelay();
@@ -126,21 +120,14 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
   }, [api, clearLoadingIndicatorDelay, queueLoadingIndicator, threadId]);
 
   useEffect(() => {
-    setPendingServerNames(new Set());
-    setServers([]);
-    setHasResolvedServers(false);
-    setLoadingError(null);
-    invalidateLoads();
-  }, [environmentId, invalidateLoads, threadId]);
-
-  useEffect(() => {
     if (!open) {
-      invalidateLoads();
+      clearLoadingIndicatorDelay();
+      setShowLoadingIndicator(false);
       return;
     }
 
     void loadServers();
-  }, [invalidateLoads, loadServers, open]);
+  }, [clearLoadingIndicatorDelay, loadServers, open]);
 
   useEffect(() => () => clearLoadingIndicatorDelay(), [clearLoadingIndicatorDelay]);
 

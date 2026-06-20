@@ -45,23 +45,12 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       resolvePullRequest: rpcClient.git.resolvePullRequest,
       preparePullRequestThread: rpcClient.git.preparePullRequestThread,
     },
-    mcp: {
-      listServers: rpcClient.mcp.listServers,
-      toggleServer: rpcClient.mcp.toggleServer,
-    },
     review: {
       getDiffPreview: rpcClient.review.getDiffPreview,
     },
-    changeRequest: {
-      getPrDiff: rpcClient.changeRequest.getPrDiff,
-      getReviewDraft: rpcClient.changeRequest.getReviewDraft,
-      upsertReviewComment: rpcClient.changeRequest.upsertReviewComment,
-      deleteReviewComment: rpcClient.changeRequest.deleteReviewComment,
-      submitReview: rpcClient.changeRequest.submitReview,
-      runBackgroundAgent: (input, callback, options) =>
-        rpcClient.changeRequest.runBackgroundAgent(input, callback, options),
-      runBatchAgents: (input, callback, options) =>
-        rpcClient.changeRequest.runBatchAgents(input, callback, options),
+    mcp: {
+      listServers: rpcClient.mcp.listServers,
+      toggleServer: rpcClient.mcp.toggleServer,
     },
     orchestration: {
       dispatchCommand: rpcClient.orchestration.dispatchCommand,

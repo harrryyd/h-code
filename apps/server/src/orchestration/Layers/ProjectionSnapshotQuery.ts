@@ -1,23 +1,16 @@
 import {
   ChatAttachment,
+  ContextTrimPoint,
   CheckpointRef,
-  DEFAULT_RUNTIME_MODE,
   IsoDateTime,
-  ManagerProjectMetadata,
-  ManagerSeededWorkItem,
-  ManagerThreadMetadata,
   MessageId,
-  ModelSelection,
   NonNegativeInt,
   OrchestrationCheckpointFile,
   OrchestrationProposedPlanId,
   OrchestrationReadModel,
   OrchestrationShellSnapshot,
   OrchestrationThread,
-  ProjectId,
   ProjectScript,
-  RuntimeMode,
-  ThreadId,
   TurnId,
   type OrchestrationCheckpointSummary,
   type OrchestrationLatestTurn,
@@ -28,6 +21,10 @@ import {
   type OrchestrationSession,
   type OrchestrationThreadActivity,
   type OrchestrationThreadShell,
+  ModelSelection,
+  ProjectId,
+  ThreadId,
+  ThreadTrimPointCreatedPayload,
 } from "@t3tools/contracts";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
@@ -66,17 +63,12 @@ import {
 const decodeReadModel = Schema.decodeUnknownEffect(OrchestrationReadModel);
 const decodeShellSnapshot = Schema.decodeUnknownEffect(OrchestrationShellSnapshot);
 const decodeThread = Schema.decodeUnknownEffect(OrchestrationThread);
-const ProjectionProjectDbRowSchema = Schema.Struct({
-  projectId: ProjectionProject.fields.projectId,
-  title: ProjectionProject.fields.title,
-  workspaceRoot: ProjectionProject.fields.workspaceRoot,
-  managerMetadata: Schema.NullOr(Schema.fromJsonString(ManagerProjectMetadata)),
-  defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
-  scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
-  createdAt: ProjectionProject.fields.createdAt,
-  updatedAt: ProjectionProject.fields.updatedAt,
-  deletedAt: ProjectionProject.fields.deletedAt,
-});
+const ProjectionProjectDbRowSchema = ProjectionProject.mapFields(
+  Struct.assign({
+    defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
+    scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
+  }),
+);
 const ProjectionThreadMessageDbRowSchema = ProjectionThreadMessage.mapFields(
   Struct.assign({
     isStreaming: Schema.Number,
@@ -84,27 +76,11 @@ const ProjectionThreadMessageDbRowSchema = ProjectionThreadMessage.mapFields(
   }),
 );
 const ProjectionThreadProposedPlanDbRowSchema = ProjectionThreadProposedPlan;
-const ProjectionThreadDbRowSchema = Schema.Struct({
-  threadId: ProjectionThread.fields.threadId,
-  projectId: ProjectionThread.fields.projectId,
-  title: ProjectionThread.fields.title,
-  managerMetadata: Schema.NullOr(Schema.fromJsonString(ManagerThreadMetadata)),
-  modelSelection: Schema.fromJsonString(ModelSelection),
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
-  interactionMode: ProjectionThread.fields.interactionMode,
-  branch: ProjectionThread.fields.branch,
-  worktreePath: ProjectionThread.fields.worktreePath,
-  latestTurnId: ProjectionThread.fields.latestTurnId,
-  createdAt: ProjectionThread.fields.createdAt,
-  updatedAt: ProjectionThread.fields.updatedAt,
-  archivedAt: ProjectionThread.fields.archivedAt,
-  seededWorkItems: Schema.fromJsonString(Schema.Array(ManagerSeededWorkItem)),
-  latestUserMessageAt: ProjectionThread.fields.latestUserMessageAt,
-  pendingApprovalCount: ProjectionThread.fields.pendingApprovalCount,
-  pendingUserInputCount: ProjectionThread.fields.pendingUserInputCount,
-  hasActionableProposedPlan: ProjectionThread.fields.hasActionableProposedPlan,
-  deletedAt: ProjectionThread.fields.deletedAt,
-});
+const ProjectionThreadDbRowSchema = ProjectionThread.mapFields(
+  Struct.assign({
+    modelSelection: Schema.fromJsonString(ModelSelection),
+  }),
+);
 const ProjectionThreadActivityDbRowSchema = ProjectionThreadActivity.mapFields(
   Struct.assign({
     payload: Schema.fromJsonString(Schema.Unknown),
@@ -132,6 +108,11 @@ const ProjectionStateDbRowSchema = ProjectionState;
 const ProjectionCountsRowSchema = Schema.Struct({
   projectCount: Schema.Number,
   threadCount: Schema.Number,
+});
+const ContextTrimPointEventRowSchema = Schema.Struct({
+  threadId: ThreadId,
+  sequence: NonNegativeInt,
+  payload: Schema.fromJsonString(ThreadTrimPointCreatedPayload),
 });
 const WorkspaceRootLookupInput = Schema.Struct({
   workspaceRoot: Schema.String,
@@ -257,7 +238,6 @@ function mapProjectShellRow(
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
-    ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
     repositoryIdentity,
     defaultModelSelection: row.defaultModelSelection,
     scripts: row.scripts,
@@ -332,7 +312,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
-          manager_metadata_json AS "managerMetadata",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -352,7 +331,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
-          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -362,7 +340,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
-          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -371,6 +348,30 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         FROM projection_threads
         ORDER BY created_at ASC, thread_id ASC
       `,
+  });
+
+  const listContextTrimPointRows = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: ContextTrimPointEventRowSchema,
+    execute: () => sql`
+      SELECT stream_id AS "threadId", sequence, payload_json AS "payload"
+      FROM orchestration_events
+      WHERE aggregate_kind = 'thread' AND event_type = 'thread.trim-point-created'
+      ORDER BY sequence ASC
+    `,
+  });
+
+  const listContextTrimPointRowsByThread = SqlSchema.findAll({
+    Request: ThreadIdLookupInput,
+    Result: ContextTrimPointEventRowSchema,
+    execute: ({ threadId }) => sql`
+      SELECT stream_id AS "threadId", sequence, payload_json AS "payload"
+      FROM orchestration_events
+      WHERE aggregate_kind = 'thread'
+        AND event_type = 'thread.trim-point-created'
+        AND stream_id = ${threadId}
+      ORDER BY sequence ASC
+    `,
   });
 
   const listActiveThreadRows = SqlSchema.findAll({
@@ -382,7 +383,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
-          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -392,7 +392,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
-          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -414,7 +413,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
-          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -424,7 +422,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
-          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -700,7 +697,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
-          manager_metadata_json AS "managerMetadata",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -723,7 +719,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
-          manager_metadata_json AS "managerMetadata",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -780,7 +775,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
-          manager_metadata_json AS "managerMetadata",
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -790,7 +784,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
-          seeded_work_items_json AS "seededWorkItems",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -1036,6 +1029,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listContextTrimPointRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getSnapshot:listContextTrimPoints:query",
+                "ProjectionSnapshotQuery.getSnapshot:listContextTrimPoints:decodeRows",
+              ),
+            ),
+          ),
           listProjectionStateRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1057,6 +1058,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionRows,
             checkpointRows,
             latestTurnRows,
+            contextTrimPointRows,
             stateRows,
           ]) =>
             Effect.gen(function* () {
@@ -1066,6 +1068,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               const checkpointsByThread = new Map<string, Array<OrchestrationCheckpointSummary>>();
               const sessionsByThread = new Map<string, OrchestrationSession>();
               const latestTurnByThread = new Map<string, OrchestrationLatestTurn>();
+              const contextTrimPointsByThread = new Map<string, ContextTrimPoint[]>();
 
               let updatedAt: string | null = null;
 
@@ -1093,6 +1096,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   updatedAt: row.updatedAt,
                 });
                 messagesByThread.set(row.threadId, threadMessages);
+              }
+
+              for (const row of contextTrimPointRows) {
+                const points = contextTrimPointsByThread.get(row.threadId) ?? [];
+                points.push(row.payload.trimPoint);
+                contextTrimPointsByThread.set(row.threadId, points);
               }
 
               for (const row of proposedPlanRows) {
@@ -1202,7 +1211,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 id: row.projectId,
                 title: row.title,
                 workspaceRoot: row.workspaceRoot,
-                ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                 repositoryIdentity: repositoryIdentities.get(row.projectId) ?? null,
                 defaultModelSelection: row.defaultModelSelection,
                 scripts: row.scripts,
@@ -1215,7 +1223,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 id: row.threadId,
                 projectId: row.projectId,
                 title: row.title,
-                ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                 modelSelection: row.modelSelection,
                 runtimeMode: row.runtimeMode,
                 interactionMode: row.interactionMode,
@@ -1227,11 +1234,10 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 archivedAt: row.archivedAt,
                 deletedAt: row.deletedAt,
                 messages: messagesByThread.get(row.threadId) ?? [],
-                seededWorkItems: row.seededWorkItems,
                 proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                 activities: activitiesByThread.get(row.threadId) ?? [],
                 checkpoints: checkpointsByThread.get(row.threadId) ?? [],
-                contextTrimPoints: [],
+                contextTrimPoints: contextTrimPointsByThread.get(row.threadId) ?? [],
                 session: sessionsByThread.get(row.threadId) ?? null,
               }));
 
@@ -1277,6 +1283,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listThreadMessageRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getCommandReadModel:listThreadMessages:query",
+                "ProjectionSnapshotQuery.getCommandReadModel:listThreadMessages:decodeRows",
+              ),
+            ),
+          ),
           listThreadProposedPlanRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1301,6 +1315,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listContextTrimPointRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getCommandReadModel:listContextTrimPoints:query",
+                "ProjectionSnapshotQuery.getCommandReadModel:listContextTrimPoints:decodeRows",
+              ),
+            ),
+          ),
           listProjectionStateRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1313,11 +1335,22 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
       )
       .pipe(
         Effect.flatMap(
-          ([projectRows, threadRows, proposedPlanRows, sessionRows, latestTurnRows, stateRows]) =>
+          ([
+            projectRows,
+            threadRows,
+            messageRows,
+            proposedPlanRows,
+            sessionRows,
+            latestTurnRows,
+            contextTrimPointRows,
+            stateRows,
+          ]) =>
             Effect.sync(() => {
               let updatedAt: string | null = null;
               const projects: OrchestrationProject[] = [];
               const threads: OrchestrationThread[] = [];
+              const messagesByThread = new Map<string, OrchestrationMessage[]>();
+              const contextTrimPointsByThread = new Map<string, ContextTrimPoint[]>();
 
               for (let index = 0; index < projectRows.length; index += 1) {
                 const row = projectRows[index];
@@ -1329,7 +1362,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   id: row.projectId,
                   title: row.title,
                   workspaceRoot: row.workspaceRoot,
-                  ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                   defaultModelSelection: row.defaultModelSelection,
                   scripts: row.scripts,
                   createdAt: row.createdAt,
@@ -1343,6 +1375,25 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   continue;
                 }
                 updatedAt = maxIso(updatedAt, row.updatedAt);
+              }
+              for (const row of messageRows) {
+                const messages = messagesByThread.get(row.threadId) ?? [];
+                messages.push({
+                  id: row.messageId,
+                  role: row.role,
+                  text: row.text,
+                  ...(row.attachments !== null ? { attachments: row.attachments } : {}),
+                  turnId: row.turnId,
+                  streaming: row.isStreaming === 1,
+                  createdAt: row.createdAt,
+                  updatedAt: row.updatedAt,
+                });
+                messagesByThread.set(row.threadId, messages);
+              }
+              for (const row of contextTrimPointRows) {
+                const points = contextTrimPointsByThread.get(row.threadId) ?? [];
+                points.push(row.payload.trimPoint);
+                contextTrimPointsByThread.set(row.threadId, points);
               }
               for (let index = 0; index < proposedPlanRows.length; index += 1) {
                 const row = proposedPlanRows[index];
@@ -1417,7 +1468,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   id: row.threadId,
                   projectId: row.projectId,
                   title: row.title,
-                  ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                   modelSelection: row.modelSelection,
                   runtimeMode: row.runtimeMode,
                   interactionMode: row.interactionMode,
@@ -1428,12 +1478,11 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   updatedAt: row.updatedAt,
                   archivedAt: row.archivedAt,
                   deletedAt: row.deletedAt,
-                  messages: [],
-                  seededWorkItems: row.seededWorkItems,
+                  messages: messagesByThread.get(row.threadId) ?? [],
                   proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                   activities: [],
                   checkpoints: [],
-                  contextTrimPoints: [],
+                  contextTrimPoints: contextTrimPointsByThread.get(row.threadId) ?? [],
                   session: sessionByThread.get(row.threadId) ?? null,
                 });
               }
@@ -1563,10 +1612,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                       hasPendingApprovals: row.pendingApprovalCount > 0,
                       hasPendingUserInput: row.pendingUserInputCount > 0,
                       hasActionableProposedPlan: row.hasActionableProposedPlan > 0,
-                      ...(row.managerMetadata !== null
-                        ? { managerMetadata: row.managerMetadata }
-                        : {}),
-                    } as OrchestrationThreadShell)
+                    } satisfies OrchestrationThreadShell)
                   : Result.failVoid,
               ),
               updatedAt: updatedAt ?? "1970-01-01T00:00:00.000Z",
@@ -1686,7 +1732,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   id: row.threadId,
                   projectId: row.projectId,
                   title: row.title,
-                  ...(row.managerMetadata !== null ? { managerMetadata: row.managerMetadata } : {}),
                   modelSelection: row.modelSelection,
                   runtimeMode: row.runtimeMode,
                   interactionMode: row.interactionMode,
@@ -1927,9 +1972,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         id: threadRow.value.threadId,
         projectId: threadRow.value.projectId,
         title: threadRow.value.title,
-        ...(threadRow.value.managerMetadata !== null
-          ? { managerMetadata: threadRow.value.managerMetadata }
-          : {}),
         modelSelection: threadRow.value.modelSelection,
         runtimeMode: threadRow.value.runtimeMode,
         interactionMode: threadRow.value.interactionMode,
@@ -1957,6 +1999,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         checkpointRows,
         latestTurnRow,
         sessionRow,
+        contextTrimPointRows,
       ] = yield* Effect.all([
         getActiveThreadRowById({ threadId }).pipe(
           Effect.mapError(
@@ -2014,6 +2057,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             ),
           ),
         ),
+        listContextTrimPointRowsByThread({ threadId }).pipe(
+          Effect.mapError(
+            toPersistenceSqlOrDecodeError(
+              "ProjectionSnapshotQuery.getThreadDetailById:listContextTrimPoints:query",
+              "ProjectionSnapshotQuery.getThreadDetailById:listContextTrimPoints:decodeRows",
+            ),
+          ),
+        ),
       ]);
 
       if (Option.isNone(threadRow)) {
@@ -2024,9 +2075,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         id: threadRow.value.threadId,
         projectId: threadRow.value.projectId,
         title: threadRow.value.title,
-        ...(threadRow.value.managerMetadata !== null
-          ? { managerMetadata: threadRow.value.managerMetadata }
-          : {}),
         modelSelection: threadRow.value.modelSelection,
         runtimeMode: threadRow.value.runtimeMode,
         interactionMode: threadRow.value.interactionMode,
@@ -2052,7 +2100,6 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           }
           return message;
         }),
-        seededWorkItems: threadRow.value.seededWorkItems,
         proposedPlans: proposedPlanRows.map(mapProposedPlanRow),
         activities: activityRows.map((row) => {
           const activity = {
@@ -2078,6 +2125,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           assistantMessageId: row.assistantMessageId,
           completedAt: row.completedAt,
         })),
+        contextTrimPoints: contextTrimPointRows.map((row) => row.payload.trimPoint),
         session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
       };
 

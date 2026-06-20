@@ -7,10 +7,7 @@
  * @module ProjectionThreadRepository
  */
 import {
-  DEFAULT_RUNTIME_MODE,
   IsoDateTime,
-  ManagerSeededWorkItem,
-  ManagerThreadMetadata,
   ModelSelection,
   NonNegativeInt,
   ProjectId,
@@ -22,7 +19,7 @@ import {
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 
 import type { ProjectionRepositoryError } from "../Errors.ts";
 
@@ -30,9 +27,8 @@ export const ProjectionThread = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   title: Schema.String,
-  managerMetadata: Schema.optional(ManagerThreadMetadata),
   modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
@@ -40,9 +36,6 @@ export const ProjectionThread = Schema.Struct({
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   archivedAt: Schema.NullOr(IsoDateTime),
-  seededWorkItems: Schema.Array(ManagerSeededWorkItem).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
-  ),
   latestUserMessageAt: Schema.NullOr(IsoDateTime),
   pendingApprovalCount: NonNegativeInt,
   pendingUserInputCount: NonNegativeInt,

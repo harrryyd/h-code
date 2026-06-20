@@ -1,6 +1,5 @@
 import {
   ArchiveIcon,
-  ArrowDownRightIcon,
   ArrowUpDownIcon,
   CheckIcon,
   ChevronRightIcon,
@@ -176,7 +175,6 @@ import {
   resolveEffectiveSidebarProjectSortOrder,
   resolveAdjacentThreadId,
   isContextMenuPointerDown,
-  isWorkerThread,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadSeedContext,
   resolveThreadRowClassName,
@@ -525,11 +523,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       lastVisitedAt,
     },
   });
-  const pr = resolveThreadPr({
-    threadBranch: thread.branch,
-    worktreePath: thread.worktreePath,
-    gitStatus: gitStatus.data,
-  });
+  const pr = resolveThreadPr(thread.branch, gitStatus.data);
   const prStatus = prStatusIndicator(pr, gitStatus.data?.sourceControlProvider);
   const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds);
   const isConfirmingArchive = confirmingArchiveThreadKey === threadKey && !isThreadRunning;
@@ -723,15 +717,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             </Tooltip>
           )}
           {threadStatus && <ThreadStatusLabel status={threadStatus} />}
-          {isWorkerThread(thread) && (
-            <span
-              title="Delegated Worker Thread"
-              className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-purple-500/20 bg-purple-500/10 px-1.5 py-px text-[9px] font-medium text-purple-600 dark:text-purple-400/80"
-            >
-              <ArrowDownRightIcon className="size-2.5" />
-              <span className="hidden md:inline">Delegated</span>
-            </span>
-          )}
           {renamingThreadKey === threadKey ? (
             <input
               ref={handleRenameInputRef}
@@ -1249,9 +1234,6 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       project.memberProjects.map((member) => [member.physicalProjectKey, 0] as const),
     );
     for (const thread of projectThreads) {
-      if (thread.archivedAt !== null) {
-        continue;
-      }
       const member = memberProjectByScopedKey.get(
         scopedProjectKey(scopeProjectRef(thread.environmentId, thread.projectId)),
       );
@@ -1993,13 +1975,6 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       }
       const api = readEnvironmentApi(threadRef.environmentId);
       if (!api) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to rename thread",
-            description: "Environment is unavailable.",
-          }),
-        );
         finishRename();
         return;
       }
@@ -2984,11 +2959,9 @@ interface SidebarProjectsContentProps {
   handleNewThread: ReturnType<typeof useNewThreadHandler>["handleNewThread"];
   archiveThread: ReturnType<typeof useThreadActions>["archiveThread"];
   deleteThread: ReturnType<typeof useThreadActions>["deleteThread"];
-  managerProjects: readonly SidebarProjectSnapshot[];
   projectSections: readonly (SidebarProjectSection & {
     projects: readonly SidebarProjectSnapshot[];
   })[];
-  activeRouteManagerProjectKey: string | null;
   expandedThreadListsByProject: ReadonlySet<string>;
   activeRouteProjectKey: string | null;
   routeThreadKey: string | null;
@@ -3029,9 +3002,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
     handleNewThread,
     archiveThread,
     deleteThread,
-    managerProjects,
     projectSections,
-    activeRouteManagerProjectKey,
     expandedThreadListsByProject,
     activeRouteProjectKey,
     routeThreadKey,
@@ -3162,13 +3133,15 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
   );
   const hasManualSidebarGroups = manualSidebarGroupsSettings.manualSidebarGroups.length > 0;
   const renderProjectRows = useCallback(
-    (projects: readonly SidebarProjectSnapshot[], activeProjectKey: string | null) =>
+    (projects: readonly SidebarProjectSnapshot[]) =>
       projects.map((project) => (
         <SidebarProjectListRow
           key={project.projectKey}
           project={project}
           isThreadListExpanded={expandedThreadListsByProject.has(project.projectKey)}
-          activeRouteThreadKey={activeProjectKey === project.projectKey ? routeThreadKey : null}
+          activeRouteThreadKey={
+            activeRouteProjectKey === project.projectKey ? routeThreadKey : null
+          }
           newThreadShortcutLabel={newThreadShortcutLabel}
           handleNewThread={handleNewThread}
           archiveThread={archiveThread}
@@ -3185,6 +3158,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
         />
       )),
     [
+      activeRouteProjectKey,
       archiveThread,
       attachThreadListAutoAnimateRef,
       collapseThreadListForProject,
@@ -3247,18 +3221,6 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
               </AlertAction>
             ) : null}
           </Alert>
-        </SidebarGroup>
-      ) : null}
-      {managerProjects.length > 0 ? (
-        <SidebarGroup className="px-2 pt-0 pb-2">
-          <div className="mb-1 flex items-center pl-2 pr-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-              Manager Inbox
-            </span>
-          </div>
-          <SidebarMenu>
-            {renderProjectRows(managerProjects, activeRouteManagerProjectKey)}
-          </SidebarMenu>
         </SidebarGroup>
       ) : null}
       <SidebarGroup className="px-2 py-2">
@@ -3448,7 +3410,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                       }
                     >
                       <SidebarMenu ref={attachProjectListAutoAnimateRef}>
-                        {renderProjectRows(section.projects, activeRouteProjectKey)}
+                        {renderProjectRows(section.projects)}
                       </SidebarMenu>
                     </div>
                   )}
@@ -3576,18 +3538,6 @@ export default function Sidebar() {
       getId: getProjectOrderKey,
     });
   }, [projectOrder, projects]);
-  const managerProjects = useMemo(
-    () => orderedProjects.filter((project) => project.managerMetadata?.role === "workspace"),
-    [orderedProjects],
-  );
-  const projectOwnedProjects = useMemo(
-    () => orderedProjects.filter((project) => project.managerMetadata?.role !== "workspace"),
-    [orderedProjects],
-  );
-  const projectSidebarThreads = useMemo(
-    () => sidebarThreads.filter((thread) => thread.managerMetadata?.role !== "console"),
-    [sidebarThreads],
-  );
 
   const projectPhysicalKeyByScopedRef = useMemo(
     () =>
@@ -3602,7 +3552,7 @@ export default function Sidebar() {
 
   const sidebarProjectCollection = useMemo(() => {
     return buildSidebarProjectCollection({
-      projects: projectOwnedProjects,
+      projects: orderedProjects,
       groupingSettings: projectGroupingSettings,
       manualGroupSettings: manualSidebarGroupsSettings,
       primaryEnvironmentId,
@@ -3613,40 +3563,16 @@ export default function Sidebar() {
       },
     });
   }, [
+    orderedProjects,
     manualSidebarGroupsSettings,
-    projectOwnedProjects,
     projectGroupingSettings,
     primaryEnvironmentId,
     savedEnvironmentRegistry,
     savedEnvironmentRuntimeById,
   ]);
-  const managerProjectCollection = useMemo(() => {
-    return buildSidebarProjectCollection({
-      projects: managerProjects,
-      groupingSettings: projectGroupingSettings,
-      manualGroupSettings: {
-        manualSidebarGroups: [],
-        projectManualSidebarGroupAssignments: {},
-      },
-      primaryEnvironmentId,
-      resolveEnvironmentLabel: (environmentId) => {
-        const rt = savedEnvironmentRuntimeById[environmentId];
-        const saved = savedEnvironmentRegistry[environmentId];
-        return rt?.descriptor?.label ?? saved?.label ?? null;
-      },
-    });
-  }, [
-    managerProjects,
-    projectGroupingSettings,
-    primaryEnvironmentId,
-    savedEnvironmentRegistry,
-    savedEnvironmentRuntimeById,
-  ]);
-  const managerSidebarProjects = managerProjectCollection.snapshots;
   const sidebarProjects = sidebarProjectCollection.snapshots;
   const sidebarProjectSections = sidebarProjectCollection.sections;
   const physicalToSnapshotProjectKey = sidebarProjectCollection.physicalToSnapshotProjectKey;
-  const managerPhysicalToSnapshotProjectKey = managerProjectCollection.physicalToSnapshotProjectKey;
 
   const sidebarProjectByKey = useMemo(
     () => new Map(sidebarProjects.map((project) => [project.projectKey, project] as const)),
@@ -3681,29 +3607,12 @@ export default function Sidebar() {
     physicalToSnapshotProjectKey,
     projectPhysicalKeyByScopedRef,
   ]);
-  const activeRouteManagerProjectKey = useMemo(() => {
-    if (!routeThreadKey) {
-      return null;
-    }
-    const activeThread = sidebarThreadByKey.get(routeThreadKey);
-    if (!activeThread) return null;
-    const physicalKey =
-      projectPhysicalKeyByScopedRef.get(
-        scopedProjectKey(scopeProjectRef(activeThread.environmentId, activeThread.projectId)),
-      ) ?? scopedProjectKey(scopeProjectRef(activeThread.environmentId, activeThread.projectId));
-    return managerPhysicalToSnapshotProjectKey.get(physicalKey) ?? null;
-  }, [
-    routeThreadKey,
-    sidebarThreadByKey,
-    managerPhysicalToSnapshotProjectKey,
-    projectPhysicalKeyByScopedRef,
-  ]);
 
   // Group threads by logical project key so all threads from grouped projects
   // are displayed together.
   const threadsByProjectKey = useMemo(() => {
     const next = new Map<string, SidebarThreadSummary[]>();
-    for (const thread of projectSidebarThreads) {
+    for (const thread of sidebarThreads) {
       const physicalKey =
         projectPhysicalKeyByScopedRef.get(
           scopedProjectKey(scopeProjectRef(thread.environmentId, thread.projectId)),
@@ -3717,7 +3626,7 @@ export default function Sidebar() {
       }
     }
     return next;
-  }, [projectSidebarThreads, physicalToSnapshotProjectKey, projectPhysicalKeyByScopedRef]);
+  }, [sidebarThreads, physicalToSnapshotProjectKey, projectPhysicalKeyByScopedRef]);
   const getCurrentSidebarShortcutContext = useCallback(
     () => ({
       terminalFocus: isTerminalFocused(),
@@ -3831,8 +3740,8 @@ export default function Sidebar() {
   }, []);
 
   const visibleThreads = useMemo(
-    () => projectSidebarThreads.filter((thread) => thread.archivedAt === null),
-    [projectSidebarThreads],
+    () => sidebarThreads.filter((thread) => thread.archivedAt === null),
+    [sidebarThreads],
   );
   const sortedProjects = useMemo(() => {
     const sortableProjects = sidebarProjects.map((project) => ({
@@ -4259,9 +4168,7 @@ export default function Sidebar() {
             handleNewThread={handleNewThread}
             archiveThread={archiveThread}
             deleteThread={deleteThread}
-            managerProjects={managerSidebarProjects}
             projectSections={sortedProjectSections}
-            activeRouteManagerProjectKey={activeRouteManagerProjectKey}
             expandedThreadListsByProject={expandedThreadListsByProject}
             activeRouteProjectKey={activeRouteProjectKey}
             routeThreadKey={routeThreadKey}
@@ -4275,7 +4182,7 @@ export default function Sidebar() {
             suppressProjectClickAfterDragRef={suppressProjectClickAfterDragRef}
             suppressProjectClickForContextMenuRef={suppressProjectClickForContextMenuRef}
             attachProjectListAutoAnimateRef={attachProjectListAutoAnimateRef}
-            projectsLength={projectOwnedProjects.length}
+            projectsLength={projects.length}
           />
 
           <SidebarSeparator />

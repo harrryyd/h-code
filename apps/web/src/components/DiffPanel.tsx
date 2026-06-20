@@ -1,17 +1,14 @@
 import { FileDiff, Virtualizer } from "@pierre/diffs/react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { scopeThreadRef } from "@t3tools/client-runtime";
-import type { TurnId, ReviewComment } from "@t3tools/contracts";
+import type { TurnId } from "@t3tools/contracts";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   Columns2Icon,
-  GitBranchIcon,
-  MessageSquareIcon,
   PilcrowIcon,
   Rows3Icon,
-  SendHorizontalIcon,
   TextWrapIcon,
 } from "lucide-react";
 import {
@@ -27,7 +24,6 @@ import { useCheckpointDiff } from "~/lib/checkpointDiffState";
 import { useVcsStatus } from "~/lib/vcsStatusState";
 import { cn } from "~/lib/utils";
 import { readLocalApi } from "../localApi";
-import { readEnvironmentApi } from "../environmentApi";
 import { resolvePathLinkTarget } from "../terminal-links";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
 import { useTheme } from "../hooks/useTheme";
@@ -46,10 +42,6 @@ import { useSettings } from "../hooks/useSettings";
 import { formatShortTimestamp } from "../timestampFormat";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
-import { DiffCommentPanel } from "./DiffCommentPanel";
-import { StaleBanner } from "./StaleBanner";
-import { InlineAnnotationComment, deriveLineAnnotations } from "./InlineAnnotationComment";
-import { useReviewComments } from "../hooks/useReviewComments";
 
 type DiffRenderMode = "stacked" | "split";
 type DiffThemeType = "light" | "dark";
@@ -134,16 +126,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const [collapsedDiffFileKeys, setCollapsedDiffFileKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [collapsedPrDiffFileKeys, setCollapsedPrDiffFileKeys] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const [diffSourceMode, setDiffSourceMode] = useState<"checkpoint" | "pr">("checkpoint");
-  const [prNumberInput, setPrNumberInput] = useState("1");
-  const prNumberInputEditedRef = useRef(false);
-  const [prDiffText, setPrDiffText] = useState<string | null>(null);
-  const [prDiffPending, setPrDiffPending] = useState(false);
-  const [prDiffError, setPrDiffError] = useState<string | null>(null);
-  const [prHeadSHA, setPrHeadSHA] = useState<string | null>(null);
   const patchViewportRef = useRef<HTMLDivElement>(null);
   const turnStripRef = useRef<HTMLDivElement>(null);
   const previousDiffOpenRef = useRef(false);
@@ -174,99 +156,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     cwd: activeCwd ?? null,
   });
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
-  const detectedPrNumber = gitStatusQuery.data?.pr?.number ?? null;
-  const isReviewMode = diffSourceMode === "pr";
-  const {
-    comments,
-    reviewDraft,
-    editingComment,
-    savePending,
-    saveError,
-    startEditing,
-    cancelEditing,
-    saveComment,
-    deleteComment,
-    submitting,
-    submitError,
-    submitReview,
-    submitReviewWithBatchAgents,
-    runBackgroundAgent,
-    agentEvents,
-    agentRunning,
-  } = useReviewComments({
-    environmentId: activeThread?.environmentId ?? null,
-    threadId: activeThreadId,
-    prNumber: isReviewMode ? Number(prNumberInput.trim()) || null : null,
-    prHeadSHA,
-  });
-  const [prDiffRefreshKey, setPrDiffRefreshKey] = useState(0);
-  const refreshRequestedRef = useRef(false);
-  const [storedPrHeadSHA, setStoredPrHeadSHA] = useState<string | null>(null);
-  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [batchAgentsEnabled, setBatchAgentsEnabled] = useState(false);
-
-  // Initialize stored SHA from reviewDraft when loaded (existing comments carry SHA)
-  useEffect(() => {
-    if (reviewDraft?.prHeadSHA) {
-      setStoredPrHeadSHA(reviewDraft.prHeadSHA);
-    }
-  }, [reviewDraft?.prHeadSHA]);
-
-  // Initialize stored SHA from current prHeadSHA when no draft exists (review mode entry)
-  useEffect(() => {
-    if (prHeadSHA && !storedPrHeadSHA && !reviewDraft?.prHeadSHA) {
-      setStoredPrHeadSHA(prHeadSHA);
-    }
-  }, [prHeadSHA, storedPrHeadSHA, reviewDraft?.prHeadSHA]);
-
-  // After a user-requested refresh, update stored SHA to match newly-fetched head
-  useEffect(() => {
-    if (refreshRequestedRef.current && prHeadSHA) {
-      setStoredPrHeadSHA(prHeadSHA);
-      refreshRequestedRef.current = false;
-    }
-  }, [prHeadSHA]);
-
-  const refreshPrDiff = useCallback(() => {
-    setPrDiffRefreshKey((k) => k + 1);
-    refreshRequestedRef.current = true;
-  }, []);
-
-  const handleReplyComment = useCallback(
-    (comment: ReviewComment) => {
-      const quote = comment.body
-        .split("\n")
-        .map((line) => `> ${line}`)
-        .join("\n");
-      startEditing(comment.file, comment.line ?? null, `${quote}\n\n`);
-    },
-    [startEditing],
-  );
-
-  const isStale = useMemo(
-    () => !!(storedPrHeadSHA && prHeadSHA && storedPrHeadSHA !== prHeadSHA),
-    [storedPrHeadSHA, prHeadSHA],
-  );
-
-  const modifiedFilesFromDiff = useMemo(() => {
-    if (!isStale || !prDiffText) return undefined;
-    const files = new Set<string>();
-    const matches = prDiffText.matchAll(/^\+\+\+ b\/(.+)$/gm);
-    for (const m of matches) {
-      if (m[1]) files.add(m[1]);
-    }
-    return files;
-  }, [isStale, prDiffText]);
-
-  const outdatedCommentCount = useMemo(() => {
-    if (!isStale || !prHeadSHA) return 0;
-    return comments.filter((c) => {
-      if (c.commitSHA === prHeadSHA) return false;
-      if (typeof c.line === "number") return true;
-      return modifiedFilesFromDiff?.has(c.file) ?? true;
-    }).length;
-  }, [isStale, prHeadSHA, comments, modifiedFilesFromDiff]);
-
   const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
     useTurnDiffSummaries(activeThread);
   const orderedTurnDiffSummaries = useMemo(
@@ -386,35 +275,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     });
   }, [renderableFiles]);
 
-  const prRenderablePatch = useMemo(
-    () => getRenderablePatch(prDiffText ?? undefined, `pr-diff:${resolvedTheme}`),
-    [prDiffText, resolvedTheme],
-  );
-  const prRenderableFiles = useMemo(() => {
-    if (!prRenderablePatch || prRenderablePatch.kind !== "files") {
-      return [];
-    }
-    return prRenderablePatch.files.toSorted((left, right) =>
-      resolveFileDiffPath(left).localeCompare(resolveFileDiffPath(right), undefined, {
-        numeric: true,
-        sensitivity: "base",
-      }),
-    );
-  }, [prRenderablePatch]);
-
-  useEffect(() => {
-    if (prRenderableFiles.length === 0) {
-      setCollapsedPrDiffFileKeys((current) => (current.size === 0 ? current : new Set()));
-      return;
-    }
-
-    const visibleFileKeys = new Set(prRenderableFiles.map(buildFileDiffRenderKey));
-    setCollapsedPrDiffFileKeys((current) => {
-      const next = new Set([...current].filter((fileKey) => visibleFileKeys.has(fileKey)));
-      return next.size === current.size ? current : next;
-    });
-  }, [prRenderableFiles]);
-
   useEffect(() => {
     if (diffOpen && !previousDiffOpenRef.current) {
       setDiffWordWrap(settings.diffWordWrap);
@@ -455,181 +315,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       return next;
     });
   }, []);
-  const togglePrDiffFileCollapsed = useCallback((fileKey: string) => {
-    setCollapsedPrDiffFileKeys((current) => {
-      const next = new Set(current);
-      if (next.has(fileKey)) {
-        next.delete(fileKey);
-      } else {
-        next.add(fileKey);
-      }
-      return next;
-    });
-  }, []);
-
-  const renderDiffFileWrapper = useCallback(
-    (
-      fileDiff: (typeof renderableFiles)[number],
-      collapsed: boolean,
-      filePath: string,
-      fileKey: string,
-      themedFileKey: string,
-      toggleCollapsed: (key: string) => void,
-    ) => (
-      <div
-        key={themedFileKey}
-        data-diff-file-path={filePath}
-        className="diff-render-file group/diff-file mb-2 rounded-md first:mt-2 last:mb-0"
-        onClickCapture={(event) => {
-          const nativeEvent = event.nativeEvent as MouseEvent;
-          const composedPath = nativeEvent.composedPath?.() ?? [];
-          const clickedHeader = composedPath.some((node) => {
-            if (!(node instanceof Element)) return false;
-            return node.hasAttribute("data-title");
-          });
-          if (!clickedHeader) return;
-          openDiffFileInEditor(filePath);
-        }}
-      >
-        {/* @ts-expect-error FileDiff annotation props with generic type */}
-        <FileDiff
-          fileDiff={fileDiff}
-          renderHeaderPrefix={() => (
-            <button
-              type="button"
-              className={cn(
-                "inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 transition-colors hover:bg-foreground/10 focus-visible:outline-hidden",
-                getDiffCollapseIconClassName(fileDiff),
-              )}
-              aria-label={collapsed ? `Expand ${filePath}` : `Collapse ${filePath}`}
-              aria-expanded={!collapsed}
-              title={collapsed ? "Expand diff" : "Collapse diff"}
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleCollapsed(fileKey);
-              }}
-            >
-              {collapsed ? (
-                <ChevronRightIcon className="size-4" />
-              ) : (
-                <ChevronDownIcon className="size-4" />
-              )}
-            </button>
-          )}
-          renderHeaderMetadata={() => {
-            const fileCommentCount = comments.filter((c) => c.file === filePath).length;
-            if (fileCommentCount === 0 && !isReviewMode) return null;
-            return (
-              <>
-                {isReviewMode && (
-                  <button
-                    type="button"
-                    className="ml-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 transition-colors hover:bg-foreground/10"
-                    aria-label={`Add review comment on ${filePath}`}
-                    title="Add review comment"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      startEditing(filePath, null);
-                    }}
-                  >
-                    <MessageSquareIcon className="size-3.5" />
-                  </button>
-                )}
-                {fileCommentCount > 0 && (
-                  <span className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-primary/15 text-[9px] font-medium text-primary/80 select-none">
-                    {fileCommentCount}
-                  </span>
-                )}
-              </>
-            );
-          }}
-          lineAnnotations={
-            isReviewMode ? deriveLineAnnotations(comments.filter((c) => c.file === filePath)) : []
-          }
-          renderAnnotation={
-            isReviewMode
-              ? (annotation: any) => {
-                  const c = comments.find(
-                    (x) => x.file === filePath && x.id === annotation.metadata?.commentId,
-                  );
-                  if (!c) return null;
-                  return (
-                    <InlineAnnotationComment
-                      annotation={annotation}
-                      onReply={(body) => handleReplyComment(c)}
-                      onDelete={deleteComment}
-                      onRequestAgent={runBackgroundAgent}
-                      agentRunning={agentRunning?.has(c.id)}
-                    />
-                  );
-                }
-              : undefined
-          }
-          options={{
-            collapsed,
-            diffStyle: diffRenderMode === "split" ? "split" : "unified",
-            lineDiffType: "none",
-            overflow: diffWordWrap ? "wrap" : "scroll",
-            theme: resolveDiffThemeName(resolvedTheme),
-            themeType: resolvedTheme as DiffThemeType,
-            unsafeCSS: DIFF_PANEL_UNSAFE_CSS,
-            ...(isReviewMode
-              ? {
-                  onLineNumberClick: (props: { annotationSide: string; lineNumber: number }) => {
-                    startEditing(
-                      filePath,
-                      props.annotationSide === "additions" ? props.lineNumber : null,
-                    );
-                  },
-                }
-              : {}),
-          }}
-        />
-        {isReviewMode && (
-          <DiffCommentPanel
-            filePath={filePath}
-            comments={comments}
-            editingComment={editingComment}
-            onStartEditing={startEditing}
-            onCancelEditing={cancelEditing}
-            onSaveComment={saveComment}
-            onDeleteComment={deleteComment}
-            onReplyComment={handleReplyComment}
-            savePending={savePending}
-            saveError={saveError}
-            onRequestAgent={runBackgroundAgent}
-            agentEvents={agentEvents}
-            agentRunning={agentRunning}
-            currentPrHeadSHA={prHeadSHA}
-            storedPrHeadSHA={storedPrHeadSHA}
-            modifiedFiles={modifiedFilesFromDiff}
-          />
-        )}
-      </div>
-    ),
-    [
-      resolvedTheme,
-      diffRenderMode,
-      diffWordWrap,
-      isReviewMode,
-      comments,
-      editingComment,
-      startEditing,
-      cancelEditing,
-      saveComment,
-      deleteComment,
-      handleReplyComment,
-      savePending,
-      saveError,
-      runBackgroundAgent,
-      agentEvents,
-      agentRunning,
-      prHeadSHA,
-      storedPrHeadSHA,
-      modifiedFilesFromDiff,
-      openDiffFileInEditor,
-    ],
-  );
 
   const selectTurn = (turnId: TurnId) => {
     if (!activeThread) return;
@@ -713,76 +398,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     const selectedChip = element.querySelector<HTMLElement>("[data-turn-chip-selected='true']");
     selectedChip?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [selectedTurn?.turnId, selectedTurnId]);
-
-  const draftCommentCount = isReviewMode
-    ? comments.filter((c) => c.author.login === "local").length
-    : 0;
-  const shouldFetchPrDiff = diffSourceMode === "pr" && prNumberInput.trim().length > 0;
-
-  useEffect(() => {
-    prNumberInputEditedRef.current = false;
-  }, [activeThreadId]);
-
-  useEffect(() => {
-    if (detectedPrNumber != null && !prNumberInputEditedRef.current) {
-      setPrNumberInput(String(detectedPrNumber));
-    }
-  }, [detectedPrNumber]);
-
-  useEffect(() => {
-    if (!shouldFetchPrDiff || !activeThread) {
-      return;
-    }
-    const api = readEnvironmentApi(activeThread.environmentId);
-    if (!api) return;
-    const prNumber = Number(prNumberInput.trim());
-    if (!Number.isInteger(prNumber) || prNumber < 1) return;
-    let cancelled = false;
-    setPrDiffPending(true);
-    setPrDiffError(null);
-    api.changeRequest.getPrDiff({ threadId: activeThread.id, prNumber }).then(
-      (result) => {
-        if (!cancelled) {
-          setPrDiffText(result.diff);
-          setPrHeadSHA(result.prHeadSHA);
-          setPrDiffPending(false);
-        }
-      },
-      (error) => {
-        if (!cancelled) {
-          setPrDiffError(error instanceof Error ? error.message : "Failed to load PR diff");
-          setPrDiffPending(false);
-        }
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    shouldFetchPrDiff,
-    activeThread?.id,
-    prNumberInput,
-    activeThread?.environmentId,
-    prDiffRefreshKey,
-  ]);
-
-  // Poll for PR head SHA changes every 30 seconds to detect push-based staleness
-  useEffect(() => {
-    if (!shouldFetchPrDiff || !activeThread) return;
-    const prNumber = Number(prNumberInput.trim());
-    if (!Number.isInteger(prNumber) || prNumber < 1) return;
-    const interval = setInterval(() => {
-      const api = readEnvironmentApi(activeThread.environmentId);
-      if (!api) return;
-      api.changeRequest
-        .getPrDiff({ threadId: activeThread.id, prNumber })
-        .then((result) => {
-          setPrHeadSHA(result.prHeadSHA);
-        })
-        .catch(() => {});
-    }, 30_000);
-    return () => clearInterval(interval);
-  }, [shouldFetchPrDiff, activeThread?.id, activeThread?.environmentId, prNumberInput]);
 
   const headerRow = (
     <>
@@ -882,108 +497,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           className="shrink-0"
           variant="outline"
           size="xs"
-          value={[diffSourceMode]}
-          onValueChange={(value) => {
-            const next = value[0];
-            if (next === "checkpoint" || next === "pr") {
-              setDiffSourceMode(next);
-            }
-          }}
-        >
-          <Toggle aria-label="Checkpoint diff" value="checkpoint">
-            <Rows3Icon className="size-3" />
-          </Toggle>
-          <Toggle aria-label="PR diff" value="pr">
-            <GitBranchIcon className="size-3" />
-          </Toggle>
-        </ToggleGroup>
-        {isReviewMode && (
-          <>
-            {diffSourceMode === "pr" && (
-              <input
-                type="number"
-                min="1"
-                step="1"
-                className="h-7 w-16 rounded-md border border-border/70 bg-background/70 px-1.5 text-[11px] text-foreground/80 [-webkit-app-region:no-drag]"
-                value={prNumberInput}
-                onChange={(e) => {
-                  setPrNumberInput(e.target.value);
-                  prNumberInputEditedRef.current = true;
-                }}
-                placeholder="PR #"
-                aria-label="PR number"
-              />
-            )}
-            <button
-              type="button"
-              className={cn(
-                "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[10px] font-medium transition-colors [-webkit-app-region:no-drag]",
-                draftCommentCount === 0 || submitting
-                  ? "cursor-not-allowed border-border/40 bg-background/70 text-muted-foreground/40"
-                  : "border-primary/40 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/15",
-              )}
-              disabled={draftCommentCount === 0 || submitting}
-              onClick={() => {
-                if (draftCommentCount > 0) {
-                  setShowSubmitConfirm(true);
-                  setBatchAgentsEnabled(false);
-                }
-              }}
-            >
-              <SendHorizontalIcon className="size-3" />
-              {submitting
-                ? "Posting..."
-                : `Post ${draftCommentCount} comment${draftCommentCount !== 1 ? "s" : ""}`}
-            </button>
-            {submitError && <span className="text-[10px] text-red-500/80">{submitError}</span>}
-            {showSubmitConfirm && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60">
-                <div className="w-80 rounded-lg border border-border bg-card p-4 shadow-lg">
-                  <p className="mb-3 text-[12px] font-medium text-foreground/90">
-                    Post {draftCommentCount} comment{draftCommentCount !== 1 ? "s" : ""} as a GitHub
-                    review?
-                  </p>
-                  <label className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground/80 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={batchAgentsEnabled}
-                      onChange={(e) => setBatchAgentsEnabled(e.target.checked)}
-                      className="size-3.5 rounded border-border/70"
-                    />
-                    Also request AI responses for all {draftCommentCount} comments
-                  </label>
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      className="inline-flex h-7 items-center rounded-md border border-border/70 px-3 text-[11px] text-muted-foreground/70 hover:bg-foreground/6"
-                      onClick={() => setShowSubmitConfirm(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex h-7 items-center rounded-md bg-primary/15 px-3 text-[11px] font-medium text-primary hover:bg-primary/20"
-                      onClick={() => {
-                        setShowSubmitConfirm(false);
-                        if (batchAgentsEnabled) {
-                          submitReviewWithBatchAgents();
-                        } else {
-                          void submitReview();
-                        }
-                      }}
-                    >
-                      Submit
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-        <ToggleGroup
-          className="shrink-0"
-          variant="outline"
-          size="xs"
           value={[diffRenderMode]}
           onValueChange={(value) => {
             const next = value[0];
@@ -1037,104 +550,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
         <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
           Turn diffs are unavailable because this project is not a git repository.
         </div>
-      ) : shouldFetchPrDiff ? (
-        <div
-          ref={patchViewportRef}
-          className="diff-panel-viewport min-h-0 min-w-0 flex-1 overflow-hidden"
-        >
-          {prDiffError ? (
-            <div className="px-3">
-              <p className="mb-2 text-[11px] text-red-500/80">{prDiffError}</p>
-            </div>
-          ) : null}
-          {prDiffText === null ? (
-            prDiffPending ? (
-              <DiffPanelLoadingState label="Loading PR diff..." />
-            ) : (
-              <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
-                <p>Enter a PR number and press Enter to load the diff.</p>
-              </div>
-            )
-          ) : prDiffText.trim().length === 0 ? (
-            <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
-              <p>No changes in this PR.</p>
-            </div>
-          ) : prRenderableFiles.length > 0 ? (
-            <>
-              {isStale && (
-                <div className="px-2 pt-2">
-                  <StaleBanner
-                    outdatedCommentCount={outdatedCommentCount}
-                    onRefresh={refreshPrDiff}
-                  />
-                </div>
-              )}
-              <Virtualizer
-                className="diff-render-surface h-full min-h-0 overflow-auto px-2 pb-2"
-                config={{
-                  overscrollSize: 600,
-                  intersectionObserverMargin: 1200,
-                }}
-              >
-                {prRenderableFiles.map((fileDiff) => {
-                  const filePath = resolveFileDiffPath(fileDiff);
-                  const fileKey = buildFileDiffRenderKey(fileDiff);
-                  const themedFileKey = `${fileKey}:${resolvedTheme}`;
-                  const collapsed = collapsedPrDiffFileKeys.has(fileKey);
-                  return renderDiffFileWrapper(
-                    fileDiff,
-                    collapsed,
-                    filePath,
-                    fileKey,
-                    themedFileKey,
-                    togglePrDiffFileCollapsed,
-                  );
-                })}
-              </Virtualizer>
-            </>
-          ) : (
-            <div className="h-full overflow-auto p-2">
-              {isStale && (
-                <StaleBanner
-                  outdatedCommentCount={outdatedCommentCount}
-                  onRefresh={refreshPrDiff}
-                />
-              )}
-              <pre
-                className={cn(
-                  "max-h-[72vh] rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90",
-                  diffWordWrap
-                    ? "overflow-auto whitespace-pre-wrap wrap-break-word"
-                    : "overflow-auto",
-                )}
-              >
-                {prDiffText}
-              </pre>
-              {isReviewMode && (
-                <div className="mt-2">
-                  <DiffCommentPanel
-                    filePath="(PR diff)"
-                    comments={comments}
-                    editingComment={editingComment}
-                    onStartEditing={startEditing}
-                    onCancelEditing={cancelEditing}
-                    onSaveComment={saveComment}
-                    onDeleteComment={deleteComment}
-                    onReplyComment={handleReplyComment}
-                    savePending={savePending}
-                    saveError={saveError}
-                    onRequestAgent={runBackgroundAgent}
-                    agentEvents={agentEvents}
-                    agentRunning={agentRunning}
-                    currentPrHeadSHA={prHeadSHA}
-                    storedPrHeadSHA={storedPrHeadSHA}
-                    modifiedFiles={modifiedFilesFromDiff}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       ) : orderedTurnDiffSummaries.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
           No completed turns yet.
@@ -1175,13 +590,57 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                   const fileKey = buildFileDiffRenderKey(fileDiff);
                   const themedFileKey = `${fileKey}:${resolvedTheme}`;
                   const collapsed = collapsedDiffFileKeys.has(fileKey);
-                  return renderDiffFileWrapper(
-                    fileDiff,
-                    collapsed,
-                    filePath,
-                    fileKey,
-                    themedFileKey,
-                    toggleDiffFileCollapsed,
+                  return (
+                    <div
+                      key={themedFileKey}
+                      data-diff-file-path={filePath}
+                      className="diff-render-file group/diff-file mb-2 rounded-md first:mt-2 last:mb-0"
+                      onClickCapture={(event) => {
+                        const nativeEvent = event.nativeEvent as MouseEvent;
+                        const composedPath = nativeEvent.composedPath?.() ?? [];
+                        const clickedHeader = composedPath.some((node) => {
+                          if (!(node instanceof Element)) return false;
+                          return node.hasAttribute("data-title");
+                        });
+                        if (!clickedHeader) return;
+                        openDiffFileInEditor(filePath);
+                      }}
+                    >
+                      <FileDiff
+                        fileDiff={fileDiff}
+                        renderHeaderPrefix={() => (
+                          <button
+                            type="button"
+                            className={cn(
+                              "inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 transition-colors hover:bg-foreground/10 focus-visible:outline-hidden",
+                              getDiffCollapseIconClassName(fileDiff),
+                            )}
+                            aria-label={collapsed ? `Expand ${filePath}` : `Collapse ${filePath}`}
+                            aria-expanded={!collapsed}
+                            title={collapsed ? "Expand diff" : "Collapse diff"}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleDiffFileCollapsed(fileKey);
+                            }}
+                          >
+                            {collapsed ? (
+                              <ChevronRightIcon className="size-4" />
+                            ) : (
+                              <ChevronDownIcon className="size-4" />
+                            )}
+                          </button>
+                        )}
+                        options={{
+                          collapsed,
+                          diffStyle: diffRenderMode === "split" ? "split" : "unified",
+                          lineDiffType: "none",
+                          overflow: diffWordWrap ? "wrap" : "scroll",
+                          theme: resolveDiffThemeName(resolvedTheme),
+                          themeType: resolvedTheme as DiffThemeType,
+                          unsafeCSS: DIFF_PANEL_UNSAFE_CSS,
+                        }}
+                      />
+                    </div>
                   );
                 })}
               </Virtualizer>

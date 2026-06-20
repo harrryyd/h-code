@@ -52,10 +52,10 @@ const BASE_THREAD: OrchestrationThread = {
   archivedAt: null,
   deletedAt: null,
   messages: [],
+  contextTrimPoints: [],
   proposedPlans: [],
   activities: [],
   checkpoints: [],
-  contextTrimPoints: [],
   session: null,
 };
 

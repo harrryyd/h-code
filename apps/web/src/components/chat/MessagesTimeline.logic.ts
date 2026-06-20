@@ -41,22 +41,13 @@ export type MessagesTimelineRow =
       proposedPlan: ProposedPlan;
       hidden?: true;
     }
-  | { kind: "working"; id: string; createdAt: string | null; hidden?: never }
-  | {
-      kind: "manager-instruction";
-      id: string;
-      createdAt: string;
-      refinedBrief: string;
-      acceptanceCriteria: readonly string[];
-      sourceBody: string;
-      hidden?: true;
-    }
+  | { kind: "working"; id: string; createdAt: string | null; hidden?: true }
   | {
       kind: "context-trim";
       id: string;
       createdAt: string;
       trimPoint: ContextTrimPoint;
-      hidden?: never;
+      hidden?: true;
     };
 
 export interface StableMessagesTimelineRowsState {
@@ -178,18 +169,6 @@ export function deriveMessagesTimelineRows(input: {
         id: timelineEntry.id,
         createdAt: timelineEntry.createdAt,
         proposedPlan: timelineEntry.proposedPlan,
-      });
-      continue;
-    }
-
-    if (timelineEntry.kind === "manager-instruction") {
-      nextRows.push({
-        kind: "manager-instruction",
-        id: timelineEntry.id,
-        createdAt: timelineEntry.createdAt,
-        refinedBrief: timelineEntry.refinedBrief,
-        acceptanceCriteria: timelineEntry.acceptanceCriteria,
-        sourceBody: timelineEntry.sourceBody,
       });
       continue;
     }
@@ -322,17 +301,6 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.assistantCopyStreaming === bm.assistantCopyStreaming &&
         a.assistantTurnDiffSummary === bm.assistantTurnDiffSummary &&
         a.revertTurnCount === bm.revertTurnCount &&
-        a.hidden === bm.hidden
-      );
-    }
-
-    case "manager-instruction": {
-      const bm = b as typeof a;
-      return (
-        a.createdAt === bm.createdAt &&
-        a.refinedBrief === bm.refinedBrief &&
-        a.acceptanceCriteria === bm.acceptanceCriteria &&
-        a.sourceBody === bm.sourceBody &&
         a.hidden === bm.hidden
       );
     }
