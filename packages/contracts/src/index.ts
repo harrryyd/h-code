@@ -22,5 +22,7 @@ export * from "./editor.ts";
 export * from "./project.ts";
 export * from "./filesystem.ts";
 export * from "./review.ts";
+export * from "./methodRegistry.ts";
+export * from "./rpcMethodRegistry.ts";
 export * from "./rpc.ts";
 export * from "./todos.ts";
