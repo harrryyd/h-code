@@ -1,30 +1,9 @@
 /**
- * E2E smoke harness — boots the REAL server in-process (real SQLite, real
- * auth, real provider registry, real orchestration engine), authenticates
- * the way the browser does, opens the real /ws WebSocket and exercises the
- * RPC paths the web UI depends on:
+ * E2E smoke harness that boots the real server in-process and exercises the
+ * WebSocket RPC paths the web app depends on.
  *
- *   1. boot          — server starts and serves HTTP within 30s
- *   2. auth          — bootstrap credential -> session cookie
- *   3. ws-ticket     — short-lived WS credential issued
- *   4. getConfig     — server.getConfig RPC round-trip (providers list)
- *   5. subscribe     — subscribeServerConfig stream emits its snapshot
- *                      (this is exactly what the Providers settings page
- *                      and the model picker hang on when broken)
- *   6. project       — orchestration.dispatchCommand project.create
- *   7. thread        — orchestration.dispatchCommand thread.create
- *   8. send          — orchestration.dispatchCommand thread.turn.start
- *   9. shell         — orchestration.subscribeShell snapshot contains the
- *                      created project + thread
- *
- * Usage (from apps/server):  node scratchpad/e2e-smoke.ts
- * Exit code 0 = all steps passed. 1 = a step failed or HUNG (timeout).
- *
- * Designed to run unmodified across the 40a6235..HEAD bisect range:
- *  - auth endpoints: tries /api/auth/browser-session then /api/auth/bootstrap
- *  - ws credential: tries /api/auth/websocket-ticket (?wsTicket) then
- *    /api/auth/ws-token (?wsToken)
- *  - RPC tags referenced as string literals (stable across the range)
+ * Usage (from apps/server):
+ *   node scratchpad/e2e-smoke.ts
  */
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -41,10 +20,10 @@ import * as Stream from "effect/Stream";
 import { RpcClient, RpcSerialization } from "effect/unstable/rpc";
 import * as Socket from "effect/unstable/socket/Socket";
 import { WsRpcGroup } from "@t3tools/contracts";
-import * as Net from "node:net";
-import * as Fs from "node:fs/promises";
-import * as Os from "node:os";
-import * as PathMod from "node:path";
+import * as NodeFSP from "node:fs/promises";
+import * as NodeNet from "node:net";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
 
 import {
   deriveServerPaths,
@@ -60,11 +39,11 @@ const BOOT_TIMEOUT_SECONDS = 45;
 
 const findFreePort = () =>
   new Promise<number>((resolve, reject) => {
-    const srv = Net.createServer();
-    srv.once("error", reject);
-    srv.listen(0, "127.0.0.1", () => {
-      const address = srv.address() as Net.AddressInfo;
-      srv.close(() => resolve(address.port));
+    const server = NodeNet.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address() as NodeNet.AddressInfo;
+      server.close(() => resolve(address.port));
     });
   });
 
@@ -96,7 +75,7 @@ const step = <A, E, R>(
         results.push({
           name,
           ok: false,
-          detail: `HANG — no response after ${timeoutSeconds}s`,
+          detail: `HANG - no response after ${timeoutSeconds}s`,
           ms,
         });
         return undefined;
@@ -118,7 +97,7 @@ const step = <A, E, R>(
 const fetchJson = (
   url: string,
   init?: RequestInit,
-): Effect.Effect<{ status: number; body: any; setCookie: string | null }, Error> =>
+): Effect.Effect<{ status: number; body: unknown; setCookie: string | null }, Error> =>
   Effect.tryPromise({
     try: async () => {
       const response = await fetch(url, {
@@ -126,7 +105,7 @@ const fetchJson = (
         ...init,
       });
       const text = await response.text();
-      let body: any = null;
+      let body: unknown = null;
       try {
         body = text.length > 0 ? JSON.parse(text) : null;
       } catch {
@@ -160,13 +139,12 @@ const wsProtocolLayer = (wsUrl: string, cookie: string | null) => {
 };
 
 const program = Effect.gen(function* () {
-  // ---------- 1. boot ----------
   const port = yield* Effect.promise(findFreePort);
   const baseDir = yield* Effect.promise(() =>
-    Fs.mkdtemp(PathMod.join(Os.tmpdir(), "t3-e2e-smoke-")),
+    NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-e2e-smoke-")),
   );
   const workspaceRoot = yield* Effect.promise(() =>
-    Fs.mkdtemp(PathMod.join(Os.tmpdir(), "t3-e2e-smoke-workspace-")),
+    NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-e2e-smoke-workspace-")),
   );
   const derivedPaths = yield* deriveServerPaths(baseDir, undefined);
   yield* ensureServerDirectories(derivedPaths);
@@ -204,15 +182,13 @@ const program = Effect.gen(function* () {
   );
 
   const httpUrl = (pathname: string) => `http://127.0.0.1:${port}${pathname}`;
-
   const bootStart = Date.now();
   const pollUntilServing = Effect.gen(function* () {
     let attempts = 0;
-    // Optional delay before the very first request — used to distinguish a
-    // "first request during startup window" race from a genuine
-    // first-request deadlock.
     const delayMs = Number(process.env.SMOKE_FIRST_REQUEST_DELAY_MS ?? "0");
-    if (delayMs > 0) yield* Effect.sleep(Duration.millis(delayMs));
+    if (delayMs > 0) {
+      yield* Effect.sleep(Duration.millis(delayMs));
+    }
     for (;;) {
       const result = yield* Effect.exit(fetchJson(httpUrl("/api/auth/session")));
       if (Exit.isSuccess(result) && result.value.status === 200) {
@@ -232,7 +208,6 @@ const program = Effect.gen(function* () {
     }
   });
 
-  // If the server fiber dies during boot, surface its cause instead of spinning.
   const waitForBoot = Effect.raceFirst(
     pollUntilServing,
     Fiber.await(serverFiber).pipe(
@@ -250,18 +225,20 @@ const program = Effect.gen(function* () {
     timeoutSeconds: BOOT_TIMEOUT_SECONDS,
     describe: (body: any) => `policy=${body?.auth?.policy ?? "?"}`,
   });
-  if (bootBody === undefined) return;
+  if (bootBody === undefined) {
+    return;
+  }
 
-  // ---------- 2. auth ----------
   const authenticate = Effect.gen(function* () {
-    // Newer endpoint first, then the pre-migration one.
     for (const path of ["/api/auth/browser-session", "/api/auth/bootstrap"]) {
       const result = yield* fetchJson(httpUrl(path), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ credential: BOOTSTRAP_TOKEN }),
       });
-      if (result.status === 404) continue;
+      if (result.status === 404) {
+        continue;
+      }
       if (result.status !== 200 || !result.setCookie) {
         return yield* Effect.fail(
           new StepFailure(
@@ -269,18 +246,18 @@ const program = Effect.gen(function* () {
           ),
         );
       }
-      const cookie = result.setCookie.split(";")[0]!;
-      return { path, cookie };
+      return { path, cookie: result.setCookie.split(";")[0]! };
     }
     return yield* Effect.fail(new StepFailure("no auth bootstrap endpoint responded"));
   });
 
   const auth = yield* step("auth: bootstrap credential -> session cookie", authenticate, {
-    describe: (a) => `via ${a.path}`,
+    describe: (value) => `via ${value.path}`,
   });
-  if (auth === undefined) return;
+  if (auth === undefined) {
+    return;
+  }
 
-  // ---------- 3. ws credential ----------
   const issueWsCredential = Effect.gen(function* () {
     const candidates = [
       { path: "/api/auth/websocket-ticket", field: "ticket", param: "wsTicket" },
@@ -292,8 +269,10 @@ const program = Effect.gen(function* () {
         headers: { "content-type": "application/json", cookie: auth.cookie },
         body: JSON.stringify({}),
       });
-      if (result.status === 404) continue;
-      const value = result.body?.[candidate.field];
+      if (result.status === 404) {
+        continue;
+      }
+      const value = (result.body as Record<string, unknown> | null)?.[candidate.field];
       if (result.status !== 200 || typeof value !== "string") {
         return yield* Effect.fail(
           new StepFailure(
@@ -307,36 +286,32 @@ const program = Effect.gen(function* () {
   });
 
   const wsCredential = yield* step("ws-ticket: issue WebSocket credential", issueWsCredential, {
-    describe: (c) => `via ${c.path}`,
+    describe: (value) => `via ${value.path}`,
   });
-  if (wsCredential === undefined) return;
+  if (wsCredential === undefined) {
+    return;
+  }
 
   const wsUrl = `ws://127.0.0.1:${port}/ws?${wsCredential.param}=${encodeURIComponent(wsCredential.value)}`;
 
-  // ---------- 4-9. WS RPC ----------
   yield* Effect.scoped(
     RpcClient.make(WsRpcGroup).pipe(
       Effect.flatMap((rpcClient) =>
         Effect.gen(function* () {
           const client = rpcClient as any;
-
           const serverConfig = yield* step(
             "getConfig: server.getConfig round-trip",
             client["server.getConfig"]({}),
             {
               describe: (cfg: any) =>
                 `providers=[${(cfg?.providers ?? [])
-                  .map((p: any) => `${p.instanceId}:${p.status}:models=${p.models?.length ?? 0}`)
+                  .map(
+                    (provider: any) =>
+                      `${provider.instanceId}:${provider.status}:models=${provider.models?.length ?? 0}`,
+                  )
                   .join(", ")}]`,
             },
           );
-
-          // Regression coverage: todo.load was missing from the server's RPC
-          // scope map, which killed the whole connection with a protocol
-          // defect the moment the web UI called it.
-          yield* step("todos: todo.load round-trip", client["todo.load"]({}), {
-            describe: (r: any) => `categories=${r?.categories?.length ?? "?"}`,
-          });
 
           yield* step(
             "subscribe: subscribeServerConfig emits snapshot",
@@ -363,15 +338,15 @@ const program = Effect.gen(function* () {
               workspaceRoot,
               createdAt: now(),
             }),
-            { describe: (r: any) => `sequence=${r?.sequence}` },
+            { describe: (value: any) => `sequence=${value?.sequence}` },
           );
 
-          // Prefer a real installed provider+model when one exists so the
-          // send path can actually start a turn; otherwise fall back to a
-          // fake selection and accept a structured rejection as "RPC alive".
           const providers: any[] = (serverConfig as any)?.providers ?? [];
           const usable = providers.find(
-            (p) => p.installed && p.status === "ready" && (p.models?.length ?? 0) > 0,
+            (provider) =>
+              provider.installed &&
+              provider.status === "ready" &&
+              (provider.models?.length ?? 0) > 0,
           );
           const firstModel = usable?.models?.[0];
           const modelSelection = usable
@@ -400,8 +375,8 @@ const program = Effect.gen(function* () {
               createdAt: now(),
             }),
             {
-              describe: (r: any) =>
-                `sequence=${r?.sequence} model=${modelSelection.instanceId}/${modelSelection.model}`,
+              describe: (value: any) =>
+                `sequence=${value?.sequence} model=${modelSelection.instanceId}/${modelSelection.model}`,
             },
           );
 
@@ -421,7 +396,7 @@ const program = Effect.gen(function* () {
               interactionMode: "default",
               createdAt: now(),
             }),
-            { describe: (r: any) => `sequence=${r?.sequence}` },
+            { describe: (value: any) => `sequence=${value?.sequence}` },
           );
 
           yield* step(
@@ -447,12 +422,12 @@ const program = Effect.gen(function* () {
 }).pipe(
   Effect.onExit((exit) =>
     Effect.sync(() => {
-      const failed = results.filter((r) => !r.ok);
+      const failed = results.filter((result) => !result.ok);
       console.log("\n========== E2E SMOKE RESULTS ==========");
-      for (const r of results) {
-        console.log(`${r.ok ? "PASS" : "FAIL"}  ${r.name}  (${r.ms}ms)`);
-        if (!r.ok || r.detail !== "ok") {
-          console.log(`      ${r.detail.split("\n").join("\n      ")}`);
+      for (const result of results) {
+        console.log(`${result.ok ? "PASS" : "FAIL"}  ${result.name}  (${result.ms}ms)`);
+        if (!result.ok || result.detail !== "ok") {
+          console.log(`      ${result.detail.split("\n").join("\n      ")}`);
         }
       }
       if (Exit.isFailure(exit)) {
@@ -466,8 +441,6 @@ const program = Effect.gen(function* () {
           ? "RESULT: PASS"
           : `RESULT: FAIL (${failed.length} failed step(s), ${results.length} recorded)`,
       );
-      // Hard-exit: the in-process server holds handles (sqlite, watchers)
-      // that would otherwise keep the loop alive.
       process.exit(pass ? 0 : 1);
     }),
   ),

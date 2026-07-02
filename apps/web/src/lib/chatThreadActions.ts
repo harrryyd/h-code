@@ -1,4 +1,4 @@
-import { scopeProjectRef } from "@t3tools/client-runtime";
+import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@t3tools/contracts";
 import type { DraftThreadEnvMode } from "../composerDraftStore";
 
@@ -11,6 +11,7 @@ interface ThreadContextLike {
 
 interface DraftThreadContextLike extends ThreadContextLike {
   envMode: DraftThreadEnvMode;
+  startFromOrigin: boolean;
 }
 
 interface NewThreadHandler {
@@ -20,6 +21,7 @@ interface NewThreadHandler {
       branch?: string | null;
       worktreePath?: string | null;
       envMode?: DraftThreadEnvMode;
+      startFromOrigin?: boolean;
     },
   ): Promise<void>;
 }
@@ -31,6 +33,13 @@ export interface ChatThreadActionContext {
   readonly activeThread: ThreadContextLike | undefined;
   readonly defaultProjectRef: ScopedProjectRef | null;
   readonly handleNewThread: NewThreadHandler;
+}
+
+export function resolveNewDraftStartFromOrigin(input: {
+  envMode: DraftThreadEnvMode;
+  newWorktreesStartFromOrigin: boolean;
+}): boolean {
+  return input.envMode === "worktree" && input.newWorktreesStartFromOrigin;
 }
 
 export function resolveThreadActionProjectRef(
@@ -48,43 +57,25 @@ export function resolveThreadActionProjectRef(
   return context.defaultProjectRef;
 }
 
-function matchesProjectRef(
-  projectRef: ScopedProjectRef,
-  context: Pick<ThreadContextLike, "environmentId" | "projectId">,
-): boolean {
-  return (
-    projectRef.environmentId === context.environmentId && projectRef.projectId === context.projectId
-  );
-}
-
-function buildContextualThreadOptions(
-  context: ChatThreadActionContext,
-  projectRef: ScopedProjectRef,
-): NewThreadOptions | undefined {
-  if (context.activeDraftThread && matchesProjectRef(projectRef, context.activeDraftThread)) {
-    return {
-      branch: context.activeDraftThread.branch,
-      worktreePath: context.activeDraftThread.worktreePath,
-      envMode: context.activeDraftThread.envMode,
-    };
-  }
-
-  if (context.activeThread && matchesProjectRef(projectRef, context.activeThread)) {
-    return {
-      branch: context.activeThread.branch,
-      worktreePath: context.activeThread.worktreePath,
-      envMode: context.activeThread.worktreePath ? "worktree" : "local",
-    };
-  }
-
-  return undefined;
+function buildContextualThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
+  return {
+    branch: context.activeThread?.branch ?? context.activeDraftThread?.branch ?? null,
+    worktreePath:
+      context.activeThread?.worktreePath ?? context.activeDraftThread?.worktreePath ?? null,
+    envMode:
+      context.activeDraftThread?.envMode ??
+      (context.activeThread?.worktreePath ? "worktree" : "local"),
+    ...(context.activeDraftThread
+      ? { startFromOrigin: context.activeDraftThread.startFromOrigin }
+      : {}),
+  };
 }
 
 export async function startNewThreadInProjectFromContext(
   context: ChatThreadActionContext,
   projectRef: ScopedProjectRef,
 ): Promise<void> {
-  await context.handleNewThread(projectRef, buildContextualThreadOptions(context, projectRef));
+  await context.handleNewThread(projectRef, buildContextualThreadOptions(context));
 }
 
 export async function startNewThreadFromContext(

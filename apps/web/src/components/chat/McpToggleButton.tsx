@@ -1,8 +1,10 @@
 import type { EnvironmentId, McpServerSnapshot, ThreadId } from "@t3tools/contracts";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import * as Cause from "effect/Cause";
 import { RefreshCwIcon, WrenchIcon } from "lucide-react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
-import { readEnvironmentApi } from "~/environmentApi";
+import { serverEnvironment } from "~/state/server";
+import { useAtomCommand } from "~/state/use-atom-command";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
@@ -14,34 +16,12 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 const LOADING_INDICATOR_DELAY_MS = 150;
 
 const STATUS_COPY: Record<McpServerSnapshot["status"], { label: string; dotClassName: string }> = {
-  connected: {
-    label: "Connected",
-    dotClassName: "bg-emerald-500",
-  },
-  failed: {
-    label: "Failed",
-    dotClassName: "bg-red-500",
-  },
-  "needs-auth": {
-    label: "Needs auth",
-    dotClassName: "bg-amber-500",
-  },
-  pending: {
-    label: "Pending",
-    dotClassName: "bg-sky-500",
-  },
-  disabled: {
-    label: "Disabled",
-    dotClassName: "bg-muted-foreground/35",
-  },
+  connected: { label: "Connected", dotClassName: "bg-emerald-500" },
+  failed: { label: "Failed", dotClassName: "bg-red-500" },
+  "needs-auth": { label: "Needs auth", dotClassName: "bg-amber-500" },
+  pending: { label: "Pending", dotClassName: "bg-sky-500" },
+  disabled: { label: "Disabled", dotClassName: "bg-muted-foreground/35" },
 };
-
-function toErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-}
 
 export const McpToggleButton = memo(function McpToggleButton(props: {
   threadId: ThreadId;
@@ -49,6 +29,12 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
   compact?: boolean;
 }) {
   const { compact = false, environmentId, threadId } = props;
+  const listServers = useAtomCommand(serverEnvironment.listMcpServers, {
+    reportFailure: false,
+  });
+  const toggleServerCommand = useAtomCommand(serverEnvironment.toggleMcpServer, {
+    reportFailure: false,
+  });
   const [open, setOpen] = useState(false);
   const [servers, setServers] = useState<ReadonlyArray<McpServerSnapshot>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,7 +44,6 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
   const [pendingServerNames, setPendingServerNames] = useState<ReadonlySet<string>>(new Set());
   const loadGenerationRef = useRef(0);
   const loadingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const api = readEnvironmentApi(environmentId);
 
   const clearLoadingIndicatorDelay = useCallback(() => {
     if (loadingIndicatorTimeoutRef.current !== null) {
@@ -71,12 +56,8 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
     (generation: number) => {
       clearLoadingIndicatorDelay();
       setShowLoadingIndicator(false);
-
-      // Delay transient loading chrome so fast MCP lookups do not flash on open.
       loadingIndicatorTimeoutRef.current = setTimeout(() => {
-        if (loadGenerationRef.current === generation) {
-          setShowLoadingIndicator(true);
-        }
+        if (loadGenerationRef.current === generation) setShowLoadingIndicator(true);
         loadingIndicatorTimeoutRef.current = null;
       }, LOADING_INDICATOR_DELAY_MS);
     },
@@ -84,103 +65,64 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
   );
 
   const loadServers = useCallback(async () => {
-    if (!api) {
-      clearLoadingIndicatorDelay();
-      setIsLoading(false);
-      setShowLoadingIndicator(false);
-      setServers([]);
-      setLoadingError("Environment connection unavailable.");
-      setHasResolvedServers(false);
-      return;
-    }
-
     const generation = loadGenerationRef.current + 1;
     loadGenerationRef.current = generation;
     setIsLoading(true);
     setLoadingError(null);
     queueLoadingIndicator(generation);
 
-    try {
-      const result = await api.mcp.listServers({ threadId });
-      if (loadGenerationRef.current !== generation) return;
-      setServers(result.servers);
+    const result = await listServers({ environmentId, input: { threadId } });
+    if (loadGenerationRef.current !== generation) return;
+    if (result._tag === "Success") {
+      setServers(result.value.servers);
       setHasResolvedServers(true);
-    } catch (error) {
-      if (loadGenerationRef.current !== generation) return;
+    } else {
       setServers([]);
-      setLoadingError(toErrorMessage(error, "Failed to load MCP servers."));
+      setLoadingError(Cause.pretty(result.cause));
       setHasResolvedServers(true);
-    } finally {
-      if (loadGenerationRef.current === generation) {
-        clearLoadingIndicatorDelay();
-        setIsLoading(false);
-        setShowLoadingIndicator(false);
-      }
     }
-  }, [api, clearLoadingIndicatorDelay, queueLoadingIndicator, threadId]);
+    clearLoadingIndicatorDelay();
+    setIsLoading(false);
+    setShowLoadingIndicator(false);
+  }, [clearLoadingIndicatorDelay, environmentId, listServers, queueLoadingIndicator, threadId]);
 
   useEffect(() => {
-    if (!open) {
+    if (open) void loadServers();
+    else {
       clearLoadingIndicatorDelay();
       setShowLoadingIndicator(false);
-      return;
     }
-
-    void loadServers();
   }, [clearLoadingIndicatorDelay, loadServers, open]);
 
   useEffect(() => () => clearLoadingIndicatorDelay(), [clearLoadingIndicatorDelay]);
 
-  const isWaitingForInitialResult =
-    isLoading && !hasResolvedServers && servers.length === 0 && loadingError === null;
-  const showLoadingRow = isWaitingForInitialResult && showLoadingIndicator;
-  const showLoadingPlaceholder = isWaitingForInitialResult && !showLoadingIndicator;
-  const showEmptyState =
-    !isWaitingForInitialResult &&
-    loadingError === null &&
-    hasResolvedServers &&
-    servers.length === 0;
-
   const toggleServer = useCallback(
     async (serverName: string, enabled: boolean) => {
-      if (!api) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "MCP toggle unavailable",
-            description: "Environment connection unavailable.",
-          }),
-        );
-        return;
-      }
-
       setPendingServerNames((current) => new Set(current).add(serverName));
-      try {
-        await api.mcp.toggleServer({
-          threadId,
-          mcpServerName: serverName,
-          enabled,
-        });
-        await loadServers();
-      } catch (error) {
+      const result = await toggleServerCommand({
+        environmentId,
+        input: { threadId, mcpServerName: serverName, enabled },
+      });
+      if (result._tag === "Failure") {
         toastManager.add(
           stackedThreadToast({
             type: "error",
             title: "Failed to update MCP server",
-            description: toErrorMessage(error, `Could not update '${serverName}'.`),
+            description: Cause.pretty(result.cause),
           }),
         );
-        await loadServers();
-      } finally {
-        setPendingServerNames((current) => {
-          const next = new Set(current);
-          next.delete(serverName);
-          return next;
-        });
       }
+      await loadServers();
+      setPendingServerNames((current) => {
+        const next = new Set(current);
+        next.delete(serverName);
+        return next;
+      });
     },
-    [api, loadServers, threadId],
+    [environmentId, loadServers, threadId, toggleServerCommand],
   );
+
+  const waiting = isLoading && !hasResolvedServers && servers.length === 0 && loadingError === null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -224,67 +166,50 @@ export const McpToggleButton = memo(function McpToggleButton(props: {
             )}
           </Button>
         </div>
-
         <div className="max-h-80 overflow-y-auto p-2">
-          {showLoadingRow ? (
-            <div
-              data-mcp-loading-state="visible"
-              className="flex items-center gap-2 rounded-lg px-2 py-3 text-sm text-muted-foreground"
-            >
+          {waiting && showLoadingIndicator ? (
+            <div className="flex items-center gap-2 rounded-lg px-2 py-3 text-sm text-muted-foreground">
               <Spinner className="size-4" />
               Loading MCP servers...
             </div>
-          ) : showLoadingPlaceholder ? (
-            <div
-              aria-hidden="true"
-              data-mcp-loading-state="hidden"
-              className="h-10 rounded-lg px-2 py-3 opacity-0"
-            >
+          ) : waiting ? (
+            <div aria-hidden="true" className="h-10 opacity-0">
               Loading MCP servers...
             </div>
           ) : loadingError ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {loadingError}
             </div>
-          ) : showEmptyState ? (
+          ) : hasResolvedServers && servers.length === 0 ? (
             <div className="rounded-lg px-3 py-2 text-sm text-muted-foreground">
               No configured MCP servers were reported by Claude.
             </div>
           ) : (
             <div className="space-y-1">
               {servers.map((server) => {
-                const statusMeta = STATUS_COPY[server.status];
-                const isPending = pendingServerNames.has(server.name);
+                const status = STATUS_COPY[server.status];
+                const pending = pendingServerNames.has(server.name);
                 return (
                   <div
                     key={server.name}
                     className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-accent/35"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-foreground">
-                        {server.name}
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <span className="inline-flex items-center gap-1.5 outline-none" />
-                            }
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={cn("size-2 rounded-full", statusMeta.dotClassName)}
-                            />
-                            <span>{statusMeta.label}</span>
-                          </TooltipTrigger>
-                          <TooltipPopup side="top">{statusMeta.label}</TooltipPopup>
-                        </Tooltip>
-                      </div>
+                      <div className="truncate text-sm font-medium">{server.name}</div>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<span className="inline-flex items-center gap-1.5 text-xs" />}
+                        >
+                          <span className={cn("size-2 rounded-full", status.dotClassName)} />
+                          <span>{status.label}</span>
+                        </TooltipTrigger>
+                        <TooltipPopup side="top">{status.label}</TooltipPopup>
+                      </Tooltip>
                     </div>
-                    {isPending ? <Spinner className="size-3.5 text-muted-foreground" /> : null}
+                    {pending ? <Spinner className="size-3.5 text-muted-foreground" /> : null}
                     <Switch
                       checked={server.status !== "disabled"}
-                      disabled={isPending}
+                      disabled={pending}
                       onCheckedChange={(checked) =>
                         void toggleServer(server.name, Boolean(checked))
                       }

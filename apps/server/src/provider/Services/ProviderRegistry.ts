@@ -16,10 +16,16 @@ import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import type { ProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
+import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
+import type { ProviderAdapterError } from "../Errors.ts";
 
 export type ProviderMaintenanceActionKind = "update";
 
 export interface ProviderRegistryShape {
+  /** Runtime adapters backing the current snapshots. Optional for legacy/test implementations. */
+  readonly listRuntimeAdapters?: () => Effect.Effect<
+    ReadonlyArray<ProviderAdapterShape<ProviderAdapterError>>
+  >;
   /**
    * Read the latest provider snapshots for every configured instance.
    * Multiple snapshots may share the same `provider` kind (multiple

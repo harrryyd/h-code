@@ -47,18 +47,26 @@ export const MODEL_PICKER_KEYBINDING_COMMANDS = [
 ] as const;
 export type ModelPickerKeybindingCommand = (typeof MODEL_PICKER_KEYBINDING_COMMANDS)[number];
 
-export const STATIC_KEYBINDING_COMMANDS = [
+const STATIC_KEYBINDING_COMMANDS = [
+  "sidebar.toggle",
   "terminal.toggle",
   "terminal.split",
+  "terminal.splitVertical",
   "terminal.new",
   "terminal.close",
+  "rightPanel.toggle",
   "diff.toggle",
+  "preview.toggle",
+  "preview.refresh",
+  "preview.focusUrl",
+  "preview.zoomIn",
+  "preview.zoomOut",
+  "preview.resetZoom",
   "commandPalette.toggle",
   "chat.new",
   "chat.newLocal",
-  "todo.toggle",
-  "editor.openFavorite",
   "thread.renameCurrent",
+  "editor.openFavorite",
   ...MODEL_PICKER_KEYBINDING_COMMANDS,
   ...THREAD_KEYBINDING_COMMANDS,
 ] as const;

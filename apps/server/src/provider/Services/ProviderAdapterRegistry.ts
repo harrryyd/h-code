@@ -27,7 +27,7 @@ import type * as Scope from "effect/Scope";
 import type * as Stream from "effect/Stream";
 
 import type { ProviderAdapterError, ProviderUnsupportedError } from "../Errors.ts";
-import type { ProviderAdapterCapabilities, ProviderAdapterShape } from "./ProviderAdapter.ts";
+import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
 import type { ProviderContinuationIdentity } from "../ProviderDriver.ts";
 
 export interface ProviderInstanceRoutingInfo {
@@ -37,7 +37,6 @@ export interface ProviderInstanceRoutingInfo {
   readonly accentColor?: string | undefined;
   readonly enabled: boolean;
   readonly continuationIdentity: ProviderContinuationIdentity;
-  readonly capabilities: ProviderAdapterCapabilities;
 }
 
 /**

@@ -13,6 +13,24 @@ import {
 } from "./serverSettings.ts";
 
 describe("serverSettings helpers", () => {
+  it("replaces scoped maps and removes assignments to deleted manual groups", () => {
+    const current = {
+      ...DEFAULT_SERVER_SETTINGS,
+      projectThreadDefaults: { one: "local" as const, stale: "worktree" as const },
+      manualSidebarGroups: [
+        { id: "one", name: "One", color: "sky" as const, collapsed: false },
+        { id: "stale", name: "Stale", color: "rose" as const, collapsed: false },
+      ],
+      projectManualSidebarGroupAssignments: { project: "stale" },
+    };
+    const next = applyServerSettingsPatch(current, {
+      projectThreadDefaults: { one: "worktree" },
+      manualSidebarGroups: [{ id: "one", name: "One", color: "sky", collapsed: false }],
+    });
+    expect(next.projectThreadDefaults).toEqual({ one: "worktree" });
+    expect(next.projectManualSidebarGroupAssignments).toEqual({});
+  });
+
   it("normalizes optional persisted strings", () => {
     expect(normalizePersistedServerSettingString(undefined)).toBeUndefined();
     expect(normalizePersistedServerSettingString("   ")).toBeUndefined();
@@ -192,65 +210,6 @@ describe("serverSettings helpers", () => {
       displayName: "Codex Work",
       enabled: true,
       config: { homePath: "~/.codex" },
-    });
-  });
-
-  it("replaces projectThreadDefaults maps so stale project overrides are removed", () => {
-    const current = {
-      ...DEFAULT_SERVER_SETTINGS,
-      projectThreadDefaults: {
-        "primary:/Users/julius/Code/t3code": "worktree" as const,
-        "remote-1:/Users/julius/Code/t3code": "local" as const,
-      },
-    };
-
-    expect(
-      applyServerSettingsPatch(current, {
-        projectThreadDefaults: {
-          "primary:/Users/julius/Code/t3code": "inherit",
-        },
-      }).projectThreadDefaults,
-    ).toEqual({
-      "primary:/Users/julius/Code/t3code": "inherit",
-    });
-  });
-
-  it("drops manual sidebar group assignments that reference removed groups", () => {
-    const current: typeof DEFAULT_SERVER_SETTINGS = {
-      ...DEFAULT_SERVER_SETTINGS,
-      manualSidebarGroups: [
-        { id: "frontend", name: "Frontend", color: "sky", collapsed: false },
-        { id: "ops", name: "Ops", color: "sage", collapsed: false },
-      ],
-      projectManualSidebarGroupAssignments: {
-        "primary:/Users/julius/Code/t3code": "frontend",
-        "remote-1:/Users/julius/Code/t3code": "ops",
-      },
-    };
-
-    const next = applyServerSettingsPatch(current, {
-      manualSidebarGroups: [{ id: "frontend", name: "Frontend", color: "sky", collapsed: true }],
-    });
-
-    expect(next.manualSidebarGroups).toEqual([
-      { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
-    ]);
-    expect(next.projectManualSidebarGroupAssignments).toEqual({
-      "primary:/Users/julius/Code/t3code": "frontend",
-    });
-  });
-
-  it("drops manual sidebar group assignments that target unknown groups", () => {
-    const next = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      manualSidebarGroups: [{ id: "frontend", name: "Frontend", color: "sky", collapsed: false }],
-      projectManualSidebarGroupAssignments: {
-        "primary:/Users/julius/Code/t3code": "frontend",
-        "remote-1:/Users/julius/Code/t3code": "missing",
-      },
-    });
-
-    expect(next.projectManualSidebarGroupAssignments).toEqual({
-      "primary:/Users/julius/Code/t3code": "frontend",
     });
   });
 });

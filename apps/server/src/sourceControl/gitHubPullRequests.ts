@@ -97,10 +97,7 @@ function normalizeGitHubPullRequestRecord(
   const labels = raw.labels
     ?.map((label) => {
       const color = normalizeGitHubLabelColor(label.color);
-      return {
-        name: label.name,
-        ...(color ? { color } : {}),
-      };
+      return { name: label.name, ...(color ? { color } : {}) };
     })
     .filter(
       (label, index, allLabels) =>

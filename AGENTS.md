@@ -2,21 +2,20 @@
 
 ## Running the Dev Server
 
-This repo shares port ranges and the `~/.t3` state directory with a separately-running T3 Code instance. Running `bun run dev` without isolation will corrupt the other instance's database and state.
+This repo shares port ranges and the `~/.t3` state directory with separately-running T3 Code
+instances. Running `pnpm run dev` without isolation can corrupt another instance's state.
 
-**Always run dev with an isolated home directory:**
+Always use the path-isolated launcher:
 
 ```bash
 ./scripts/dev.sh
 ```
 
-Or manually:
+The script derives a unique `T3CODE_HOME` for each worktree. To choose one explicitly:
 
 ```bash
-T3CODE_HOME=~/.t3-hcode bun run dev
+T3CODE_HOME=~/.t3-hcode pnpm run dev
 ```
-
-The script auto-derives a unique `T3CODE_HOME` per worktree/path, so multiple worktrees can run simultaneously without conflict.
 
 ## Task Completion Requirements
 
@@ -26,34 +25,9 @@ The script auto-derives a unique `T3CODE_HOME` per worktree/path, so multiple wo
 
 ## Running Tests
 
-- Use `bun run test` from the repo root for package-wide test runs.
-- Do not pass test file paths to the root `bun run test` command. The root script goes through Turbo, and Turbo interprets extra arguments as task names.
-- To run a single test file, run `bun run test <path-to-test-file>` from the owning package directory such as `apps/web`, `apps/server`, `packages/contracts`, or `packages/shared`.
-- Run web test files from `apps/web` so the app-local Vitest config and path aliases such as `~/*` are applied.
-
-### Test suites
-
-| Suite                   | Package                   | Command                                                      | Coverage                                                                                                                                                                                                                                                                                |
-| ----------------------- | ------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit tests              | `apps/server`             | `bun run test` (from `apps/server`)                          | 147 test files — persistence, auth, orchestration deciders, provider registry, WS RPC scopes                                                                                                                                                                                            |
-| Unit tests              | `apps/web`                | `bun run test` (from `apps/web`)                             | 105 test files — component logic, hooks, store, sidebar, chat composer, local API                                                                                                                                                                                                       |
-| Unit tests              | `packages/contracts`      | `bun run test` (from `packages/contracts`)                   | 12 test files — schema round-trips, RPC contract types                                                                                                                                                                                                                                  |
-| Unit tests              | `packages/shared`         | `bun run test` (from `packages/shared`)                      | 29 test files — todo store, keybindings, git utilities                                                                                                                                                                                                                                  |
-| Unit tests              | `packages/client-runtime` | `bun run test` (from `packages/client-runtime`)              | 24 test files — WS RPC protocol, thread detail reducer, remote API                                                                                                                                                                                                                      |
-| WS RPC scope regression | `apps/server`             | `bun run test src/wsRpcScopes.test.ts`                       | Asserts every `WsRpcGroup` method has a declared authorization scope in `RPC_REQUIRED_SCOPE`. Missing entries cause connection-level protocol defects.                                                                                                                                  |
-| E2E smoke               | `apps/server`             | `node scratchpad/e2e-smoke.ts`                               | Boots the real server in-process (temp `baseDir`, desktop bootstrap token), authenticates, opens a real `/ws` connection, and exercises `getConfig`, `todo.load`, `subscribeServerConfig`, `project.create`, `thread.create`, `thread.turn.start`, and `subscribeShell`. Exit 0 = pass. |
-| Attach smoke            | `apps/server`             | `node scratchpad/attach-smoke.ts <serverUrl> <pairingToken>` | Same RPC checks as e2e-smoke against an already-running server.                                                                                                                                                                                                                         |
-| Browser probe           | `apps/web`                | `node scratchpad/e2e-browser-probe.ts "<pairingUrl>"`        | Playwright headless probe of the real dev pairing flow. Navigates to `/settings/providers`, asserts no stuck "Checking provider status" text, and dumps console/network/WS-frame diagnostics. Requires `playwright` installed.                                                          |
-
-E2E smoke harnesses exercise the full WebSocket RPC stack end-to-end. They catch contract-implementation drift that unit tests miss (e.g. a method absent from `RPC_REQUIRED_SCOPE` tears down the entire WebSocket, but unit tests of individual deciders or services pass). Consider adding a smoke gate to CI so "merged without booting" cannot recur.
-
-Mint pairing tokens for the dev DB with:
-
-```bash
-node apps/server/src/bin.ts auth pairing create --base-dir <T3CODE_HOME> --dev-url http://localhost:<webPort>
-```
-
-Note: `--dev-url` selects the `dev/` state subdirectory; omit it to write to `userdata/`. The CLI and dev server must agree on the subdirectory or tokens will be silently invalid.
+- Use `pnpm run test` from the repository root for package-wide tests.
+- Do not pass a test file path to the root command; run focused tests from the owning package.
+- Run web tests from `apps/web` so its Vite configuration and `~/*` aliases are applied.
 
 ## Project Snapshot
 

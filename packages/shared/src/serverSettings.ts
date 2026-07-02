@@ -91,6 +91,7 @@ export function applyServerSettingsPatch(
     manualSidebarGroups,
     projectManualSidebarGroupAssignments,
     projectThreadDefaults,
+    mcpDefaultPreferences,
     ...patchForMerge
   } = patch;
   const next = deepMerge(current, patchForMerge);
@@ -104,6 +105,7 @@ export function applyServerSettingsPatch(
       ? { projectManualSidebarGroupAssignments }
       : {}),
     ...(projectThreadDefaults !== undefined ? { projectThreadDefaults } : {}),
+    ...(mcpDefaultPreferences !== undefined ? { mcpDefaultPreferences } : {}),
     ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
   };
   const nextWithNormalizedManualGroups = {

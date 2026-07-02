@@ -1,7 +1,16 @@
-import { ArchiveIcon, ArchiveX, LoaderIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import {
+  ArchiveIcon,
+  ArchiveX,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  LoaderIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAtomValue } from "@effect/atom-react";
 import {
   defaultInstanceIdForDriver,
   type DesktopUpdateChannel,
@@ -11,8 +20,19 @@ import {
   type ProviderInstanceId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
-import { parseScopedThreadKey, scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime";
-import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
+import {
+  isAtomCommandInterrupted,
+  settlePromise,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
+import {
+  DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE,
+  DEFAULT_UNIFIED_SETTINGS,
+  type ManualSidebarGroup,
+  type ManualSidebarGroupColorPalette,
+} from "@t3tools/contracts/settings";
 import { createModelSelection } from "@t3tools/shared/model";
 import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
@@ -31,27 +51,34 @@ import { TraitsPicker } from "../chat/TraitsPicker";
 import { isElectron } from "../../env";
 import { buildHostedChannelSelectionUrl, type HostedAppChannel } from "../../hostedPairing";
 import { useTheme } from "../../hooks/useTheme";
-import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
+import { usePrimarySettings, useUpdatePrimarySettings } from "../../hooks/useSettings";
 import { useThreadActions } from "../../hooks/useThreadActions";
-import {
-  setDesktopUpdateStateQueryData,
-  useDesktopUpdateState,
-} from "../../lib/desktopUpdateReactQuery";
+import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import {
   getCustomModelOptionsByInstance,
   resolveAppModelSelectionState,
 } from "../../modelSelection";
 import {
+  applyProviderInstanceSettings,
   deriveProviderInstanceEntries,
   sortProviderInstanceEntries,
 } from "../../providerInstances";
 import { ensureLocalApi, readLocalApi } from "../../localApi";
-import { useShallow } from "zustand/react/shallow";
-import { selectProjectsAcrossEnvironments, useStore } from "../../store";
+import {
+  MANUAL_SIDEBAR_GROUP_COLOR_LABELS,
+  MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS,
+  MANUAL_SIDEBAR_GROUP_COLOR_SWATCH,
+} from "../../manualSidebarGroupColors";
+import { randomUUID } from "../../lib/utils";
+import {
+  primaryServerObservabilityAtom,
+  primaryServerProvidersAtom,
+  serverEnvironment,
+} from "../../state/server";
+import { useEnvironments, usePrimaryEnvironment } from "../../state/environments";
+import { useProjects } from "../../state/entities";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
-import { useMultiSelectClick } from "../../useMultiSelectClick";
 import { formatRelativeTime, formatRelativeTimeLabel } from "../../timestampFormat";
-import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { Button } from "../ui/button";
 import { DraftInput } from "../ui/draft-input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -80,7 +107,9 @@ import {
   useRelativeTimeTick,
 } from "./settingsLayout";
 import { ProjectFavicon } from "../ProjectFavicon";
-import { useServerObservability, useServerProviders } from "../../rpc/serverState";
+import { useAtomCommand } from "../../state/use-atom-command";
+import { useThreadSelectionStore } from "../../threadSelectionStore";
+import { deriveProjectThreadDefaultOverrideKey } from "../../logicalProject";
 
 const THEME_OPTIONS = [
   {
@@ -104,6 +133,30 @@ const TIMESTAMP_FORMAT_LABELS = {
 } as const;
 
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
+const PROJECT_THREAD_DEFAULT_MODE_OPTIONS = [
+  ["inherit", "Use environment default"],
+  ["local", "Local"],
+  ["worktree", "New worktree"],
+] as const;
+
+function moveItem<T>(items: ReadonlyArray<T>, fromIndex: number, toIndex: number): T[] {
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length ||
+    fromIndex === toIndex
+  ) {
+    return [...items];
+  }
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  if (item === undefined) {
+    return next;
+  }
+  next.splice(toIndex, 0, item);
+  return next;
+}
 
 function withoutProviderInstanceKey<V>(
   record: Readonly<Record<ProviderInstanceId, V>> | undefined,
@@ -157,11 +210,9 @@ function AboutVersionTitle() {
 }
 
 function AboutVersionSection() {
-  const queryClient = useQueryClient();
-  const updateStateQuery = useDesktopUpdateState();
+  const updateState = useDesktopUpdateState();
   const [isChangingUpdateChannel, setIsChangingUpdateChannel] = useState(false);
 
-  const updateState = updateStateQuery.data ?? null;
   const hasDesktopBridge = typeof window !== "undefined" && Boolean(window.desktopBridge);
   const selectedUpdateChannel = updateState?.channel ?? "latest";
   const selectedHostedAppChannel = hasDesktopBridge ? null : HOSTED_APP_CHANNEL;
@@ -180,9 +231,6 @@ function AboutVersionSection() {
       setIsChangingUpdateChannel(true);
       void bridge
         .setUpdateChannel(channel)
-        .then((state) => {
-          setDesktopUpdateStateQueryData(queryClient, state);
-        })
         .catch((error: unknown) => {
           toastManager.add(
             stackedThreadToast({
@@ -196,7 +244,7 @@ function AboutVersionSection() {
           setIsChangingUpdateChannel(false);
         });
     },
-    [queryClient, selectedUpdateChannel],
+    [selectedUpdateChannel],
   );
 
   const handleButtonClick = useCallback(() => {
@@ -206,20 +254,15 @@ function AboutVersionSection() {
     const action = updateState ? resolveDesktopUpdateButtonAction(updateState) : "none";
 
     if (action === "download") {
-      void bridge
-        .downloadUpdate()
-        .then((result) => {
-          setDesktopUpdateStateQueryData(queryClient, result.state);
-        })
-        .catch((error: unknown) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not download update",
-              description: error instanceof Error ? error.message : "Download failed.",
-            }),
-          );
-        });
+      void bridge.downloadUpdate().catch((error: unknown) => {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Could not download update",
+            description: error instanceof Error ? error.message : "Download failed.",
+          }),
+        );
+      });
       return;
     }
 
@@ -230,20 +273,15 @@ function AboutVersionSection() {
         ),
       );
       if (!confirmed) return;
-      void bridge
-        .installUpdate()
-        .then((result) => {
-          setDesktopUpdateStateQueryData(queryClient, result.state);
-        })
-        .catch((error: unknown) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not install update",
-              description: error instanceof Error ? error.message : "Install failed.",
-            }),
-          );
-        });
+      void bridge.installUpdate().catch((error: unknown) => {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Could not install update",
+            description: error instanceof Error ? error.message : "Install failed.",
+          }),
+        );
+      });
       return;
     }
 
@@ -251,7 +289,6 @@ function AboutVersionSection() {
     void bridge
       .checkForUpdate()
       .then((result) => {
-        setDesktopUpdateStateQueryData(queryClient, result.state);
         if (!result.checked) {
           toastManager.add(
             stackedThreadToast({
@@ -272,7 +309,7 @@ function AboutVersionSection() {
           }),
         );
       });
-  }, [queryClient, updateState]);
+  }, [updateState]);
 
   const action = updateState ? resolveDesktopUpdateButtonAction(updateState) : "none";
   const buttonTooltip = updateState ? getDesktopUpdateButtonTooltip(updateState) : null;
@@ -383,8 +420,8 @@ function AboutVersionSection() {
 
 export function useSettingsRestore(onRestored?: () => void) {
   const { theme, setTheme } = useTheme();
-  const settings = useSettings();
-  const { updateSettings } = useUpdateSettings();
+  const settings = usePrimarySettings();
+  const updateSettings = useUpdatePrimarySettings();
 
   const isGitWritingModelDirty = !Equal.equals(
     settings.textGenerationModelSelection ?? null,
@@ -400,9 +437,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.sidebarThreadPreviewCount !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount
         ? ["Visible threads"]
         : []),
-      ...(settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap
-        ? ["Diff line wrapping"]
-        : []),
+      ...(settings.wordWrap !== DEFAULT_UNIFIED_SETTINGS.wordWrap ? ["Word wrap"] : []),
       ...(settings.diffIgnoreWhitespace !== DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace
         ? ["Diff whitespace changes"]
         : []),
@@ -418,6 +453,10 @@ export function useSettingsRestore(onRestored?: () => void) {
         : []),
       ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
         ? ["New thread mode"]
+        : []),
+      ...(settings.newWorktreesStartFromOrigin !==
+      DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin
+        ? ["New worktrees start from origin"]
         : []),
       ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
         ? ["Add project base directory"]
@@ -437,12 +476,13 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.confirmThreadDelete,
       settings.addProjectBaseDirectory,
       settings.defaultThreadEnvMode,
+      settings.newWorktreesStartFromOrigin,
       settings.diffIgnoreWhitespace,
-      settings.diffWordWrap,
       settings.automaticGitFetchInterval,
       settings.enableAssistantStreaming,
       settings.sidebarThreadPreviewCount,
       settings.timestampFormat,
+      settings.wordWrap,
       theme,
     ],
   );
@@ -460,13 +500,14 @@ export function useSettingsRestore(onRestored?: () => void) {
     setTheme("system");
     updateSettings({
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
-      diffWordWrap: DEFAULT_UNIFIED_SETTINGS.diffWordWrap,
+      wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
       sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
       autoOpenPlanSidebar: DEFAULT_UNIFIED_SETTINGS.autoOpenPlanSidebar,
       enableAssistantStreaming: DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming,
       automaticGitFetchInterval: DEFAULT_UNIFIED_SETTINGS.automaticGitFetchInterval,
       defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
+      newWorktreesStartFromOrigin: DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin,
       addProjectBaseDirectory: DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory,
       confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
       confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
@@ -483,10 +524,12 @@ export function useSettingsRestore(onRestored?: () => void) {
 
 export function GeneralSettingsPanel() {
   const { theme, setTheme } = useTheme();
-  const settings = useSettings();
-  const { updateSettings } = useUpdateSettings();
-  const observability = useServerObservability();
-  const serverProviders = useServerProviders();
+  const settings = usePrimarySettings();
+  const updateSettings = useUpdatePrimarySettings();
+  const projects = useProjects();
+  const { environments } = useEnvironments();
+  const observability = useAtomValue(primaryServerObservabilityAtom);
+  const serverProviders = useAtomValue(primaryServerProvidersAtom);
   const diagnosticsDescription = formatDiagnosticsDescription({
     localTracingEnabled: observability?.localTracingEnabled ?? false,
     otlpTracesEnabled: observability?.otlpTracesEnabled ?? false,
@@ -500,7 +543,7 @@ export function GeneralSettingsPanel() {
   const textGenModel = textGenerationModelSelection.model;
   const textGenModelOptions = textGenerationModelSelection.options;
   const gitModelInstanceEntries = sortProviderInstanceEntries(
-    deriveProviderInstanceEntries(serverProviders),
+    applyProviderInstanceSettings(deriveProviderInstanceEntries(serverProviders), settings),
   );
   const textGenInstanceEntry = gitModelInstanceEntries.find(
     (entry) => entry.instanceId === textGenInstanceId,
@@ -516,6 +559,72 @@ export function GeneralSettingsPanel() {
   const isGitWritingModelDirty = !Equal.equals(
     settings.textGenerationModelSelection ?? null,
     DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
+  );
+  const environmentLabelById = useMemo(
+    () =>
+      new Map(
+        environments.map((environment) => [environment.environmentId, environment.label] as const),
+      ),
+    [environments],
+  );
+  const sortedManualGroups = settings.manualSidebarGroups;
+  const sortedProjectDefaults = useMemo(
+    () =>
+      [...projects]
+        .sort((left, right) => left.title.localeCompare(right.title))
+        .filter((project) => {
+          const overrideKey = deriveProjectThreadDefaultOverrideKey(project);
+          return settings.projectThreadDefaults[overrideKey] !== undefined;
+        }),
+    [projects, settings.projectThreadDefaults],
+  );
+
+  const upsertManualSidebarGroups = useCallback(
+    (nextGroups: ReadonlyArray<ManualSidebarGroup>) => {
+      updateSettings({
+        manualSidebarGroups: [...nextGroups],
+      });
+    },
+    [updateSettings],
+  );
+
+  const addManualSidebarGroup = useCallback(() => {
+    upsertManualSidebarGroups([
+      ...sortedManualGroups,
+      {
+        id: randomUUID(),
+        name: `Section ${sortedManualGroups.length + 1}`,
+        color: DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE,
+        collapsed: false,
+      },
+    ]);
+  }, [sortedManualGroups, upsertManualSidebarGroups]);
+
+  const updateManualSidebarGroup = useCallback(
+    (groupId: string, patch: Partial<ManualSidebarGroup>) => {
+      upsertManualSidebarGroups(
+        sortedManualGroups.map((group) => (group.id === groupId ? { ...group, ...patch } : group)),
+      );
+    },
+    [sortedManualGroups, upsertManualSidebarGroups],
+  );
+
+  const moveManualSidebarGroup = useCallback(
+    (groupId: string, direction: -1 | 1) => {
+      const index = sortedManualGroups.findIndex((group) => group.id === groupId);
+      if (index < 0) {
+        return;
+      }
+      upsertManualSidebarGroups(moveItem(sortedManualGroups, index, index + direction));
+    },
+    [sortedManualGroups, upsertManualSidebarGroups],
+  );
+
+  const deleteManualSidebarGroup = useCallback(
+    (groupId: string) => {
+      upsertManualSidebarGroups(sortedManualGroups.filter((group) => group.id !== groupId));
+    },
+    [sortedManualGroups, upsertManualSidebarGroups],
   );
 
   return (
@@ -597,15 +706,15 @@ export function GeneralSettingsPanel() {
         />
 
         <SettingsRow
-          title="Diff line wrapping"
-          description="Set the default wrap state when the diff panel opens."
+          title="Word wrap"
+          description="Wrap long lines in code blocks, tables, diffs, and file previews by default."
           resetAction={
-            settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap ? (
+            settings.wordWrap !== DEFAULT_UNIFIED_SETTINGS.wordWrap ? (
               <SettingResetButton
-                label="diff line wrapping"
+                label="word wrapping"
                 onClick={() =>
                   updateSettings({
-                    diffWordWrap: DEFAULT_UNIFIED_SETTINGS.diffWordWrap,
+                    wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
                   })
                 }
               />
@@ -613,9 +722,9 @@ export function GeneralSettingsPanel() {
           }
           control={
             <Switch
-              checked={settings.diffWordWrap}
-              onCheckedChange={(checked) => updateSettings({ diffWordWrap: Boolean(checked) })}
-              aria-label="Wrap diff lines by default"
+              checked={settings.wordWrap}
+              onCheckedChange={(checked) => updateSettings({ wordWrap: Boolean(checked) })}
+              aria-label="Wrap code, tables, diffs, and file previews by default"
             />
           }
         />
@@ -674,6 +783,33 @@ export function GeneralSettingsPanel() {
         />
 
         <SettingsRow
+          title="Provider update checks"
+          description="Check installed provider CLIs for newer available versions."
+          resetAction={
+            settings.enableProviderUpdateChecks !==
+            DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks ? (
+              <SettingResetButton
+                label="provider update checks"
+                onClick={() =>
+                  updateSettings({
+                    enableProviderUpdateChecks: DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.enableProviderUpdateChecks}
+              onCheckedChange={(checked) =>
+                updateSettings({ enableProviderUpdateChecks: Boolean(checked) })
+              }
+              aria-label="Check provider versions"
+            />
+          }
+        />
+
+        <SettingsRow
           title="Auto-open task panel"
           description="Open the right-side plan and task panel automatically when steps appear."
           resetAction={
@@ -703,12 +839,16 @@ export function GeneralSettingsPanel() {
           title="New threads"
           description="Pick the default workspace mode for newly created draft threads."
           resetAction={
-            settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode ? (
+            settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode ||
+            settings.newWorktreesStartFromOrigin !==
+              DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin ? (
               <SettingResetButton
                 label="new threads"
                 onClick={() =>
                   updateSettings({
                     defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
+                    newWorktreesStartFromOrigin:
+                      DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin,
                   })
                 }
               />
@@ -739,6 +879,37 @@ export function GeneralSettingsPanel() {
             </Select>
           }
         />
+
+        {settings.defaultThreadEnvMode === "worktree" ? (
+          <SettingsRow
+            className="bg-muted/20 sm:pl-9"
+            title="Start from origin"
+            description="Creates the worktree from the latest matching branch on origin instead of your local branch."
+            resetAction={
+              settings.newWorktreesStartFromOrigin !==
+              DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin ? (
+                <SettingResetButton
+                  label="new worktrees start from origin"
+                  onClick={() =>
+                    updateSettings({
+                      newWorktreesStartFromOrigin:
+                        DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <Switch
+                checked={settings.newWorktreesStartFromOrigin}
+                onCheckedChange={(checked) =>
+                  updateSettings({ newWorktreesStartFromOrigin: Boolean(checked) })
+                }
+                aria-label="Start new worktrees from origin by default"
+              />
+            }
+          />
+        ) : null}
 
         <SettingsRow
           title="Add project starts in"
@@ -895,6 +1066,160 @@ export function GeneralSettingsPanel() {
         />
       </SettingsSection>
 
+      <SettingsSection title="Sidebar">
+        <SettingsRow
+          title="Manual sections"
+          description="Create named sidebar sections, choose their color, and control whether they start collapsed."
+          control={
+            <Button size="xs" variant="outline" onClick={addManualSidebarGroup}>
+              <PlusIcon className="mr-1 size-3.5" />
+              Add section
+            </Button>
+          }
+        >
+          <div className="mt-3 space-y-2 pb-3">
+            {sortedManualGroups.length === 0 ? (
+              <p className="px-1 text-xs text-muted-foreground">
+                No manual sections yet. Add one here, then assign projects from the sidebar project
+                context menu.
+              </p>
+            ) : (
+              sortedManualGroups.map((group, index) => (
+                <div
+                  key={group.id}
+                  className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/20 p-3"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: MANUAL_SIDEBAR_GROUP_COLOR_SWATCH[group.color] }}
+                    />
+                    <DraftInput
+                      className="min-w-0 flex-1"
+                      value={group.name}
+                      onCommit={(next) =>
+                        updateManualSidebarGroup(group.id, { name: next.trim() || group.name })
+                      }
+                      placeholder="Section name"
+                      spellCheck={false}
+                      aria-label={`Section name for ${group.name}`}
+                    />
+                    <Select
+                      value={group.color}
+                      onValueChange={(value) =>
+                        updateManualSidebarGroup(group.id, {
+                          color: value as ManualSidebarGroupColorPalette,
+                        })
+                      }
+                    >
+                      <SelectTrigger size="xs" className="h-8 min-h-8 w-full sm:w-28">
+                        <SelectValue>{MANUAL_SIDEBAR_GROUP_COLOR_LABELS[group.color]}</SelectValue>
+                      </SelectTrigger>
+                      <SelectPopup align="end" alignItemWithTrigger={false}>
+                        {MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS.map(([value, label]) => (
+                          <SelectItem hideIndicator key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectPopup>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Switch
+                        checked={group.collapsed}
+                        onCheckedChange={(checked) =>
+                          updateManualSidebarGroup(group.id, { collapsed: Boolean(checked) })
+                        }
+                        aria-label={`Collapsed by default for ${group.name}`}
+                      />
+                      Start collapsed
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        disabled={index === 0}
+                        aria-label={`Move ${group.name} up`}
+                        onClick={() => moveManualSidebarGroup(group.id, -1)}
+                      >
+                        <ArrowUpIcon className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        disabled={index === sortedManualGroups.length - 1}
+                        aria-label={`Move ${group.name} down`}
+                        onClick={() => moveManualSidebarGroup(group.id, 1)}
+                      >
+                        <ArrowDownIcon className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        aria-label={`Delete ${group.name}`}
+                        onClick={() => deleteManualSidebarGroup(group.id)}
+                      >
+                        <Trash2Icon className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title="Project thread overrides"
+          description="Per-project new-thread defaults are stored on the target environment. Use a project's sidebar context menu to add or change them."
+        >
+          <div className="mt-3 space-y-2 pb-3">
+            {sortedProjectDefaults.length === 0 ? (
+              <p className="px-1 text-xs text-muted-foreground">
+                No project-specific overrides saved yet.
+              </p>
+            ) : (
+              sortedProjectDefaults.map((project) => {
+                const overrideKey = deriveProjectThreadDefaultOverrideKey(project);
+                const override = settings.projectThreadDefaults[overrideKey];
+                if (!override) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={overrideKey}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/20 p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <ProjectFavicon
+                          environmentId={project.environmentId}
+                          cwd={project.workspaceRoot}
+                        />
+                        <span className="truncate text-sm font-medium text-foreground">
+                          {project.title}
+                        </span>
+                      </div>
+                      <p className="truncate pt-1 text-xs text-muted-foreground">
+                        {environmentLabelById.get(project.environmentId) ?? "Unknown environment"}
+                        {" · "}
+                        {project.workspaceRoot}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {PROJECT_THREAD_DEFAULT_MODE_OPTIONS.find(
+                        ([value]) => value === override,
+                      )?.[1] ?? override}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+
       <SettingsSection title="About">
         {isElectron || HOSTED_APP_CHANNEL ? (
           <AboutVersionSection />
@@ -919,9 +1244,16 @@ export function GeneralSettingsPanel() {
 }
 
 export function ProviderSettingsPanel() {
-  const settings = useSettings();
-  const { updateSettings } = useUpdateSettings();
-  const serverProviders = useServerProviders();
+  const settings = usePrimarySettings();
+  const updateSettings = useUpdatePrimarySettings();
+  const serverProviders = useAtomValue(primaryServerProvidersAtom);
+  const primaryEnvironment = usePrimaryEnvironment();
+  const refreshServerProviders = useAtomCommand(serverEnvironment.refreshProviders, {
+    reportFailure: false,
+  });
+  const updateProvider = useAtomCommand(serverEnvironment.updateProvider, {
+    reportFailure: false,
+  });
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
   const [isAddInstanceDialogOpen, setIsAddInstanceDialogOpen] = useState(false);
   const [updatingProviderDrivers, setUpdatingProviderDrivers] = useState<
@@ -960,49 +1292,65 @@ export function ProviderSettingsPanel() {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
     setIsRefreshingProviders(true);
-    void ensureLocalApi()
-      .server.refreshProviders()
-      .catch((error: unknown) => {
-        console.warn("Failed to refresh providers", error);
-      })
-      .finally(() => {
-        refreshingRef.current = false;
-        setIsRefreshingProviders(false);
-      });
-  }, []);
-
-  const runProviderUpdate = useCallback(async (candidate: ProviderUpdateCandidate) => {
-    let started = false;
-    setUpdatingProviderDrivers((previous) => {
-      if (previous.has(candidate.driver)) {
-        return previous;
-      }
-      started = true;
-      const next = new Set(previous);
-      next.add(candidate.driver);
-      return next;
-    });
-    if (!started) {
+    if (!primaryEnvironment) {
+      refreshingRef.current = false;
+      setIsRefreshingProviders(false);
       return;
     }
-
-    try {
-      await ensureLocalApi().server.updateProvider({
-        provider: candidate.driver,
-        instanceId: candidate.instanceId,
+    void (async () => {
+      const result = await refreshServerProviders({
+        environmentId: primaryEnvironment.environmentId,
+        input: {},
       });
-    } catch (error) {
-      toastManager.add(
-        stackedThreadToast({
-          type: "error",
-          title: `Could not update ${PROVIDER_DISPLAY_NAMES[candidate.driver] ?? candidate.driver}`,
-          description:
-            error instanceof Error
-              ? error.message
-              : "The provider update command could not be started.",
-        }),
-      );
-    } finally {
+      refreshingRef.current = false;
+      setIsRefreshingProviders(false);
+      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+        console.warn("Failed to refresh providers", {
+          operation: "refresh-providers",
+          environmentId: primaryEnvironment.environmentId,
+          ...safeErrorLogAttributes(squashAtomCommandFailure(result)),
+        });
+      }
+    })();
+  }, [primaryEnvironment, refreshServerProviders]);
+
+  const runProviderUpdate = useCallback(
+    async (candidate: ProviderUpdateCandidate) => {
+      if (!primaryEnvironment) return;
+      let started = false;
+      setUpdatingProviderDrivers((previous) => {
+        if (previous.has(candidate.driver)) {
+          return previous;
+        }
+        started = true;
+        const next = new Set(previous);
+        next.add(candidate.driver);
+        return next;
+      });
+      if (!started) {
+        return;
+      }
+
+      const result = await updateProvider({
+        environmentId: primaryEnvironment.environmentId,
+        input: {
+          provider: candidate.driver,
+          instanceId: candidate.instanceId,
+        },
+      });
+      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+        const error = squashAtomCommandFailure(result);
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: `Could not update ${PROVIDER_DISPLAY_NAMES[candidate.driver] ?? candidate.driver}`,
+            description:
+              error instanceof Error
+                ? error.message
+                : "The provider update command could not be started.",
+          }),
+        );
+      }
       setUpdatingProviderDrivers((previous) => {
         if (!previous.has(candidate.driver)) {
           return previous;
@@ -1011,8 +1359,9 @@ export function ProviderSettingsPanel() {
         next.delete(candidate.driver);
         return next;
       });
-    }
-  }, []);
+    },
+    [primaryEnvironment, updateProvider],
+  );
 
   interface InstanceRow {
     readonly instanceId: ProviderInstanceId;
@@ -1332,18 +1681,16 @@ export function ProviderSettingsPanel() {
         })}
       </SettingsSection>
 
-      <AddProviderInstanceDialog
-        open={isAddInstanceDialogOpen}
-        onOpenChange={setIsAddInstanceDialogOpen}
-      />
+      {isAddInstanceDialogOpen ? (
+        <AddProviderInstanceDialog open onOpenChange={setIsAddInstanceDialogOpen} />
+      ) : null}
     </SettingsPageContainer>
   );
 }
 
 export function ArchivedThreadsPanel() {
-  const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
-  const { unarchiveThread, confirmAndDeleteThread, bulkUnarchiveThreads, bulkDeleteThreads } =
-    useThreadActions();
+  const projects = useProjects();
+  const { unarchiveThread, confirmAndDeleteThread } = useThreadActions();
   const environmentIds = useMemo(
     () => [...new Set(projects.map((project) => project.environmentId))],
     [projects],
@@ -1354,9 +1701,14 @@ export function ArchivedThreadsPanel() {
     isLoading: isLoadingArchive,
     refresh: refreshArchivedThreads,
   } = useArchivedThreadSnapshots(environmentIds);
-
-  const handleMultiSelectClick = useMultiSelectClick();
   const selectedThreadKeys = useThreadSelectionStore((state) => state.selectedThreadKeys);
+  const toggleThreadSelection = useThreadSelectionStore((state) => state.toggleThread);
+  const rangeSelectTo = useThreadSelectionStore((state) => state.rangeSelectTo);
+  const setSelectionAnchor = useThreadSelectionStore((state) => state.setAnchor);
+  const removeFromSelection = useThreadSelectionStore((state) => state.removeFromSelection);
+  const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
+
+  useEffect(() => clearSelection, [clearSelection]);
 
   const archivedGroups = useMemo(() => {
     const projectsByEnvironmentAndId = new Map(
@@ -1408,108 +1760,101 @@ export function ArchivedThreadsPanel() {
     return groups;
   }, [archivedSnapshots]);
 
-  const handleMultiSelectContextMenu = useCallback(
-    async (position: { x: number; y: number }) => {
-      const api = readLocalApi();
-      if (!api) return;
-      const threadKeys = [...useThreadSelectionStore.getState().selectedThreadKeys];
-      if (threadKeys.length === 0) return;
-      const count = threadKeys.length;
+  const archivedThreadRefsByKey = useMemo(
+    () =>
+      new Map(
+        archivedGroups.flatMap(({ threads }) =>
+          threads.map((thread) => {
+            const ref = scopeThreadRef(thread.environmentId, thread.id);
+            return [scopedThreadKey(ref), ref] as const;
+          }),
+        ),
+      ),
+    [archivedGroups],
+  );
+  const orderedArchivedThreadKeys = useMemo(
+    () =>
+      archivedGroups.flatMap(({ threads }) =>
+        threads.map((thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))),
+      ),
+    [archivedGroups],
+  );
 
-      const refs = threadKeys
-        .map((key) => parseScopedThreadKey(key))
-        .filter((r): r is ScopedThreadRef => r !== null);
-
-      const clicked = await api.contextMenu.show(
-        [
-          { id: "unarchive", label: `Unarchive (${count})` },
-          { id: "delete", label: `Delete (${count})`, destructive: true },
-        ],
-        position,
-      );
-
-      if (clicked !== "unarchive" && clicked !== "delete") return;
-
-      const refsByEnv = new Map<string, ScopedThreadRef[]>();
-      for (const ref of refs) {
-        const list = refsByEnv.get(ref.environmentId);
-        if (list) {
-          list.push(ref);
-        } else {
-          refsByEnv.set(ref.environmentId, [ref]);
+  const runBulkArchivedAction = useCallback(
+    async (action: "unarchive" | "delete", threadRefs: ReadonlyArray<ScopedThreadRef>) => {
+      for (const threadRef of threadRefs) {
+        const result =
+          action === "unarchive"
+            ? await unarchiveThread(threadRef)
+            : await confirmAndDeleteThread(threadRef);
+        if (result._tag === "Failure") {
+          if (!isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: `Failed to ${action} archived thread`,
+                description: `${threadRef.environmentId}/${threadRef.threadId}: ${
+                  error instanceof Error ? error.message : "An error occurred."
+                }`,
+              }),
+            );
+          }
+          return;
         }
+        removeFromSelection([scopedThreadKey(threadRef)]);
       }
-
-      if (clicked === "unarchive") {
-        for (const envRefs of refsByEnv.values()) {
-          await bulkUnarchiveThreads(envRefs);
-        }
-        return;
-      }
-
-      for (const [environmentId, envRefs] of refsByEnv) {
-        const snapshotEntry = archivedSnapshots.find((s) => s.environmentId === environmentId);
-        const shells = (snapshotEntry?.snapshot.threads ?? []).map((thread) => ({
-          id: thread.id,
-          title: thread.title,
-          worktreePath: thread.worktreePath as string | null,
-          projectId: thread.projectId,
-          environmentId,
-        }));
-        const proj = (snapshotEntry?.snapshot.projects ?? []).map((project) => ({
-          id: project.id,
-          cwd: project.workspaceRoot,
-          environmentId,
-        }));
-
-        await bulkDeleteThreads(envRefs, shells, proj);
-      }
+      refreshArchivedThreads();
+      clearSelection();
     },
-    [archivedSnapshots, bulkDeleteThreads, bulkUnarchiveThreads],
+    [
+      clearSelection,
+      confirmAndDeleteThread,
+      refreshArchivedThreads,
+      removeFromSelection,
+      unarchiveThread,
+    ],
   );
 
   const handleArchivedThreadContextMenu = useCallback(
     async (threadRef: ScopedThreadRef, position: { x: number; y: number }) => {
-      const threadKey = scopedThreadKey(threadRef);
-      const hasSelection = useThreadSelectionStore.getState().selectedThreadKeys.has(threadKey);
-
-      if (hasSelection) {
-        void handleMultiSelectContextMenu(position);
-        return;
-      }
-
       const api = readLocalApi();
       if (!api) return;
+      const clickedKey = scopedThreadKey(threadRef);
+      const selection = useThreadSelectionStore.getState().selectedThreadKeys;
+      const actionKeys =
+        selection.has(clickedKey) && selection.size > 0 ? [...selection] : [clickedKey];
+      if (!selection.has(clickedKey)) {
+        clearSelection();
+        toggleThreadSelection(clickedKey);
+      }
+      const actionRefs = actionKeys.flatMap((key) => {
+        const ref = archivedThreadRefsByKey.get(key);
+        return ref ? [ref] : [];
+      });
+      const count = actionRefs.length;
       const clicked = await api.contextMenu.show(
         [
-          { id: "unarchive", label: "Unarchive" },
-          { id: "delete", label: "Delete", destructive: true },
+          { id: "unarchive", label: count > 1 ? `Unarchive ${count} threads` : "Unarchive" },
+          {
+            id: "delete",
+            label: count > 1 ? `Delete ${count} threads` : "Delete",
+            destructive: true,
+          },
         ],
         position,
       );
 
       if (clicked === "unarchive") {
-        try {
-          await unarchiveThread(threadRef);
-          refreshArchivedThreads();
-        } catch (error) {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Failed to unarchive thread",
-              description: error instanceof Error ? error.message : "An error occurred.",
-            }),
-          );
-        }
+        await runBulkArchivedAction("unarchive", actionRefs);
         return;
       }
 
       if (clicked === "delete") {
-        await confirmAndDeleteThread(threadRef);
-        refreshArchivedThreads();
+        await runBulkArchivedAction("delete", actionRefs);
       }
     },
-    [confirmAndDeleteThread, handleMultiSelectContextMenu, refreshArchivedThreads, unarchiveThread],
+    [archivedThreadRefsByKey, clearSelection, runBulkArchivedAction, toggleThreadSelection],
   );
 
   return (
@@ -1539,76 +1884,99 @@ export function ArchivedThreadsPanel() {
           />
         </SettingsSection>
       ) : (
-        archivedGroups.map(({ project, threads: projectThreads }) => {
-          const orderedProjectThreadKeys = projectThreads.map((thread) =>
-            scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
-          );
-
-          return (
-            <SettingsSection
-              key={project.id}
-              title={project.name}
-              icon={<ProjectFavicon environmentId={project.environmentId} cwd={project.cwd} />}
-            >
-              {projectThreads.map((thread) => {
-                const threadRef = scopeThreadRef(thread.environmentId, thread.id);
-                const threadKey = scopedThreadKey(threadRef);
-                const isSelected = selectedThreadKeys.has(threadKey);
-
-                return (
-                  <SettingsRow
-                    key={thread.id}
-                    data-thread-selection-safe
-                    className={isSelected ? "bg-accent" : ""}
-                    onClick={(event) => {
-                      handleMultiSelectClick(event, threadRef, orderedProjectThreadKeys);
-                    }}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      void handleArchivedThreadContextMenu(threadRef, {
-                        x: event.clientX,
-                        y: event.clientY,
-                      });
-                    }}
-                    title={thread.title}
-                    description={
-                      <>
-                        Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
-                        {" · Created "}
-                        {formatRelativeTimeLabel(thread.createdAt)}
-                      </>
+        archivedGroups.map(({ project, threads: projectThreads }) => (
+          <SettingsSection
+            key={project.id}
+            title={project.name}
+            icon={<ProjectFavicon environmentId={project.environmentId} cwd={project.cwd} />}
+          >
+            {projectThreads.map((thread) => {
+              const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+              const threadKey = scopedThreadKey(threadRef);
+              return (
+                <SettingsRow
+                  key={threadKey}
+                  data-thread-item
+                  className={
+                    selectedThreadKeys.has(threadKey)
+                      ? "bg-accent/55 ring-1 ring-inset ring-primary/25"
+                      : undefined
+                  }
+                  onClick={(event) => {
+                    if (event.shiftKey) {
+                      rangeSelectTo(threadKey, orderedArchivedThreadKeys);
+                    } else if (event.metaKey || event.ctrlKey) {
+                      toggleThreadSelection(threadKey);
+                    } else {
+                      setSelectionAnchor(threadKey);
                     }
-                    control={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 shrink-0 cursor-pointer gap-1.5 px-2.5"
-                        onClick={() =>
-                          void unarchiveThread(scopeThreadRef(thread.environmentId, thread.id))
-                            .then(() => refreshArchivedThreads())
-                            .catch((error) => {
-                              toastManager.add(
-                                stackedThreadToast({
-                                  type: "error",
-                                  title: "Failed to unarchive thread",
-                                  description:
-                                    error instanceof Error ? error.message : "An error occurred.",
-                                }),
-                              );
-                            })
-                        }
-                      >
-                        <ArchiveX className="size-3.5" />
-                        <span>Unarchive</span>
-                      </Button>
-                    }
-                  />
-                );
-              })}
-            </SettingsSection>
-          );
-        })
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    void (async () => {
+                      const result = await settlePromise(() =>
+                        handleArchivedThreadContextMenu(threadRef, {
+                          x: event.clientX,
+                          y: event.clientY,
+                        }),
+                      );
+                      if (result._tag === "Failure") {
+                        const error = squashAtomCommandFailure(result);
+                        toastManager.add(
+                          stackedThreadToast({
+                            type: "error",
+                            title: "Archived thread action failed",
+                            description:
+                              error instanceof Error ? error.message : "An error occurred.",
+                          }),
+                        );
+                      }
+                    })();
+                  }}
+                  title={thread.title}
+                  description={
+                    <>
+                      Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
+                      {" \u00b7 Created "}
+                      {formatRelativeTimeLabel(thread.createdAt)}
+                    </>
+                  }
+                  control={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 shrink-0 cursor-pointer gap-1.5 px-2.5"
+                      onClick={() => {
+                        void (async () => {
+                          const result = await unarchiveThread(threadRef);
+                          if (result._tag === "Success") {
+                            refreshArchivedThreads();
+                            return;
+                          }
+                          if (!isAtomCommandInterrupted(result)) {
+                            const error = squashAtomCommandFailure(result);
+                            toastManager.add(
+                              stackedThreadToast({
+                                type: "error",
+                                title: "Failed to unarchive thread",
+                                description:
+                                  error instanceof Error ? error.message : "An error occurred.",
+                              }),
+                            );
+                          }
+                        })();
+                      }}
+                    >
+                      <ArchiveX className="size-3.5" />
+                      <span>Unarchive</span>
+                    </Button>
+                  }
+                />
+              );
+            })}
+          </SettingsSection>
+        ))
       )}
     </SettingsPageContainer>
   );

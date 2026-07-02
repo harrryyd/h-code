@@ -94,7 +94,6 @@ describe("orchestration projector", () => {
         proposedPlans: [],
         activities: [],
         checkpoints: [],
-        contextTrimPoints: [],
         session: null,
       },
     ]);
@@ -268,37 +267,76 @@ describe("orchestration projector", () => {
       ),
     );
 
-    const afterRunning = await Effect.runPromise(
-      projectEvent(
-        afterCreate,
-        makeEvent({
-          sequence: 2,
-          type: "thread.session-set",
-          aggregateKind: "thread",
-          aggregateId: "thread-1",
-          occurredAt: startedAt,
-          commandId: "cmd-running",
-          payload: {
-            threadId: "thread-1",
-            session: {
+    const settledAt = "2026-02-23T08:01:00.000Z";
+    const [afterRunning, afterReady] = await Effect.runPromise(
+      Effect.flatMap(
+        projectEvent(
+          afterCreate,
+          makeEvent({
+            sequence: 2,
+            type: "thread.session-set",
+            aggregateKind: "thread",
+            aggregateId: "thread-1",
+            occurredAt: startedAt,
+            commandId: "cmd-running",
+            payload: {
               threadId: "thread-1",
-              status: "running",
-              providerName: "codex",
-              providerSessionId: "session-1",
-              providerThreadId: "provider-thread-1",
-              runtimeMode: "approval-required",
-              activeTurnId: "turn-1",
-              lastError: null,
-              updatedAt: startedAt,
+              session: {
+                threadId: "thread-1",
+                status: "running",
+                providerName: "codex",
+                providerSessionId: "session-1",
+                providerThreadId: "provider-thread-1",
+                runtimeMode: "approval-required",
+                activeTurnId: "turn-1",
+                lastError: null,
+                updatedAt: startedAt,
+              },
             },
-          },
-        }),
+          }),
+        ),
+        (running) =>
+          Effect.map(
+            projectEvent(
+              running,
+              makeEvent({
+                sequence: 3,
+                type: "thread.session-set",
+                aggregateKind: "thread",
+                aggregateId: "thread-1",
+                occurredAt: settledAt,
+                commandId: "cmd-ready",
+                payload: {
+                  threadId: "thread-1",
+                  session: {
+                    threadId: "thread-1",
+                    status: "ready",
+                    providerName: "codex",
+                    providerSessionId: "session-1",
+                    providerThreadId: "provider-thread-1",
+                    runtimeMode: "approval-required",
+                    activeTurnId: null,
+                    lastError: null,
+                    updatedAt: settledAt,
+                  },
+                },
+              }),
+            ),
+            (ready) => [running, ready] as const,
+          ),
       ),
     );
 
     const thread = afterRunning.threads[0];
     expect(thread?.latestTurn?.turnId).toBe("turn-1");
     expect(thread?.session?.status).toBe("running");
+
+    // Leaving the "running" session status settles the running turn with the
+    // session timestamp as the turn end.
+    const settledThread = afterReady.threads[0];
+    expect(settledThread?.latestTurn?.turnId).toBe("turn-1");
+    expect(settledThread?.latestTurn?.state).toBe("completed");
+    expect(settledThread?.latestTurn?.completedAt).toBe(settledAt);
   });
 
   it("updates canonical thread runtime mode from thread.runtime-mode-set", async () => {
@@ -913,322 +951,5 @@ describe("orchestration projector", () => {
     expect(thread?.checkpoints).toHaveLength(500);
     expect(thread?.checkpoints[0]?.turnId).toBe("turn-100");
     expect(thread?.checkpoints.at(-1)?.turnId).toBe("turn-599");
-  });
-
-  it("appends trim point to contextTrimPoints for existing thread", async () => {
-    const now = "2026-01-01T00:00:00.000Z";
-    const later = "2026-01-01T00:10:00.000Z";
-    const model = createEmptyReadModel(now);
-
-    const afterCreate = await Effect.runPromise(
-      projectEvent(
-        model,
-        makeEvent({
-          sequence: 1,
-          type: "thread.created",
-          aggregateKind: "thread",
-          aggregateId: "thread-trim-test",
-          occurredAt: now,
-          commandId: "cmd-create",
-          payload: {
-            threadId: "thread-trim-test",
-            projectId: "project-1",
-            title: "trim test",
-            modelSelection: {
-              provider: ProviderDriverKind.make("codex"),
-              model: "gpt-5-codex",
-            },
-            runtimeMode: "full-access",
-            branch: null,
-            worktreePath: null,
-            createdAt: now,
-            updatedAt: now,
-          },
-        }),
-      ),
-    );
-
-    const afterTrim = await Effect.runPromise(
-      projectEvent(
-        afterCreate,
-        makeEvent({
-          sequence: 2,
-          type: "thread.trim-point-created",
-          aggregateKind: "thread",
-          aggregateId: "thread-trim-test",
-          occurredAt: later,
-          commandId: "cmd-trim",
-          payload: {
-            threadId: "thread-trim-test",
-            trimPoint: {
-              id: EventId.make("trim-1"),
-              createdAt: later,
-              beforeEntryId: "",
-              prunedMessageCount: 5,
-              prunedTurnIds: [],
-            },
-          },
-        }),
-      ),
-    );
-
-    expect(afterTrim.threads[0]?.contextTrimPoints).toEqual([
-      {
-        id: "trim-1",
-        createdAt: later,
-        beforeEntryId: "",
-        prunedMessageCount: 5,
-        prunedTurnIds: [],
-      },
-    ]);
-  });
-
-  it("leaves read model unchanged when trim point targets unknown thread", async () => {
-    const now = "2026-01-01T00:00:00.000Z";
-    const model = createEmptyReadModel(now);
-
-    const next = await Effect.runPromise(
-      projectEvent(
-        model,
-        makeEvent({
-          sequence: 1,
-          type: "thread.trim-point-created",
-          aggregateKind: "thread",
-          aggregateId: "thread-unknown",
-          occurredAt: "2026-01-01T00:10:00.000Z",
-          commandId: "cmd-trim",
-          payload: {
-            threadId: "thread-unknown",
-            trimPoint: {
-              id: EventId.make("trim-1"),
-              createdAt: "2026-01-01T00:10:00.000Z",
-              beforeEntryId: "",
-              prunedMessageCount: 0,
-              prunedTurnIds: [],
-            },
-          },
-        }),
-      ),
-    );
-
-    expect(next.threads).toEqual([]);
-    expect(next.snapshotSequence).toBe(1);
-  });
-
-  it("sorts multiple trim points by createdAt then id", async () => {
-    const now = "2026-01-01T00:00:00.000Z";
-    const model = createEmptyReadModel(now);
-
-    const afterCreate = await Effect.runPromise(
-      projectEvent(
-        model,
-        makeEvent({
-          sequence: 1,
-          type: "thread.created",
-          aggregateKind: "thread",
-          aggregateId: "thread-sort-test",
-          occurredAt: now,
-          commandId: "cmd-create",
-          payload: {
-            threadId: "thread-sort-test",
-            projectId: "project-1",
-            title: "sort test",
-            modelSelection: {
-              provider: ProviderDriverKind.make("codex"),
-              model: "gpt-5-codex",
-            },
-            runtimeMode: "full-access",
-            branch: null,
-            worktreePath: null,
-            createdAt: now,
-            updatedAt: now,
-          },
-        }),
-      ),
-    );
-
-    let state = afterCreate;
-    state = await Effect.runPromise(
-      projectEvent(
-        state,
-        makeEvent({
-          sequence: 2,
-          type: "thread.trim-point-created",
-          aggregateKind: "thread",
-          aggregateId: "thread-sort-test",
-          occurredAt: "2026-01-01T00:20:00.000Z",
-          commandId: "cmd-trim-2",
-          payload: {
-            threadId: "thread-sort-test",
-            trimPoint: {
-              id: EventId.make("trim-2"),
-              createdAt: "2026-01-01T00:20:00.000Z",
-              beforeEntryId: "",
-              prunedMessageCount: 3,
-              prunedTurnIds: [],
-            },
-          },
-        }),
-      ),
-    );
-
-    state = await Effect.runPromise(
-      projectEvent(
-        state,
-        makeEvent({
-          sequence: 3,
-          type: "thread.trim-point-created",
-          aggregateKind: "thread",
-          aggregateId: "thread-sort-test",
-          occurredAt: "2026-01-01T00:10:00.000Z",
-          commandId: "cmd-trim-1",
-          payload: {
-            threadId: "thread-sort-test",
-            trimPoint: {
-              id: EventId.make("trim-1"),
-              createdAt: "2026-01-01T00:10:00.000Z",
-              beforeEntryId: "",
-              prunedMessageCount: 2,
-              prunedTurnIds: [],
-            },
-          },
-        }),
-      ),
-    );
-
-    const trimPoints = state.threads[0]?.contextTrimPoints ?? [];
-    expect(trimPoints.map((tp) => tp.id)).toEqual(["trim-1", "trim-2"]);
-  });
-
-  it("applies thread.archived-and-new-created: archives old thread and creates new inheriting thread", async () => {
-    const now = "2026-01-01T00:00:00.000Z";
-    const later = "2026-01-01T00:01:00.000Z";
-    let state = createEmptyReadModel(now);
-
-    state = await Effect.runPromise(
-      projectEvent(
-        state,
-        makeEvent({
-          sequence: 1,
-          type: "thread.created",
-          aggregateKind: "thread",
-          aggregateId: "thread-old",
-          occurredAt: now,
-          commandId: "cmd-create",
-          payload: {
-            threadId: "thread-old",
-            projectId: "project-1",
-            title: "Old Thread",
-            modelSelection: {
-              provider: ProviderDriverKind.make("codex"),
-              model: "gpt-5-codex",
-            },
-            runtimeMode: "full-access",
-            interactionMode: "default",
-            branch: "feat/my-branch",
-            worktreePath: "/tmp/worktree-1",
-            createdAt: now,
-            updatedAt: now,
-          },
-        }),
-      ),
-    );
-
-    // Add a message and a session to the old thread
-    state = await Effect.runPromise(
-      projectEvent(
-        state,
-        makeEvent({
-          sequence: 2,
-          type: "thread.message-sent",
-          aggregateKind: "thread",
-          aggregateId: "thread-old",
-          occurredAt: later,
-          commandId: "cmd-msg",
-          payload: {
-            threadId: "thread-old",
-            messageId: "msg-1",
-            role: "user",
-            text: "hello",
-            turnId: null,
-            streaming: false,
-            createdAt: later,
-            updatedAt: later,
-          },
-        }),
-      ),
-    );
-
-    state = await Effect.runPromise(
-      projectEvent(
-        state,
-        makeEvent({
-          sequence: 3,
-          type: "thread.session-set",
-          aggregateKind: "thread",
-          aggregateId: "thread-old",
-          occurredAt: later,
-          commandId: "cmd-session",
-          payload: {
-            threadId: "thread-old",
-            session: {
-              threadId: "thread-old",
-              status: "running",
-              providerName: "codex",
-              runtimeMode: "full-access",
-              activeTurnId: null,
-              lastError: null,
-              updatedAt: later,
-            },
-          },
-        }),
-      ),
-    );
-
-    state = await Effect.runPromise(
-      projectEvent(
-        state,
-        makeEvent({
-          sequence: 4,
-          type: "thread.archived-and-new-created",
-          aggregateKind: "thread",
-          aggregateId: "thread-old",
-          occurredAt: later,
-          commandId: "cmd-archive-new",
-          payload: {
-            archivedThreadId: "thread-old",
-            newThreadId: "thread-new",
-            createdAt: later,
-          },
-        }),
-      ),
-    );
-
-    expect(state.threads).toHaveLength(2);
-
-    const oldThread = state.threads.find((t) => t.id === "thread-old");
-    expect(oldThread).toBeDefined();
-    expect(oldThread?.archivedAt).toBe(later);
-    expect(oldThread?.messages).toHaveLength(1);
-    expect(oldThread?.session?.status).toBe("running");
-
-    const newThread = state.threads.find((t) => t.id === "thread-new");
-    expect(newThread).toBeDefined();
-    expect(newThread?.projectId).toBe("project-1");
-    expect(newThread?.title).toBe("Old Thread");
-    expect(newThread?.branch).toBe("feat/my-branch");
-    expect(newThread?.worktreePath).toBe("/tmp/worktree-1");
-    expect(newThread?.modelSelection.instanceId).toBe("codex");
-    expect(newThread?.modelSelection.model).toBe("gpt-5-codex");
-    expect(newThread?.runtimeMode).toBe("full-access");
-    expect(newThread?.interactionMode).toBe("default");
-    expect(newThread?.messages).toEqual([]);
-    expect(newThread?.session).toBeNull();
-    expect(newThread?.activities).toEqual([]);
-    expect(newThread?.latestTurn).toBeNull();
-    expect(newThread?.archivedAt).toBeNull();
-    expect(newThread?.deletedAt).toBeNull();
-    expect(newThread?.createdAt).toBe(later);
-    expect(newThread?.updatedAt).toBe(later);
   });
 });

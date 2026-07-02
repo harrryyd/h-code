@@ -2,36 +2,42 @@ import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
 
 import { ProviderInstanceId } from "./providerInstance.ts";
-import { DEFAULT_SERVER_SETTINGS, ServerSettings, ServerSettingsPatch } from "./settings.ts";
+import {
+  ClientSettingsSchema,
+  DEFAULT_SERVER_SETTINGS,
+  ServerSettings,
+  ServerSettingsPatch,
+} from "./settings.ts";
 
+const decodeClientSettings = Schema.decodeUnknownSync(ClientSettingsSchema);
 const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 
+describe("ClientSettings word wrap", () => {
+  it("defaults word wrap on", () => {
+    expect(decodeClientSettings({}).wordWrap).toBe(true);
+  });
+
+  it("ignores obsolete wrapping preferences", () => {
+    const decoded = decodeClientSettings({
+      chatWordWrap: false,
+      diffWordWrap: false,
+    });
+
+    expect(decoded.wordWrap).toBe(true);
+    expect(decoded).not.toHaveProperty("chatWordWrap");
+    expect(decoded).not.toHaveProperty("diffWordWrap");
+  });
+});
+
 describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
-  it("defaults projectThreadDefaults to an empty record", () => {
-    expect(DEFAULT_SERVER_SETTINGS.projectThreadDefaults).toEqual({});
-  });
-
-  it("defaults manual sidebar group settings to empty collections", () => {
-    expect(DEFAULT_SERVER_SETTINGS.manualSidebarGroups).toEqual([]);
-    expect(DEFAULT_SERVER_SETTINGS.projectManualSidebarGroupAssignments).toEqual({});
-  });
-
   it("defaults to an empty record so legacy configs without the key still decode", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});
   });
 
-  it("defaults MCP default preferences to an empty record", () => {
-    expect(DEFAULT_SERVER_SETTINGS.mcpDefaultPreferences).toEqual({});
-    expect(decodeServerSettings({}).mcpDefaultPreferences).toEqual({});
-  });
-
   it("decodes a fully empty config (legacy on-disk shape) without complaint", () => {
     const decoded = decodeServerSettings({});
-    expect(decoded.projectThreadDefaults).toEqual({});
-    expect(decoded.manualSidebarGroups).toEqual([]);
-    expect(decoded.projectManualSidebarGroupAssignments).toEqual({});
     expect(decoded.providerInstances).toEqual({});
     // Legacy `providers` struct is still hydrated with its per-driver defaults
     // so existing call sites keep working through the migration.
@@ -81,41 +87,43 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   });
 });
 
+describe("h-code server settings compatibility", () => {
+  it("defaults retained scoped settings to empty maps and groups", () => {
+    expect(DEFAULT_SERVER_SETTINGS.projectThreadDefaults).toEqual({});
+    expect(DEFAULT_SERVER_SETTINGS.manualSidebarGroups).toEqual([]);
+    expect(DEFAULT_SERVER_SETTINGS.projectManualSidebarGroupAssignments).toEqual({});
+    expect(DEFAULT_SERVER_SETTINGS.mcpDefaultPreferences).toEqual({});
+  });
+
+  it("decodes retained settings from existing files", () => {
+    const decoded = decodeServerSettings({
+      projectThreadDefaults: { "remote:/repo": "worktree" },
+      manualSidebarGroups: [{ id: "frontend", name: "Frontend", color: "sky", collapsed: true }],
+      projectManualSidebarGroupAssignments: { "remote:/repo": "frontend" },
+      mcpDefaultPreferences: { claudeAgent: { github: false } },
+    });
+    expect(decoded.projectThreadDefaults["remote:/repo"]).toBe("worktree");
+    expect(decoded.manualSidebarGroups[0]?.color).toBe("sky");
+    expect(decoded.projectManualSidebarGroupAssignments["remote:/repo"]).toBe("frontend");
+    expect(decoded.mcpDefaultPreferences[ProviderInstanceId.make("claudeAgent")]?.github).toBe(
+      false,
+    );
+  });
+});
+
+describe("ServerSettings worktree defaults", () => {
+  it("defaults start-from-origin off for legacy configs", () => {
+    expect(decodeServerSettings({}).newWorktreesStartFromOrigin).toBe(false);
+  });
+
+  it("accepts start-from-origin updates", () => {
+    expect(
+      decodeServerSettingsPatch({ newWorktreesStartFromOrigin: true }).newWorktreesStartFromOrigin,
+    ).toBe(true);
+  });
+});
+
 describe("ServerSettingsPatch.providerInstances", () => {
-  it("decodes project thread defaults as an optional map", () => {
-    const patch = decodeServerSettingsPatch({
-      projectThreadDefaults: {
-        "primary:/Users/julius/Code/t3code": "worktree",
-        "remote-1:/Users/julius/Code/t3code": "inherit",
-      },
-    });
-
-    expect(patch.projectThreadDefaults).toEqual({
-      "primary:/Users/julius/Code/t3code": "worktree",
-      "remote-1:/Users/julius/Code/t3code": "inherit",
-    });
-  });
-
-  it("decodes manual sidebar groups and project assignments as optional settings", () => {
-    const patch = decodeServerSettingsPatch({
-      manualSidebarGroups: [
-        { id: "ops", name: "Ops" },
-        { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
-      ],
-      projectManualSidebarGroupAssignments: {
-        "primary:/Users/julius/Code/t3code": "frontend",
-      },
-    });
-
-    expect(patch.manualSidebarGroups).toEqual([
-      { id: "ops", name: "Ops", color: "slate", collapsed: false },
-      { id: "frontend", name: "Frontend", color: "sky", collapsed: true },
-    ]);
-    expect(patch.projectManualSidebarGroupAssignments).toEqual({
-      "primary:/Users/julius/Code/t3code": "frontend",
-    });
-  });
-
   it("treats providerInstances as an optional whole-map replacement", () => {
     const patch = decodeServerSettingsPatch({});
     expect(patch.providerInstances).toBeUndefined();

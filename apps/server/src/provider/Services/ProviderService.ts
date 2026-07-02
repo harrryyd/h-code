@@ -106,14 +106,6 @@ export interface ProviderServiceShape {
   }) => Effect.Effect<void, ProviderServiceError>;
 
   /**
-   * Compact provider thread context into a summary.
-   * Falls back gracefully if provider doesn't support compaction.
-   */
-  readonly compactThread: (input: {
-    readonly threadId: ThreadId;
-  }) => Effect.Effect<{ summary: string; durationMs: number }, ProviderServiceError>;
-
-  /**
    * Canonical provider runtime event stream.
    *
    * Fan-out is owned by ProviderService (not by a standalone event-bus service).

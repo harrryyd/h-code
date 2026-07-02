@@ -1,4 +1,4 @@
-import { scopeProjectRef } from "@t3tools/client-runtime";
+import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ScopedProjectRef } from "@t3tools/contracts";
 import type { ManualSidebarGroupColorPalette } from "@t3tools/contracts/settings";
 import {
@@ -23,6 +23,12 @@ export interface SidebarProjectSnapshot extends Project {
   displayName: string;
   groupedProjectCount: number;
   environmentPresence: EnvironmentPresence;
+  // True iff every non-primary member of this group lives in a
+  // desktopLocal env (today: the WSL backend). The sidebar uses this
+  // to differentiate "lives on this machine but in a sandbox" from
+  // "lives on a real remote" so the project header can pick a
+  // container icon instead of the generic cloud icon.
+  allRemoteMembersAreDesktopLocal: boolean;
   memberProjects: readonly SidebarProjectGroupMember[];
   memberProjectRefs: readonly ScopedProjectRef[];
   remoteEnvironmentLabels: readonly string[];
@@ -43,15 +49,10 @@ export interface SidebarProjectCollection {
   physicalToSnapshotProjectKey: ReadonlyMap<string, string>;
 }
 
-const UNGROUPED_SIDEBAR_PROJECT_SECTION_ID = "ungrouped";
-
-function getSidebarProjectSectionId(groupId: string | null): string {
-  return groupId === null ? UNGROUPED_SIDEBAR_PROJECT_SECTION_ID : `group:${groupId}`;
-}
-
-function getSidebarProjectSnapshotKey(sectionId: string, logicalProjectKey: string): string {
-  return `${sectionId}::${logicalProjectKey}`;
-}
+const UNGROUPED_SECTION_ID = "ungrouped";
+const sectionIdFor = (groupId: string | null) =>
+  groupId === null ? UNGROUPED_SECTION_ID : `group:${groupId}`;
+const snapshotKeyFor = (sectionId: string, logicalKey: string) => `${sectionId}::${logicalKey}`;
 
 export function buildPhysicalToLogicalProjectKeyMap(input: {
   projects: ReadonlyArray<Project>;
@@ -72,6 +73,11 @@ export function buildSidebarProjectSnapshots(input: {
   settings: ProjectGroupingSettings;
   primaryEnvironmentId: EnvironmentId | null;
   resolveEnvironmentLabel: (environmentId: EnvironmentId) => string | null;
+  // Returns true when an env id maps to a desktopLocal saved-env
+  // record (today: the WSL backend). Defaults to "false for every
+  // env" so callers that don't care about the distinction get the
+  // legacy behavior.
+  isDesktopLocalEnvironment?: (environmentId: EnvironmentId) => boolean;
 }): SidebarProjectSnapshot[] {
   const groupedMembers = new Map<string, SidebarProjectGroupMember[]>();
   for (const project of input.projects) {
@@ -114,14 +120,17 @@ export function buildSidebarProjectSnapshots(input: {
       input.primaryEnvironmentId !== null
         ? members.some((member) => member.environmentId !== input.primaryEnvironmentId)
         : false;
-    const remoteEnvironmentLabels = members
-      .filter(
-        (member) =>
-          input.primaryEnvironmentId !== null &&
-          member.environmentId !== input.primaryEnvironmentId,
-      )
+    const remoteMembers = members.filter(
+      (member) =>
+        input.primaryEnvironmentId !== null && member.environmentId !== input.primaryEnvironmentId,
+    );
+    const remoteEnvironmentLabels = remoteMembers
       .flatMap((member) => (member.environmentLabel ? [member.environmentLabel] : []))
       .filter((label, index, labels) => labels.indexOf(label) === index);
+    const isDesktopLocal = input.isDesktopLocalEnvironment ?? (() => false);
+    const allRemoteMembersAreDesktopLocal =
+      remoteMembers.length > 0 &&
+      remoteMembers.every((member) => isDesktopLocal(member.environmentId));
 
     result.push({
       ...representative,
@@ -132,10 +141,11 @@ export function buildSidebarProjectSnapshots(input: {
               representative,
               members,
             })
-          : representative.name,
+          : representative.title,
       groupedProjectCount: members.length,
       environmentPresence:
         hasLocal && hasRemote ? "mixed" : hasRemote ? "remote-only" : "local-only",
+      allRemoteMembersAreDesktopLocal,
       memberProjects: members,
       memberProjectRefs: members.map((member) => scopeProjectRef(member.environmentId, member.id)),
       remoteEnvironmentLabels,
@@ -151,91 +161,70 @@ export function buildSidebarProjectCollection(input: {
   manualGroupSettings: ManualSidebarGroupsSettings;
   primaryEnvironmentId: EnvironmentId | null;
   resolveEnvironmentLabel: (environmentId: EnvironmentId) => string | null;
+  isDesktopLocalEnvironment?: (environmentId: EnvironmentId) => boolean;
 }): SidebarProjectCollection {
-  const projectsBySectionId = new Map<string, Project[]>();
+  const projectsBySection = new Map<string, Project[]>();
   for (const project of input.projects) {
-    const sectionId = getSidebarProjectSectionId(
+    const sectionId = sectionIdFor(
       resolveProjectManualSidebarGroupId(project, input.manualGroupSettings),
     );
-    const existing = projectsBySectionId.get(sectionId);
-    if (existing) {
-      existing.push(project);
-    } else {
-      projectsBySectionId.set(sectionId, [project]);
-    }
+    projectsBySection.set(sectionId, [...(projectsBySection.get(sectionId) ?? []), project]);
   }
 
   const sections: SidebarProjectSection[] = [];
   const snapshots: SidebarProjectSnapshot[] = [];
   const physicalToSnapshotProjectKey = new Map<string, string>();
-
-  for (const group of input.manualGroupSettings.manualSidebarGroups) {
-    const sectionId = getSidebarProjectSectionId(group.id);
-    const baseSnapshots = buildSidebarProjectSnapshots({
-      projects: projectsBySectionId.get(sectionId) ?? [],
+  const appendSection = (
+    section: Omit<SidebarProjectSection, "projectKeys">,
+    projects: ReadonlyArray<Project>,
+  ) => {
+    const sectionSnapshots = buildSidebarProjectSnapshots({
+      projects,
       settings: input.groupingSettings,
       primaryEnvironmentId: input.primaryEnvironmentId,
       resolveEnvironmentLabel: input.resolveEnvironmentLabel,
+      ...(input.isDesktopLocalEnvironment
+        ? { isDesktopLocalEnvironment: input.isDesktopLocalEnvironment }
+        : {}),
     });
-    const sectionProjectKeys = baseSnapshots.map((snapshot) => {
-      const projectKey = getSidebarProjectSnapshotKey(sectionId, snapshot.projectKey);
-      const nextSnapshot = {
-        ...snapshot,
-        projectKey,
-      };
-      snapshots.push(nextSnapshot);
+    const projectKeys = sectionSnapshots.map((snapshot) => {
+      const projectKey = snapshotKeyFor(section.id, snapshot.projectKey);
+      snapshots.push({ ...snapshot, projectKey });
       for (const member of snapshot.memberProjects) {
         physicalToSnapshotProjectKey.set(member.physicalProjectKey, projectKey);
       }
       return projectKey;
     });
-
-    sections.push({
-      id: sectionId,
-      kind: "manual",
-      title: group.name,
-      color: group.color,
-      collapsed: group.collapsed,
-      projectKeys: sectionProjectKeys,
-    });
-  }
-
-  const ungroupedSnapshots = buildSidebarProjectSnapshots({
-    projects: projectsBySectionId.get(UNGROUPED_SIDEBAR_PROJECT_SECTION_ID) ?? [],
-    settings: input.groupingSettings,
-    primaryEnvironmentId: input.primaryEnvironmentId,
-    resolveEnvironmentLabel: input.resolveEnvironmentLabel,
-  });
-  const ungroupedProjectKeys = ungroupedSnapshots.map((snapshot) => {
-    const projectKey = getSidebarProjectSnapshotKey(
-      UNGROUPED_SIDEBAR_PROJECT_SECTION_ID,
-      snapshot.projectKey,
-    );
-    const nextSnapshot = {
-      ...snapshot,
-      projectKey,
-    };
-    snapshots.push(nextSnapshot);
-    for (const member of snapshot.memberProjects) {
-      physicalToSnapshotProjectKey.set(member.physicalProjectKey, projectKey);
-    }
-    return projectKey;
-  });
-
-  if (ungroupedProjectKeys.length > 0) {
-    sections.push({
-      id: UNGROUPED_SIDEBAR_PROJECT_SECTION_ID,
-      kind: "ungrouped",
-      title: "Ungrouped",
-      color: null,
-      collapsed: false,
-      projectKeys: ungroupedProjectKeys,
-    });
-  }
-
-  return {
-    sections,
-    snapshots,
-    physicalToSnapshotProjectKey,
+    sections.push({ ...section, projectKeys });
   };
+
+  for (const group of input.manualGroupSettings.manualSidebarGroups) {
+    const id = sectionIdFor(group.id);
+    appendSection(
+      {
+        id,
+        kind: "manual",
+        title: group.name,
+        color: group.color,
+        collapsed: group.collapsed,
+      },
+      projectsBySection.get(id) ?? [],
+    );
+  }
+
+  const ungrouped = projectsBySection.get(UNGROUPED_SECTION_ID) ?? [];
+  if (ungrouped.length > 0) {
+    appendSection(
+      {
+        id: UNGROUPED_SECTION_ID,
+        kind: "ungrouped",
+        title: "Ungrouped",
+        color: null,
+        collapsed: false,
+      },
+      ungrouped,
+    );
+  }
+
+  return { sections, snapshots, physicalToSnapshotProjectKey };
 }

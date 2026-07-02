@@ -1,4 +1,4 @@
-import type { Thread } from "./types";
+import type { ThreadShell } from "./types";
 
 function normalizeWorktreePath(path: string | null): string | null {
   const trimmed = path?.trim();
@@ -9,8 +9,8 @@ function normalizeWorktreePath(path: string | null): string | null {
 }
 
 export function getOrphanedWorktreePathForThread(
-  threads: readonly Thread[],
-  threadId: Thread["id"],
+  threads: ReadonlyArray<Pick<ThreadShell, "id" | "worktreePath">>,
+  threadId: ThreadShell["id"],
 ): string | null {
   const targetThread = threads.find((thread) => thread.id === threadId);
   if (!targetThread) {
@@ -30,30 +30,6 @@ export function getOrphanedWorktreePathForThread(
   });
 
   return isShared ? null : targetWorktreePath;
-}
-
-export function getOrphanedWorktreePathsForThreads(
-  threads: ReadonlyArray<{ id: string; worktreePath: string | null }>,
-  threadIds: ReadonlySet<string>,
-): string[] {
-  const orphaned = new Set<string>();
-
-  for (const thread of threads) {
-    if (!threadIds.has(thread.id)) continue;
-
-    const path = normalizeWorktreePath(thread.worktreePath);
-    if (!path) continue;
-
-    const hasSurvivor = threads.some(
-      (other) => !threadIds.has(other.id) && normalizeWorktreePath(other.worktreePath) === path,
-    );
-
-    if (!hasSurvivor) {
-      orphaned.add(path);
-    }
-  }
-
-  return [...orphaned];
 }
 
 export function formatWorktreePathForDisplay(worktreePath: string): string {

@@ -18,7 +18,7 @@ import {
   formatPairingCredentialList,
   formatSessionList,
 } from "../cliAuthFormat.ts";
-import { ServerConfig, type ServerConfigShape } from "../config.ts";
+import * as ServerConfig from "../config.ts";
 import {
   authLocationFlags,
   type CliAuthLocationFlags,
@@ -29,8 +29,8 @@ import {
 const runWithEnvironmentAuth = <A, E>(
   flags: CliAuthLocationFlags,
   run: (
-    environmentAuth: EnvironmentAuth.EnvironmentAuthShape,
-    config: ServerConfigShape,
+    environmentAuth: EnvironmentAuth.EnvironmentAuth["Service"],
+    config: ServerConfig.ServerConfig["Service"],
   ) => Effect.Effect<A, E>,
   options?: {
     readonly quietLogs?: boolean;
@@ -46,7 +46,7 @@ const runWithEnvironmentAuth = <A, E>(
     }).pipe(
       Effect.provide(
         Layer.mergeAll(EnvironmentAuth.runtimeLayer).pipe(
-          Layer.provide(Layer.succeed(ServerConfig, config)),
+          Layer.provide(ServerConfig.layer(config)),
           Layer.provide(Layer.succeed(References.MinimumLogLevel, minimumLogLevel)),
         ),
       ),
@@ -103,16 +103,16 @@ const pairingCreateCommand = Command.make("create", {
             ...(Option.isSome(flags.ttl) ? { ttl: flags.ttl.value } : {}),
             ...(Option.isSome(flags.label) ? { label: flags.label.value } : {}),
           });
-          const advisory =
-            !flags.json && config.devUrl === undefined
-              ? `Note: Token was written to the "userdata/" subdirectory. ` +
-                `Dev servers write to "dev/" — pass --dev-url to match.\n`
-              : "";
           const output = formatIssuedPairingCredential(issued, {
             json: flags.json,
             stateDir: config.stateDir,
             ...(Option.isSome(flags.baseUrl) ? { baseUrl: flags.baseUrl.value } : {}),
           });
+          const advisory =
+            !flags.json && config.devUrl === undefined
+              ? 'Note: Token was written to the "userdata/" subdirectory. ' +
+                'Dev servers write to "dev/" — pass --dev-url to match.\n'
+              : "";
           yield* Console.log(output + advisory);
         }),
       {
@@ -130,7 +130,7 @@ const pairingListCommand = Command.make("list", {
   Command.withHandler((flags) =>
     runWithEnvironmentAuth(
       flags,
-      (environmentAuth, _config) =>
+      (environmentAuth) =>
         Effect.gen(function* () {
           const pairingLinks = yield* environmentAuth.listPairingLinks({
             excludeSubjects: [EnvironmentAuth.INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT],
@@ -150,7 +150,7 @@ const pairingRevokeCommand = Command.make("revoke", {
 }).pipe(
   Command.withDescription("Revoke an active client pairing token."),
   Command.withHandler((flags) =>
-    runWithEnvironmentAuth(flags, (environmentAuth, _config) =>
+    runWithEnvironmentAuth(flags, (environmentAuth) =>
       Effect.gen(function* () {
         const revoked = yield* environmentAuth.revokePairingLink(flags.id);
         yield* Console.log(
@@ -180,7 +180,7 @@ const sessionIssueCommand = Command.make("issue", {
   Command.withHandler((flags) =>
     runWithEnvironmentAuth(
       flags,
-      (environmentAuth, _config) =>
+      (environmentAuth) =>
         Effect.gen(function* () {
           const issued = yield* environmentAuth.issueSession({
             scopes: AuthAdministrativeScopes,
@@ -210,7 +210,7 @@ const sessionListCommand = Command.make("list", {
   Command.withHandler((flags) =>
     runWithEnvironmentAuth(
       flags,
-      (environmentAuth, _config) =>
+      (environmentAuth) =>
         Effect.gen(function* () {
           const sessions = yield* environmentAuth.listSessions();
           yield* Console.log(formatSessionList(sessions, { json: flags.json }));
@@ -231,7 +231,7 @@ const sessionRevokeCommand = Command.make("revoke", {
 }).pipe(
   Command.withDescription("Revoke an active session."),
   Command.withHandler((flags) =>
-    runWithEnvironmentAuth(flags, (environmentAuth, _config) =>
+    runWithEnvironmentAuth(flags, (environmentAuth) =>
       Effect.gen(function* () {
         const revoked = yield* environmentAuth.revokeSession(flags.sessionId);
         yield* Console.log(

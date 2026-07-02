@@ -1,10 +1,8 @@
 import {
-  ContextTrimPoint,
   EventId,
   type OrchestrationCommand,
   type OrchestrationEvent,
   type OrchestrationReadModel,
-  TurnId,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Crypto from "effect/Crypto";
@@ -20,7 +18,6 @@ import {
   requireThreadArchived,
   requireThreadAbsent,
   requireThreadNotArchived,
-  requireTurnNotActive,
 } from "./commandInvariants.ts";
 import { projectEvent } from "./projector.ts";
 
@@ -291,50 +288,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           updatedAt: occurredAt,
         },
       };
-    }
-
-    case "thread.archive-and-new": {
-      const thread = yield* requireThreadNotArchived({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      yield* requireTurnNotActive({ thread, command });
-      yield* requireThreadAbsent({
-        readModel,
-        command,
-        threadId: command.newThreadId,
-      });
-      const occurredAt = command.createdAt;
-      return [
-        {
-          ...(yield* withEventBase({
-            aggregateKind: "thread",
-            aggregateId: command.threadId,
-            occurredAt,
-            commandId: command.commandId,
-          })),
-          type: "thread.archived-and-new-created",
-          payload: {
-            archivedThreadId: command.threadId,
-            newThreadId: command.newThreadId,
-            createdAt: occurredAt,
-          },
-        },
-        {
-          ...(yield* withEventBase({
-            aggregateKind: "thread",
-            aggregateId: command.threadId,
-            occurredAt,
-            commandId: command.commandId,
-          })),
-          type: "thread.session-stop-requested",
-          payload: {
-            threadId: command.threadId,
-            createdAt: occurredAt,
-          },
-        },
-      ];
     }
 
     case "thread.unarchive": {
@@ -623,170 +576,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           createdAt: command.createdAt,
         },
       };
-    }
-
-    case "thread.context.trim": {
-      const thread = yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      yield* requireTurnNotActive({ thread, command });
-
-      const messagesByTurn = new Map<
-        string,
-        { turnId: string; messages: Array<(typeof thread.messages)[number]> }
-      >();
-      for (const msg of thread.messages) {
-        if (msg.turnId === null) continue;
-        const existing = messagesByTurn.get(msg.turnId);
-        if (existing) {
-          existing.messages.push(msg);
-        } else {
-          messagesByTurn.set(msg.turnId, { turnId: msg.turnId, messages: [msg] });
-        }
-      }
-
-      const orderedTurns = [...messagesByTurn.values()].toSorted((a, b) => {
-        const aFirst = a.messages.reduce(
-          (earliest, m) => (m.createdAt < earliest ? m.createdAt : earliest),
-          a.messages[0]!.createdAt,
-        );
-        const bFirst = b.messages.reduce(
-          (earliest, m) => (m.createdAt < earliest ? m.createdAt : earliest),
-          b.messages[0]!.createdAt,
-        );
-        return aFirst.localeCompare(bFirst);
-      });
-
-      const totalTurns = orderedTurns.length;
-      const keepN = command.keepLastNTurns ?? 0;
-
-      const survivingTurnIds = new Set<string>();
-      if (keepN > 0 && totalTurns > 0) {
-        const keepCount = Math.min(keepN, totalTurns);
-        for (let i = totalTurns - keepCount; i < totalTurns; i++) {
-          survivingTurnIds.add(orderedTurns[i]!.turnId);
-        }
-      }
-
-      let beforeEntryId = "";
-      let prunedMessageCount = 0;
-      const prunedTurnIds: TurnId[] = [];
-
-      for (const turn of orderedTurns) {
-        if (survivingTurnIds.has(turn.turnId)) {
-          if (beforeEntryId === "") {
-            beforeEntryId = turn.messages[0]?.id ?? "";
-          }
-        } else {
-          prunedTurnIds.push(TurnId.make(turn.turnId));
-          prunedMessageCount += turn.messages.length;
-        }
-      }
-
-      const unkeyedMessages = thread.messages.filter((m) => m.turnId === null);
-      prunedMessageCount += unkeyedMessages.length;
-
-      const occurredAt = yield* nowIso;
-      const crypto = yield* Crypto.Crypto;
-      const trimPointId = EventId.make(yield* crypto.randomUUIDv4);
-      const trimPoint: ContextTrimPoint = {
-        id: trimPointId,
-        createdAt: occurredAt,
-        beforeEntryId,
-        prunedMessageCount,
-        prunedTurnIds,
-        ...("summary" in command && command.summary !== undefined
-          ? { summary: command.summary }
-          : {}),
-      };
-
-      return [
-        {
-          ...(yield* withEventBase({
-            aggregateKind: "thread",
-            aggregateId: command.threadId,
-            occurredAt,
-            commandId: command.commandId,
-          })),
-          type: "thread.trim-point-created",
-          payload: {
-            threadId: command.threadId,
-            trimPoint,
-          },
-        },
-        {
-          ...(yield* withEventBase({
-            aggregateKind: "thread",
-            aggregateId: command.threadId,
-            occurredAt,
-            commandId: command.commandId,
-          })),
-          type: "thread.session-stop-requested",
-          payload: {
-            threadId: command.threadId,
-            createdAt: occurredAt,
-          },
-        },
-      ];
-    }
-
-    case "thread.context.compact": {
-      const thread = yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      yield* requireTurnNotActive({ thread, command });
-      const occurredAt = yield* nowIso;
-      return [
-        {
-          ...(yield* withEventBase({
-            aggregateKind: "thread",
-            aggregateId: command.threadId,
-            occurredAt,
-            commandId: command.commandId,
-          })),
-          type: "thread.context-compacted",
-          payload: {
-            threadId: command.threadId,
-            summary: "",
-            compactDurationMs: undefined,
-          },
-        },
-      ];
-    }
-
-    case "thread.context.summarize": {
-      const thread = yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      yield* requireTurnNotActive({ thread, command });
-      const occurredAt = yield* nowIso;
-      const crypto = yield* Crypto.Crypto;
-      const trimPointId = EventId.make(yield* crypto.randomUUIDv4);
-      return [
-        {
-          ...(yield* withEventBase({
-            aggregateKind: "thread",
-            aggregateId: command.threadId,
-            occurredAt,
-            commandId: command.commandId,
-          })),
-          type: "thread.context-summarized",
-          payload: {
-            threadId: command.threadId,
-            trimPointId,
-            summary: command.summary,
-            ...("compactDurationMs" in command && command.compactDurationMs !== undefined
-              ? { compactDurationMs: command.compactDurationMs }
-              : {}),
-          },
-        },
-      ];
     }
 
     case "thread.session.set": {

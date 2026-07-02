@@ -18,6 +18,7 @@ import {
   isTerminalCloseShortcut,
   isTerminalNewShortcut,
   isTerminalSplitShortcut,
+  isTerminalSplitVerticalShortcut,
   isTerminalToggleShortcut,
   resolveShortcutCommand,
   shouldShowModelPickerJumpHints,
@@ -84,7 +85,9 @@ function compile(bindings: TestBinding[]): ResolvedKeybindingsConfig {
 }
 
 const DEFAULT_BINDINGS = compile([
+  { shortcut: modShortcut("b"), command: "sidebar.toggle" },
   { shortcut: modShortcut("j"), command: "terminal.toggle" },
+  { shortcut: modShortcut("b", { altKey: true }), command: "rightPanel.toggle" },
   {
     shortcut: modShortcut("d"),
     command: "terminal.split",
@@ -92,6 +95,11 @@ const DEFAULT_BINDINGS = compile([
   },
   {
     shortcut: modShortcut("d", { shiftKey: true }),
+    command: "terminal.splitVertical",
+    whenAst: whenIdentifier("terminalFocus"),
+  },
+  {
+    shortcut: modShortcut("n"),
     command: "terminal.new",
     whenAst: whenIdentifier("terminalFocus"),
   },
@@ -118,12 +126,6 @@ const DEFAULT_BINDINGS = compile([
   { shortcut: modShortcut("o", { shiftKey: true }), command: "chat.new" },
   { shortcut: modShortcut("n", { shiftKey: true }), command: "chat.newLocal" },
   { shortcut: modShortcut("o"), command: "editor.openFavorite" },
-  {
-    shortcut: modShortcut("l"),
-    command: "todo.toggle",
-    whenAst: whenNot(whenIdentifier("terminalFocus")),
-  },
-  { shortcut: modShortcut("e", { shiftKey: true }), command: "thread.renameCurrent" },
   { shortcut: modShortcut("[", { shiftKey: true }), command: "thread.previous" },
   { shortcut: modShortcut("]", { shiftKey: true }), command: "thread.next" },
   { shortcut: modShortcut("1"), command: "thread.jump.1" },
@@ -180,7 +182,17 @@ describe("split/new/close terminal shortcuts", () => {
       }),
     );
     assert.isFalse(
-      isTerminalNewShortcut(event({ key: "d", ctrlKey: true, shiftKey: true }), DEFAULT_BINDINGS, {
+      isTerminalSplitVerticalShortcut(
+        event({ key: "d", metaKey: true, shiftKey: true }),
+        DEFAULT_BINDINGS,
+        {
+          platform: "MacIntel",
+          context: { terminalFocus: false },
+        },
+      ),
+    );
+    assert.isFalse(
+      isTerminalNewShortcut(event({ key: "n", ctrlKey: true }), DEFAULT_BINDINGS, {
         platform: "Linux",
         context: { terminalFocus: false },
       }),
@@ -201,7 +213,17 @@ describe("split/new/close terminal shortcuts", () => {
       }),
     );
     assert.isTrue(
-      isTerminalNewShortcut(event({ key: "d", ctrlKey: true, shiftKey: true }), DEFAULT_BINDINGS, {
+      isTerminalSplitVerticalShortcut(
+        event({ key: "d", metaKey: true, shiftKey: true }),
+        DEFAULT_BINDINGS,
+        {
+          platform: "MacIntel",
+          context: { terminalFocus: true },
+        },
+      ),
+    );
+    assert.isTrue(
+      isTerminalNewShortcut(event({ key: "n", ctrlKey: true }), DEFAULT_BINDINGS, {
         platform: "Linux",
         context: { terminalFocus: true },
       }),
@@ -291,8 +313,16 @@ describe("shortcutLabelForCommand", () => {
   });
 
   it("returns effective labels for non-terminal commands", () => {
+    assert.strictEqual(
+      shortcutLabelForCommand(DEFAULT_BINDINGS, "sidebar.toggle", "MacIntel"),
+      "⌘B",
+    );
     assert.strictEqual(shortcutLabelForCommand(DEFAULT_BINDINGS, "chat.new", "MacIntel"), "⇧⌘O");
     assert.strictEqual(shortcutLabelForCommand(DEFAULT_BINDINGS, "diff.toggle", "Linux"), "Ctrl+D");
+    assert.strictEqual(
+      shortcutLabelForCommand(DEFAULT_BINDINGS, "rightPanel.toggle", "MacIntel"),
+      "⌥⌘B",
+    );
     assert.strictEqual(
       shortcutLabelForCommand(DEFAULT_BINDINGS, "commandPalette.toggle", "MacIntel"),
       "⌘K",
@@ -454,16 +484,6 @@ describe("chat/editor shortcuts", () => {
     );
   });
 
-  it("matches thread.renameCurrent shortcut", () => {
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "e", ctrlKey: true, shiftKey: true }), DEFAULT_BINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: false },
-      }),
-      "thread.renameCurrent",
-    );
-  });
-
   it("matches editor.openFavorite shortcut", () => {
     assert.isTrue(
       isOpenFavoriteEditorShortcut(event({ key: "o", metaKey: true }), DEFAULT_BINDINGS, {
@@ -506,30 +526,6 @@ describe("chat/editor shortcuts", () => {
         platform: "MacIntel",
         context: { terminalFocus: true },
       }),
-    );
-  });
-
-  it("matches todo.toggle shortcut outside terminal focus", () => {
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "l", metaKey: true }), DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-        context: { terminalFocus: false },
-      }),
-      "todo.toggle",
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "l", ctrlKey: true }), DEFAULT_BINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: false },
-      }),
-      "todo.toggle",
-    );
-    assert.notStrictEqual(
-      resolveShortcutCommand(event({ key: "l", metaKey: true }), DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-        context: { terminalFocus: true },
-      }),
-      "todo.toggle",
     );
   });
 });
@@ -628,6 +624,17 @@ describe("resolveShortcutCommand", () => {
         },
       ),
       "thread.next",
+    );
+  });
+
+  it("matches Option-modified letters using the physical key code on macOS", () => {
+    assert.strictEqual(
+      resolveShortcutCommand(
+        event({ key: "∫", code: "KeyB", metaKey: true, altKey: true }),
+        DEFAULT_BINDINGS,
+        { platform: "MacIntel" },
+      ),
+      "rightPanel.toggle",
     );
   });
 });
