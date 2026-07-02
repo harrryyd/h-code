@@ -335,6 +335,41 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
     }),
   );
 
+  it.effect("reports the resolved pairing state directory and userdata/dev mismatch", () =>
+    Effect.gen(function* () {
+      const baseDir = NodeFS.mkdtempSync(
+        NodePath.join(NodeOS.tmpdir(), "t3-cli-auth-pairing-state-dir-test-"),
+      );
+
+      const jsonOutput = yield* captureStdout(
+        runCli(["auth", "pairing", "create", "--base-dir", baseDir, "--json"]),
+      );
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      const created = JSON.parse(jsonOutput.output) as { readonly stateDir: string };
+      assert.equal(created.stateDir, NodePath.join(baseDir, "userdata"));
+
+      const textOutput = yield* captureStdout(
+        runCli(["auth", "pairing", "create", "--base-dir", baseDir]),
+      );
+      assert.include(textOutput.output, `State directory: ${NodePath.join(baseDir, "userdata")}`);
+      assert.include(textOutput.output, "pass --dev-url to match");
+
+      const devOutput = yield* captureStdout(
+        runCli([
+          "auth",
+          "pairing",
+          "create",
+          "--base-dir",
+          baseDir,
+          "--dev-url",
+          "http://localhost:5734",
+        ]),
+      );
+      assert.include(devOutput.output, `State directory: ${NodePath.join(baseDir, "dev")}`);
+      assert.notInclude(devOutput.output, "pass --dev-url to match");
+    }),
+  );
+
   it.effect("executes auth session subcommands and redacts secrets from list output", () =>
     Effect.gen(function* () {
       const baseDir = NodeFS.mkdtempSync(

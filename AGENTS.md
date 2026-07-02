@@ -1,10 +1,33 @@
 # AGENTS.md
 
+## Running the Dev Server
+
+This repo shares port ranges and the `~/.t3` state directory with separately-running T3 Code
+instances. Running `pnpm run dev` without isolation can corrupt another instance's state.
+
+Always use the path-isolated launcher:
+
+```bash
+./scripts/dev.sh
+```
+
+The script derives a unique `T3CODE_HOME` for each worktree. To choose one explicitly:
+
+```bash
+T3CODE_HOME=~/.t3-hcode pnpm run dev
+```
+
 ## Task Completion Requirements
 
 - `vp check` and `vp run typecheck` must pass before considering tasks completed.
   - If changing native mobile code, `vp run lint:mobile` must also pass.
 - Use `vp test` for the built-in Vite+ test command and `vp run test` when you specifically need the `test` package script.
+
+## Running Tests
+
+- Use `pnpm run test` from the repository root for package-wide tests.
+- Do not pass a test file path to the root command; run focused tests from the owning package.
+- Run web tests from `apps/web` so its Vite configuration and `~/*` aliases are applied.
 
 ## Project Snapshot
 

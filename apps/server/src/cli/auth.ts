@@ -28,7 +28,10 @@ import {
 
 const runWithEnvironmentAuth = <A, E>(
   flags: CliAuthLocationFlags,
-  run: (environmentAuth: EnvironmentAuth.EnvironmentAuth["Service"]) => Effect.Effect<A, E>,
+  run: (
+    environmentAuth: EnvironmentAuth.EnvironmentAuth["Service"],
+    config: ServerConfig.ServerConfig["Service"],
+  ) => Effect.Effect<A, E>,
   options?: {
     readonly quietLogs?: boolean;
   },
@@ -39,7 +42,7 @@ const runWithEnvironmentAuth = <A, E>(
     const minimumLogLevel = options?.quietLogs ? "Error" : config.logLevel;
     return yield* Effect.gen(function* () {
       const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
-      return yield* run(environmentAuth);
+      return yield* run(environmentAuth, config);
     }).pipe(
       Effect.provide(
         Layer.mergeAll(EnvironmentAuth.runtimeLayer).pipe(
@@ -92,7 +95,7 @@ const pairingCreateCommand = Command.make("create", {
   Command.withHandler((flags) =>
     runWithEnvironmentAuth(
       flags,
-      (environmentAuth) =>
+      (environmentAuth, config) =>
         Effect.gen(function* () {
           const issued = yield* environmentAuth.createPairingLink({
             scopes: AuthStandardClientScopes,
@@ -102,9 +105,15 @@ const pairingCreateCommand = Command.make("create", {
           });
           const output = formatIssuedPairingCredential(issued, {
             json: flags.json,
+            stateDir: config.stateDir,
             ...(Option.isSome(flags.baseUrl) ? { baseUrl: flags.baseUrl.value } : {}),
           });
-          yield* Console.log(output);
+          const advisory =
+            !flags.json && config.devUrl === undefined
+              ? 'Note: Token was written to the "userdata/" subdirectory. ' +
+                'Dev servers write to "dev/" — pass --dev-url to match.\n'
+              : "";
+          yield* Console.log(output + advisory);
         }),
       {
         quietLogs: flags.json,

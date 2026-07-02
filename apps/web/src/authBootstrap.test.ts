@@ -310,6 +310,35 @@ describe("resolveInitialServerAuthGateState", () => {
     expect(testApi.calls.session).toBe(2);
   });
 
+  it("waits for the authenticated session to become observable after manual token submission", async () => {
+    vi.useFakeTimers();
+    const nextSession = sequence(
+      unauthenticatedSession(LOOPBACK_AUTH),
+      unauthenticatedSession(LOOPBACK_AUTH),
+      authenticatedSession(LOOPBACK_AUTH),
+    );
+    const testApi = await installAuthApi({
+      session: nextSession,
+      browserSession: () => Effect.succeed(browserSession(["orchestration:read", "access:write"])),
+    });
+    const { resolveInitialServerAuthGateState, submitServerAuthCredential } =
+      await import("./environments/primary");
+
+    await expect(resolveInitialServerAuthGateState()).resolves.toEqual({
+      status: "requires-auth",
+      auth: LOOPBACK_AUTH,
+    });
+
+    const submission = submitServerAuthCredential("retry-token");
+    await vi.advanceTimersByTimeAsync(100);
+    await expect(submission).resolves.toBeUndefined();
+    await expect(resolveInitialServerAuthGateState()).resolves.toEqual({
+      status: "authenticated",
+    });
+    expect(testApi.calls.browserSession).toEqual([{ credential: "retry-token" }]);
+    expect(testApi.calls.session).toBe(3);
+  });
+
   it("rejects a blank pairing token with a structured validation error", async () => {
     const { PrimaryEnvironmentPairingCredentialRequiredError, submitServerAuthCredential } =
       await import("./environments/primary/auth");
