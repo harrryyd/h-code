@@ -3403,7 +3403,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                 <div
                   key={section.id}
                   data-sidebar-project-section={section.id}
-                  className="mx-1 mb-1 rounded-lg bg-sidebar-accent/30"
+                  className="mx-1 mb-2 rounded-xl border border-border/60 bg-muted/20"
                 >
                   <button
                     type="button"
