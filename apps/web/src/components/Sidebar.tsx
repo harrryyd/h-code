@@ -3400,7 +3400,11 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
               );
               if (sectionProjects.length === 0) return null;
               return (
-                <div key={section.id} data-sidebar-project-section={section.id}>
+                <div
+                  key={section.id}
+                  data-sidebar-project-section={section.id}
+                  className="mx-1 mb-1 rounded-lg bg-sidebar-accent/30"
+                >
                   <button
                     type="button"
                     className="flex w-full items-center gap-1.5 px-2 pb-1 pt-2 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60"
@@ -3429,37 +3433,39 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                     ) : null}
                     <span>{section.title}</span>
                   </button>
-                  {section.collapsed ? null : (
-                    <SidebarMenu>
-                      {sectionProjects.map((project) => (
-                        <SidebarProjectListRow
-                          key={project.projectKey}
-                          project={project}
-                          isThreadListExpanded={expandedThreadListsByProject.has(
-                            project.projectKey,
-                          )}
-                          activeRouteThreadKey={
-                            activeRouteProjectKey === project.projectKey ? routeThreadKey : null
-                          }
-                          newThreadShortcutLabel={newThreadShortcutLabel}
-                          handleNewThread={handleNewThread}
-                          archiveThread={archiveThread}
-                          deleteThread={deleteThread}
-                          threadJumpLabelByKey={threadJumpLabelByKey}
-                          attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
-                          expandThreadListForProject={expandThreadListForProject}
-                          collapseThreadListForProject={collapseThreadListForProject}
-                          dragInProgressRef={dragInProgressRef}
-                          suppressProjectClickAfterDragRef={suppressProjectClickAfterDragRef}
-                          suppressProjectClickForContextMenuRef={
-                            suppressProjectClickForContextMenuRef
-                          }
-                          isManualProjectSorting={isManualProjectSorting}
-                          dragHandleProps={null}
-                        />
-                      ))}
-                    </SidebarMenu>
-                  )}
+                  <div ref={attachProjectListAutoAnimateRef} className="overflow-hidden">
+                    {section.collapsed ? null : (
+                      <SidebarMenu className="px-1 pb-1 pl-3">
+                        {sectionProjects.map((project) => (
+                          <SidebarProjectListRow
+                            key={project.projectKey}
+                            project={project}
+                            isThreadListExpanded={expandedThreadListsByProject.has(
+                              project.projectKey,
+                            )}
+                            activeRouteThreadKey={
+                              activeRouteProjectKey === project.projectKey ? routeThreadKey : null
+                            }
+                            newThreadShortcutLabel={newThreadShortcutLabel}
+                            handleNewThread={handleNewThread}
+                            archiveThread={archiveThread}
+                            deleteThread={deleteThread}
+                            threadJumpLabelByKey={threadJumpLabelByKey}
+                            attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
+                            expandThreadListForProject={expandThreadListForProject}
+                            collapseThreadListForProject={collapseThreadListForProject}
+                            dragInProgressRef={dragInProgressRef}
+                            suppressProjectClickAfterDragRef={suppressProjectClickAfterDragRef}
+                            suppressProjectClickForContextMenuRef={
+                              suppressProjectClickForContextMenuRef
+                            }
+                            isManualProjectSorting={isManualProjectSorting}
+                            dragHandleProps={null}
+                          />
+                        ))}
+                      </SidebarMenu>
+                    )}
+                  </div>
                 </div>
               );
             })}
