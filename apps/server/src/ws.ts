@@ -42,6 +42,7 @@ import {
   FilesystemBrowseError,
   EnvironmentAuthorizationError,
   ProviderInstanceId,
+  RpcMethodRegistry,
   ThreadId,
   type TerminalAttachStreamEvent,
   type TerminalError,
@@ -206,6 +207,8 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.subscribeAuthAccess, AuthAccessReadScope],
 ]);
 
+export const rpcRegistry = new RpcMethodRegistry();
+
 export const missingRpcScopeDeclarations = (): ReadonlyArray<string> => {
   const missing: string[] = [];
   for (const tag of WsRpcGroup.requests.keys()) {
@@ -254,8 +257,8 @@ function toAuthAccessStreamEvent(
   }
 }
 
-const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
-  WsRpcGroup.toLayer(
+const makeWsRpcLayer = (currentSession: AuthenticatedSession, mergedGroup: typeof WsRpcGroup) =>
+  (mergedGroup as any).toLayer(
     Effect.gen(function* () {
       const currentSessionId = currentSession.sessionId;
       const crypto = yield* Crypto.Crypto;
@@ -317,6 +320,8 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
           ? stream
           : Stream.fail(authorizationError(requiredScope));
       const requiredScopeForMethod = (method: string): AuthEnvironmentScope => {
+        const registryScope = rpcRegistry.getScopeMap().get(method);
+        if (registryScope !== undefined) return registryScope;
         const requiredScope = RPC_REQUIRED_SCOPE.get(method);
         if (requiredScope === undefined) {
           throw new Error(`RPC method ${method} has no declared authorization scope.`);
@@ -838,7 +843,7 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
           .refreshStatus(cwd)
           .pipe(Effect.ignoreCause({ log: true }), Effect.forkDetach, Effect.asVoid);
 
-      return WsRpcGroup.of({
+      const oldHandlers = WsRpcGroup.of({
         [ORCHESTRATION_WS_METHODS.dispatchCommand]: (command) =>
           observeRpcEffect(
             ORCHESTRATION_WS_METHODS.dispatchCommand,
@@ -1612,6 +1617,10 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
             { "rpc.aggregate": "auth" },
           ),
       });
+      return {
+        ...rpcRegistry.handlers(),
+        ...oldHandlers,
+      };
     }),
   );
 
@@ -1630,11 +1639,12 @@ export const websocketRpcRouteLayer = Layer.unwrap(
             ServerAuthInternalError: (error) => failEnvironmentInternal("internal_error", error),
           }),
         );
-        const rpcWebSocketHttpEffect = yield* RpcServer.toHttpEffectWebsocket(WsRpcGroup, {
+        const mergedGroup = WsRpcGroup.merge(rpcRegistry.getGroup() as any);
+        const rpcWebSocketHttpEffect = yield* RpcServer.toHttpEffectWebsocket(mergedGroup as any, {
           disableTracing: true,
         }).pipe(
           Effect.provide(
-            makeWsRpcLayer(session).pipe(
+            makeWsRpcLayer(session, mergedGroup).pipe(
               Layer.provideMerge(RpcSerialization.layerJson),
               Layer.provide(ProviderMaintenanceRunner.layer),
               Layer.provide(
