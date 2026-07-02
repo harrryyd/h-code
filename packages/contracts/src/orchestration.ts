@@ -208,6 +208,119 @@ export const ProjectScript = Schema.Struct({
 });
 export type ProjectScript = typeof ProjectScript.Type;
 
+// Persisted manager-domain schemas. The manager UI is intentionally not
+// restored, but existing event payloads must remain decodable.
+export const ManagerProjectMetadata = Schema.Struct({ role: Schema.Literal("workspace") });
+export type ManagerProjectMetadata = typeof ManagerProjectMetadata.Type;
+export const ManagerConsoleThreadMetadata = Schema.Struct({ role: Schema.Literal("console") });
+export type ManagerConsoleThreadMetadata = typeof ManagerConsoleThreadMetadata.Type;
+export const WorkReadiness = Schema.Literals([
+  "ready-for-worker",
+  "needs-refinement",
+  "human-owned",
+  "blocked-on-context",
+]);
+export type WorkReadiness = typeof WorkReadiness.Type;
+export const SeededWorkSourceKind = Schema.Literals(["epic", "jira-set", "todo-list"]);
+export type SeededWorkSourceKind = typeof SeededWorkSourceKind.Type;
+export const SeededWorkDelegationIntent = Schema.Literals(["delegate", "human-owned"]);
+export type SeededWorkDelegationIntent = typeof SeededWorkDelegationIntent.Type;
+export const SeededWorkItemId = TrimmedNonEmptyString;
+export type SeededWorkItemId = typeof SeededWorkItemId.Type;
+export const SeededWorkItemWritebackKind = Schema.Literals([
+  "refinement-context",
+  "worker-progress",
+]);
+export type SeededWorkItemWritebackKind = typeof SeededWorkItemWritebackKind.Type;
+export const RefinementHandoff = Schema.Struct({
+  refinerThreadId: ThreadId,
+  sourceBody: Schema.String,
+  refinedProblemStatement: TrimmedNonEmptyString,
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString),
+  targetProjectId: ProjectId,
+  recordedAt: IsoDateTime,
+});
+export type RefinementHandoff = typeof RefinementHandoff.Type;
+export const ManagerDelegationStatus = Schema.Literals(["idle", "requested"]);
+export type ManagerDelegationStatus = typeof ManagerDelegationStatus.Type;
+export const RefinerThreadMetadata = Schema.Struct({
+  role: Schema.Literal("refiner"),
+  managerThreadId: ThreadId,
+  seededWorkItemId: SeededWorkItemId,
+});
+export type RefinerThreadMetadata = typeof RefinerThreadMetadata.Type;
+export const WorkerThreadMetadata = Schema.Struct({
+  role: Schema.Literal("worker"),
+  managerThreadId: ThreadId,
+  seededWorkItemId: SeededWorkItemId,
+  sourceBody: Schema.String,
+  refinedBrief: TrimmedNonEmptyString,
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString),
+});
+export type WorkerThreadMetadata = typeof WorkerThreadMetadata.Type;
+export const ManagerThreadMetadata = Schema.Union([
+  ManagerConsoleThreadMetadata,
+  RefinerThreadMetadata,
+  WorkerThreadMetadata,
+]);
+export type ManagerThreadMetadata = typeof ManagerThreadMetadata.Type;
+export const ManagerQueueItemCategory = Schema.Literals([
+  "blocker",
+  "question",
+  "routing",
+  "review",
+]);
+export type ManagerQueueItemCategory = typeof ManagerQueueItemCategory.Type;
+export const ManagerQueueItemStatus = Schema.Literals(["pending", "addressed", "dismissed"]);
+export type ManagerQueueItemStatus = typeof ManagerQueueItemStatus.Type;
+export const ManagerQueueItem = Schema.Struct({
+  itemId: TrimmedNonEmptyString,
+  escalationThreadId: ThreadId,
+  category: ManagerQueueItemCategory,
+  summary: TrimmedNonEmptyString,
+  detail: Schema.String,
+  status: ManagerQueueItemStatus.pipe(Schema.withDecodingDefault(Effect.succeed("pending"))),
+  createdAt: IsoDateTime,
+  addressedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
+  dismissedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
+});
+export type ManagerQueueItem = typeof ManagerQueueItem.Type;
+export const ManagerSeededWorkItemInput = Schema.Struct({
+  itemId: SeededWorkItemId,
+  title: TrimmedNonEmptyString,
+  body: Schema.String,
+  delegationIntent: SeededWorkDelegationIntent,
+  targetProjectId: Schema.NullOr(ProjectId),
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+});
+export type ManagerSeededWorkItemInput = typeof ManagerSeededWorkItemInput.Type;
+export const ManagerSeededWorkItem = Schema.Struct({
+  itemId: SeededWorkItemId,
+  sourceKind: SeededWorkSourceKind,
+  sourceLabel: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+  body: Schema.String,
+  delegationIntent: SeededWorkDelegationIntent,
+  targetProjectId: Schema.NullOr(ProjectId),
+  acceptanceCriteria: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  refinementHandoff: Schema.optional(RefinementHandoff),
+  readiness: WorkReadiness,
+  readinessReason: TrimmedNonEmptyString,
+  delegationStatus: ManagerDelegationStatus.pipe(
+    Schema.withDecodingDefault(Effect.succeed("idle")),
+  ),
+  delegationRequestedAt: Schema.NullOr(IsoDateTime).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export type ManagerSeededWorkItem = typeof ManagerSeededWorkItem.Type;
+
 export const OrchestrationProject = Schema.Struct({
   id: ProjectId,
   title: TrimmedNonEmptyString,
@@ -785,6 +898,8 @@ export const OrchestrationEventType = Schema.Literals([
   "project.meta-updated",
   "project.deleted",
   "thread.created",
+  "thread.seeded-work-items-upserted",
+  "thread.seeded-work-item-writeback-requested",
   "thread.deleted",
   "thread.archived",
   "thread.unarchived",
@@ -803,6 +918,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.proposed-plan-upserted",
   "thread.turn-diff-completed",
   "thread.activity-appended",
+  "thread.manager-queue-items-upserted",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
@@ -849,6 +965,22 @@ export const ThreadCreatedPayload = Schema.Struct({
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
+});
+
+export const ThreadSeededWorkItemsUpsertedPayload = Schema.Struct({
+  threadId: ThreadId,
+  seededWorkItems: Schema.Array(ManagerSeededWorkItem),
+  updatedAt: IsoDateTime,
+});
+export const ThreadSeededWorkItemWritebackRequestedPayload = Schema.Struct({
+  threadId: ThreadId,
+  itemId: SeededWorkItemId,
+  sourceKind: SeededWorkSourceKind,
+  sourceLabel: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+  writebackKind: SeededWorkItemWritebackKind,
+  body: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
 });
 
 export const ThreadDeletedPayload = Schema.Struct({
@@ -976,6 +1108,11 @@ export const ThreadActivityAppendedPayload = Schema.Struct({
   threadId: ThreadId,
   activity: OrchestrationThreadActivity,
 });
+export const ThreadManagerQueueItemsUpsertedPayload = Schema.Struct({
+  threadId: ThreadId,
+  managerQueueItems: Schema.Array(ManagerQueueItem),
+  updatedAt: IsoDateTime,
+});
 
 export const OrchestrationEventMetadata = Schema.Struct({
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
@@ -1018,6 +1155,16 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.created"),
     payload: ThreadCreatedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.seeded-work-items-upserted"),
+    payload: ThreadSeededWorkItemsUpsertedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.seeded-work-item-writeback-requested"),
+    payload: ThreadSeededWorkItemWritebackRequestedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,
@@ -1108,6 +1255,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.activity-appended"),
     payload: ThreadActivityAppendedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.manager-queue-items-upserted"),
+    payload: ThreadManagerQueueItemsUpsertedPayload,
   }),
 ]);
 export type OrchestrationEvent = typeof OrchestrationEvent.Type;

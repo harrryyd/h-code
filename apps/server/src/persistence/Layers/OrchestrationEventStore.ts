@@ -27,8 +27,18 @@ import {
   OrchestrationEventStore,
   type OrchestrationEventStoreShape,
 } from "../Services/OrchestrationEventStore.ts";
+import {
+  LegacyOrchestrationEvent,
+  LegacyOrchestrationEventType,
+} from "../../orchestration/LegacyEvents.ts";
 
-const decodeEvent = Schema.decodeUnknownEffect(OrchestrationEvent);
+const PersistedOrchestrationEvent = Schema.Union([OrchestrationEvent, LegacyOrchestrationEvent]);
+const decodeEvent = (value: unknown) =>
+  Schema.decodeUnknownEffect(PersistedOrchestrationEvent)(value).pipe(
+    // Legacy event variants intentionally fall through the projector's
+    // forward-compatible default branch and therefore project as no-ops.
+    Effect.map((event) => event as OrchestrationEvent),
+  );
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown);
 const EventMetadataFromJsonString = Schema.fromJsonString(OrchestrationEventMetadata);
 
@@ -49,7 +59,7 @@ const AppendEventRequestSchema = Schema.Struct({
 const OrchestrationEventPersistedRowSchema = Schema.Struct({
   sequence: NonNegativeInt,
   eventId: EventId,
-  type: OrchestrationEventType,
+  type: Schema.Union([OrchestrationEventType, LegacyOrchestrationEventType]),
   aggregateKind: OrchestrationAggregateKind,
   aggregateId: Schema.Union([ProjectId, ThreadId]),
   occurredAt: IsoDateTime,

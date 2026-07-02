@@ -11,6 +11,7 @@
 import * as Migrator from "effect/unstable/sql/Migrator";
 import * as Layer from "effect/Layer";
 import * as Effect from "effect/Effect";
+import { reconcileLegacyHcodeMigrationJournal } from "./LegacyMigrationReconciliation.ts";
 
 // Import all migrations statically
 import Migration0001 from "./Migrations/001_OrchestrationEvents.ts";
@@ -123,6 +124,9 @@ export interface RunMigrationsOptions {
 export const runMigrations = Effect.fn("runMigrations")(function* ({
   toMigrationInclusive,
 }: RunMigrationsOptions = {}) {
+  if (toMigrationInclusive === undefined || toMigrationInclusive >= 31) {
+    yield* reconcileLegacyHcodeMigrationJournal();
+  }
   yield* Effect.log(
     toMigrationInclusive === undefined
       ? "Running all migrations..."
