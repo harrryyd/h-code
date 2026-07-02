@@ -6,6 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
+import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
 import * as TerminalManager from "../../terminal/Manager.ts";
 import { OrchestrationEngineService } from "../Services/OrchestrationEngine.ts";
 import {
@@ -40,6 +41,7 @@ const make = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const providerService = yield* ProviderService;
   const terminalManager = yield* TerminalManager.TerminalManager;
+  const threadMcpToggles = yield* ThreadMcpToggleRepository;
 
   const stopProviderSession = (threadId: ThreadDeletedEvent["payload"]["threadId"]) =>
     logCleanupCauseUnlessInterrupted({
@@ -61,6 +63,11 @@ const make = Effect.gen(function* () {
     const { threadId } = event.payload;
     yield* stopProviderSession(threadId);
     yield* closeThreadTerminals(threadId);
+    yield* logCleanupCauseUnlessInterrupted({
+      effect: threadMcpToggles.deleteAllForThread({ threadId }),
+      message: "thread deletion cleanup skipped MCP toggle removal",
+      threadId,
+    });
   });
 
   const processThreadDeletedSafely = (event: ThreadDeletedEvent) =>

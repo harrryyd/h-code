@@ -71,6 +71,72 @@ export function ChangeRequestStatusIcon({ className }: { className?: string }) {
   return <GitPullRequestIcon className={className} />;
 }
 
+type ThreadPrLabel = NonNullable<NonNullable<ThreadPr>["labels"]>[number];
+
+function normalizeBadgeLabelColor(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (/^#[0-9a-f]{6}$/iu.test(trimmed)) return trimmed.toLowerCase();
+  if (/^[0-9a-f]{6}$/iu.test(trimmed)) return `#${trimmed.toLowerCase()}`;
+  return null;
+}
+
+function resolveBadgeLabelTextColor(color: string): "#111827" | "#ffffff" {
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  return (red * 299 + green * 587 + blue * 114) / 1000 >= 140 ? "#111827" : "#ffffff";
+}
+
+function ChangeRequestLabelPill({ label }: { label: ThreadPrLabel }) {
+  const color = normalizeBadgeLabelColor(label.color);
+  return (
+    <span
+      title={label.name}
+      className="inline-flex max-w-20 shrink-0 items-center truncate rounded-full border px-1 py-0.5 text-[9px] leading-none"
+      style={
+        color
+          ? {
+              backgroundColor: color,
+              borderColor: color,
+              color: resolveBadgeLabelTextColor(color),
+            }
+          : undefined
+      }
+    >
+      {label.name}
+    </span>
+  );
+}
+
+export function ChangeRequestBadge({
+  pr,
+  provider,
+}: {
+  pr: NonNullable<ThreadPr>;
+  provider: VcsStatusResult["sourceControlProvider"] | null | undefined;
+}) {
+  const status = prStatusIndicator(pr, provider);
+  if (!status) return null;
+  const labels = pr.state === "open" ? (pr.labels ?? []).slice(0, 2) : [];
+  const overflow = pr.state === "open" ? Math.max((pr.labels?.length ?? 0) - labels.length, 0) : 0;
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <span className={`inline-flex shrink-0 items-center gap-1 ${status.colorClass}`}>
+        <ChangeRequestStatusIcon className="size-3 shrink-0" />
+        <span className="text-[10px] font-medium leading-none">#{pr.number}</span>
+      </span>
+      {labels.map((label) => (
+        <ChangeRequestLabelPill key={`${label.name}-${label.color ?? "none"}`} label={label} />
+      ))}
+      {overflow > 0 ? (
+        <span className="inline-flex shrink-0 rounded-full border border-border/70 px-1 py-0.5 text-[9px] leading-none text-muted-foreground">
+          +{overflow}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function resolveThreadPr(
   threadBranch: string | null,
   gitStatus: VcsStatusResult | null,

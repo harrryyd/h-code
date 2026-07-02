@@ -1,9 +1,12 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ScopedProjectRef } from "@t3tools/contracts";
+import type { ManualSidebarGroupColorPalette } from "@t3tools/contracts/settings";
 import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
   deriveProjectGroupLabel,
+  resolveProjectManualSidebarGroupId,
+  type ManualSidebarGroupsSettings,
   type ProjectGroupingSettings,
 } from "./logicalProject";
 import type { Project } from "./types";
@@ -30,6 +33,26 @@ export interface SidebarProjectSnapshot extends Project {
   memberProjectRefs: readonly ScopedProjectRef[];
   remoteEnvironmentLabels: readonly string[];
 }
+
+export interface SidebarProjectSection {
+  id: string;
+  kind: "manual" | "ungrouped";
+  title: string;
+  color: ManualSidebarGroupColorPalette | null;
+  collapsed: boolean;
+  projectKeys: readonly string[];
+}
+
+export interface SidebarProjectCollection {
+  sections: readonly SidebarProjectSection[];
+  snapshots: readonly SidebarProjectSnapshot[];
+  physicalToSnapshotProjectKey: ReadonlyMap<string, string>;
+}
+
+const UNGROUPED_SECTION_ID = "ungrouped";
+const sectionIdFor = (groupId: string | null) =>
+  groupId === null ? UNGROUPED_SECTION_ID : `group:${groupId}`;
+const snapshotKeyFor = (sectionId: string, logicalKey: string) => `${sectionId}::${logicalKey}`;
 
 export function buildPhysicalToLogicalProjectKeyMap(input: {
   projects: ReadonlyArray<Project>;
@@ -130,4 +153,78 @@ export function buildSidebarProjectSnapshots(input: {
   }
 
   return result;
+}
+
+export function buildSidebarProjectCollection(input: {
+  projects: ReadonlyArray<Project>;
+  groupingSettings: ProjectGroupingSettings;
+  manualGroupSettings: ManualSidebarGroupsSettings;
+  primaryEnvironmentId: EnvironmentId | null;
+  resolveEnvironmentLabel: (environmentId: EnvironmentId) => string | null;
+  isDesktopLocalEnvironment?: (environmentId: EnvironmentId) => boolean;
+}): SidebarProjectCollection {
+  const projectsBySection = new Map<string, Project[]>();
+  for (const project of input.projects) {
+    const sectionId = sectionIdFor(
+      resolveProjectManualSidebarGroupId(project, input.manualGroupSettings),
+    );
+    projectsBySection.set(sectionId, [...(projectsBySection.get(sectionId) ?? []), project]);
+  }
+
+  const sections: SidebarProjectSection[] = [];
+  const snapshots: SidebarProjectSnapshot[] = [];
+  const physicalToSnapshotProjectKey = new Map<string, string>();
+  const appendSection = (
+    section: Omit<SidebarProjectSection, "projectKeys">,
+    projects: ReadonlyArray<Project>,
+  ) => {
+    const sectionSnapshots = buildSidebarProjectSnapshots({
+      projects,
+      settings: input.groupingSettings,
+      primaryEnvironmentId: input.primaryEnvironmentId,
+      resolveEnvironmentLabel: input.resolveEnvironmentLabel,
+      ...(input.isDesktopLocalEnvironment
+        ? { isDesktopLocalEnvironment: input.isDesktopLocalEnvironment }
+        : {}),
+    });
+    const projectKeys = sectionSnapshots.map((snapshot) => {
+      const projectKey = snapshotKeyFor(section.id, snapshot.projectKey);
+      snapshots.push({ ...snapshot, projectKey });
+      for (const member of snapshot.memberProjects) {
+        physicalToSnapshotProjectKey.set(member.physicalProjectKey, projectKey);
+      }
+      return projectKey;
+    });
+    sections.push({ ...section, projectKeys });
+  };
+
+  for (const group of input.manualGroupSettings.manualSidebarGroups) {
+    const id = sectionIdFor(group.id);
+    appendSection(
+      {
+        id,
+        kind: "manual",
+        title: group.name,
+        color: group.color,
+        collapsed: group.collapsed,
+      },
+      projectsBySection.get(id) ?? [],
+    );
+  }
+
+  const ungrouped = projectsBySection.get(UNGROUPED_SECTION_ID) ?? [];
+  if (ungrouped.length > 0) {
+    appendSection(
+      {
+        id: UNGROUPED_SECTION_ID,
+        kind: "ungrouped",
+        title: "Ungrouped",
+        color: null,
+        collapsed: false,
+      },
+      ungrouped,
+    );
+  }
+
+  return { sections, snapshots, physicalToSnapshotProjectKey };
 }

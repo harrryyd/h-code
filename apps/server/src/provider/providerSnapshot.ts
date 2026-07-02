@@ -234,6 +234,7 @@ export function buildServerProvider(input: {
     ...(typeof input.presentation.requiresNewThreadForModelChange === "boolean"
       ? { requiresNewThreadForModelChange: input.presentation.requiresNewThreadForModelChange }
       : {}),
+    supportsMcpToggle: false,
     enabled: input.enabled,
     installed: input.probe.installed,
     version: input.probe.version,

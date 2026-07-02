@@ -21,6 +21,7 @@ function provider(input: {
   return {
     instanceId: ProviderInstanceId.make(input.instanceId),
     driver,
+    supportsMcpToggle: driver === "claudeAgent",
     enabled: true,
     installed: true,
     version: null,

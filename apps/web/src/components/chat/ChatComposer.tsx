@@ -84,6 +84,7 @@ import {
   renderProviderTraitsPicker,
 } from "./composerProviderState";
 import { ContextWindowMeter } from "./ContextWindowMeter";
+import { McpToggleButton } from "./McpToggleButton";
 import { buildExpandedImagePreview, type ExpandedImagePreview } from "./ExpandedImagePreview";
 import { basenameOfPath } from "../../pierre-icons";
 import { cn, randomUUID } from "~/lib/utils";
@@ -2492,6 +2493,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   getModelDisabledReason={getModelDisabledReason}
                   onInstanceModelChange={onProviderModelSelect}
                 />
+                {activeThreadId !== null && selectedProviderStatus?.supportsMcpToggle === true ? (
+                  <McpToggleButton
+                    environmentId={environmentId}
+                    threadId={activeThreadId}
+                    compact={isComposerFooterCompact}
+                  />
+                ) : null}
 
                 {isComposerFooterCompact ? (
                   <CompactComposerControlsMenu

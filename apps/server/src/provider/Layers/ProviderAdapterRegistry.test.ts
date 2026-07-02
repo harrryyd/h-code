@@ -46,7 +46,7 @@ const fakeCodexAdapter: CodexAdapter.CodexAdapterShape = {
 
 const fakeClaudeAdapter: ClaudeAdapter.ClaudeAdapterShape = {
   provider: CLAUDE_AGENT_DRIVER,
-  capabilities: { sessionModelSwitch: "in-session" },
+  capabilities: { sessionModelSwitch: "in-session", supportsMcpToggle: true },
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -54,6 +54,8 @@ const fakeClaudeAdapter: ClaudeAdapter.ClaudeAdapterShape = {
   respondToUserInput: vi.fn(),
   stopSession: vi.fn(),
   listSessions: vi.fn(),
+  toggleMcpServerOnThread: vi.fn(),
+  listMcpServersOnThread: vi.fn(),
   hasSession: vi.fn(),
   readThread: vi.fn(),
   rollbackThread: vi.fn(),

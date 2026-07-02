@@ -73,6 +73,10 @@ describe("GitHubCli.layer", () => {
               headRepositoryOwner: {
                 login: "octocat",
               },
+              labels: [
+                { name: "bug", color: "d73a4a" },
+                { name: "BUG", color: "ffffff" },
+              ],
             }),
           ),
         ),
@@ -91,6 +95,7 @@ describe("GitHubCli.layer", () => {
         baseRefName: "main",
         headRefName: "feature/pr-threads",
         state: "open",
+        labels: [{ name: "bug", color: "#d73a4a" }],
         isCrossRepository: true,
         headRepositoryNameWithOwner: "octocat/codething-mvp",
         headRepositoryOwnerLogin: "octocat",
@@ -103,11 +108,54 @@ describe("GitHubCli.layer", () => {
           "view",
           "#42",
           "--json",
-          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
+          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner,labels",
         ],
         cwd: "/repo",
         timeoutMs: 30_000,
       });
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("retries PR JSON commands without labels for older gh versions", () =>
+    Effect.gen(function* () {
+      mockRun
+        .mockReturnValueOnce(
+          Effect.fail(
+            new VcsProcessExitError({
+              operation: "GitHubCli.execute",
+              command: "gh",
+              cwd: "/repo",
+              exitCode: 1,
+              detail: 'Unknown JSON field: "labels"',
+            }),
+          ),
+        )
+        .mockReturnValueOnce(
+          Effect.succeed(
+            processOutput(
+              // @effect-diagnostics-next-line preferSchemaOverJson:off
+              JSON.stringify([
+                {
+                  number: 43,
+                  title: "Compatible PR",
+                  url: "https://github.com/acme/repo/pull/43",
+                  baseRefName: "main",
+                  headRefName: "feature/compatible",
+                },
+              ]),
+            ),
+          ),
+        );
+
+      const gh = yield* GitHubCli.GitHubCli;
+      const result = yield* gh.listOpenPullRequests({
+        cwd: "/repo",
+        headSelector: "feature/compatible",
+      });
+      assert.equal(result[0]?.number, 43);
+      expect(mockRun).toHaveBeenCalledTimes(2);
+      expect(mockRun.mock.calls[0]?.[0].args.at(-1)).toContain("labels");
+      expect(mockRun.mock.calls[1]?.[0].args.at(-1)).not.toContain("labels");
     }).pipe(Effect.provide(layer)),
   );
 

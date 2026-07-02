@@ -87,6 +87,30 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   });
 });
 
+describe("h-code server settings compatibility", () => {
+  it("defaults retained scoped settings to empty maps and groups", () => {
+    expect(DEFAULT_SERVER_SETTINGS.projectThreadDefaults).toEqual({});
+    expect(DEFAULT_SERVER_SETTINGS.manualSidebarGroups).toEqual([]);
+    expect(DEFAULT_SERVER_SETTINGS.projectManualSidebarGroupAssignments).toEqual({});
+    expect(DEFAULT_SERVER_SETTINGS.mcpDefaultPreferences).toEqual({});
+  });
+
+  it("decodes retained settings from existing files", () => {
+    const decoded = decodeServerSettings({
+      projectThreadDefaults: { "remote:/repo": "worktree" },
+      manualSidebarGroups: [{ id: "frontend", name: "Frontend", color: "sky", collapsed: true }],
+      projectManualSidebarGroupAssignments: { "remote:/repo": "frontend" },
+      mcpDefaultPreferences: { claudeAgent: { github: false } },
+    });
+    expect(decoded.projectThreadDefaults["remote:/repo"]).toBe("worktree");
+    expect(decoded.manualSidebarGroups[0]?.color).toBe("sky");
+    expect(decoded.projectManualSidebarGroupAssignments["remote:/repo"]).toBe("frontend");
+    expect(decoded.mcpDefaultPreferences[ProviderInstanceId.make("claudeAgent")]?.github).toBe(
+      false,
+    );
+  });
+});
+
 describe("ServerSettings worktree defaults", () => {
   it("defaults start-from-origin off for legacy configs", () => {
     expect(decodeServerSettings({}).newWorktreesStartFromOrigin).toBe(false);

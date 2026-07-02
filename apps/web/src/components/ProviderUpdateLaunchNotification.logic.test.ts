@@ -60,6 +60,7 @@ function provider(input: {
   const result: ServerProvider = {
     instanceId: input.instanceId ?? instanceId(String(input.driver)),
     driver: input.driver,
+    supportsMcpToggle: false,
     enabled: input.enabled ?? true,
     installed: true,
     version: input.version ?? "1.0.0",

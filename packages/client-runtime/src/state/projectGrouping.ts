@@ -1,6 +1,12 @@
 import { scopedProjectKey, scopeProjectRef } from "../environment/scoped.ts";
 import type { ScopedProjectRef, SidebarProjectGroupingMode } from "@t3tools/contracts";
-import type { ClientSettings } from "@t3tools/contracts/settings";
+import type {
+  ClientSettings,
+  ManualSidebarGroup,
+  ProjectThreadDefaultMode,
+  ServerSettings,
+  ThreadEnvMode,
+} from "@t3tools/contracts/settings";
 
 import type { EnvironmentProject } from "./models.ts";
 import { normalizeProjectPathForComparison } from "./projects.ts";
@@ -11,6 +17,16 @@ export interface ProjectGroupingSettings {
 }
 
 export type ProjectGroupingMode = SidebarProjectGroupingMode;
+
+export interface ProjectThreadDefaultsSettings {
+  readonly defaultThreadEnvMode: ThreadEnvMode;
+  readonly projectThreadDefaults: Record<string, ProjectThreadDefaultMode>;
+}
+
+export interface ManualSidebarGroupsSettings {
+  readonly manualSidebarGroups: ReadonlyArray<ManualSidebarGroup>;
+  readonly projectManualSidebarGroupAssignments: Record<string, string>;
+}
 
 export function selectProjectGroupingSettings(settings: ClientSettings): ProjectGroupingSettings {
   return {
@@ -74,6 +90,65 @@ export function deriveProjectGroupingOverrideKey(
   project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">,
 ): string {
   return derivePhysicalProjectKey(project);
+}
+
+export const deriveProjectThreadDefaultOverrideKey = deriveProjectGroupingOverrideKey;
+export const deriveProjectManualSidebarGroupAssignmentKey = deriveProjectGroupingOverrideKey;
+
+export function selectProjectThreadDefaultsSettings(
+  settings: ServerSettings,
+): ProjectThreadDefaultsSettings {
+  return {
+    defaultThreadEnvMode: settings.defaultThreadEnvMode,
+    projectThreadDefaults: settings.projectThreadDefaults,
+  };
+}
+
+export function selectManualSidebarGroupsSettings(
+  settings: ServerSettings,
+): ManualSidebarGroupsSettings {
+  return {
+    manualSidebarGroups: settings.manualSidebarGroups,
+    projectManualSidebarGroupAssignments: settings.projectManualSidebarGroupAssignments,
+  };
+}
+
+export function resolveProjectThreadDefaultMode(
+  project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">,
+  settings: ProjectThreadDefaultsSettings,
+): ProjectThreadDefaultMode {
+  return (
+    settings.projectThreadDefaults[deriveProjectThreadDefaultOverrideKey(project)] ?? "inherit"
+  );
+}
+
+export function resolveProjectThreadEnvMode(input: {
+  readonly project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">;
+  readonly target: ProjectThreadDefaultsSettings;
+  readonly legacyPrimary?: ProjectThreadDefaultsSettings | undefined;
+}): ThreadEnvMode {
+  const key = deriveProjectThreadDefaultOverrideKey(input.project);
+  const targetOverride = input.target.projectThreadDefaults[key];
+  if (targetOverride !== undefined) {
+    return targetOverride === "inherit" ? input.target.defaultThreadEnvMode : targetOverride;
+  }
+  const legacyOverride = input.legacyPrimary?.projectThreadDefaults[key];
+  return legacyOverride === undefined || legacyOverride === "inherit"
+    ? input.target.defaultThreadEnvMode
+    : legacyOverride;
+}
+
+export function resolveProjectManualSidebarGroupId(
+  project: Pick<EnvironmentProject, "environmentId" | "workspaceRoot">,
+  settings: ManualSidebarGroupsSettings,
+): string | null {
+  const assigned =
+    settings.projectManualSidebarGroupAssignments[
+      deriveProjectManualSidebarGroupAssignmentKey(project)
+    ];
+  return assigned && settings.manualSidebarGroups.some((group) => group.id === assigned)
+    ? assigned
+    : null;
 }
 
 export function getProjectOrderKey(

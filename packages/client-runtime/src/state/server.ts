@@ -186,6 +186,21 @@ export function createServerEnvironmentAtoms<R, E>(
       scheduler: configScheduler,
       concurrency: configConcurrency,
     }),
+    listMcpServers: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:mcp-list-servers",
+      tag: WS_METHODS.mcpListServers,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.threadId}`,
+      },
+    }),
+    toggleMcpServer: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:mcp-toggle-server",
+      tag: WS_METHODS.mcpToggleServer,
+      concurrency: {
+        mode: "parallel",
+      },
+    }),
     signalProcess: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:signal-process",
       tag: WS_METHODS.serverSignalProcess,

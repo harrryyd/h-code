@@ -1,6 +1,10 @@
 import * as Schema from "effect/Schema";
 import { NonNegativeInt, PositiveInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
-import { SourceControlProviderError, SourceControlProviderInfo } from "./sourceControl.ts";
+import {
+  ChangeRequestLabel,
+  SourceControlProviderError,
+  SourceControlProviderInfo,
+} from "./sourceControl.ts";
 import { VcsDriverKind } from "./vcs.ts";
 
 const TrimmedNonEmptyStringSchema = TrimmedNonEmptyString;
@@ -196,6 +200,7 @@ const VcsStatusChangeRequest = Schema.Struct({
   baseRef: TrimmedNonEmptyStringSchema,
   headRef: TrimmedNonEmptyStringSchema,
   state: VcsStatusChangeRequestState,
+  labels: Schema.optional(Schema.Array(ChangeRequestLabel)),
 });
 
 const VcsStatusLocalShape = {

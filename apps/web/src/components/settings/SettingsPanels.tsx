@@ -1,6 +1,15 @@
-import { ArchiveIcon, ArchiveX, LoaderIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  ArchiveX,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  LoaderIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import {
   defaultInstanceIdForDriver,
@@ -11,14 +20,19 @@ import {
   type ProviderInstanceId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
-import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
 import {
   isAtomCommandInterrupted,
   settlePromise,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
+import {
+  DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE,
+  DEFAULT_UNIFIED_SETTINGS,
+  type ManualSidebarGroup,
+  type ManualSidebarGroupColorPalette,
+} from "@t3tools/contracts/settings";
 import { createModelSelection } from "@t3tools/shared/model";
 import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
@@ -51,11 +65,17 @@ import {
 } from "../../providerInstances";
 import { ensureLocalApi, readLocalApi } from "../../localApi";
 import {
+  MANUAL_SIDEBAR_GROUP_COLOR_LABELS,
+  MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS,
+  MANUAL_SIDEBAR_GROUP_COLOR_SWATCH,
+} from "../../manualSidebarGroupColors";
+import { randomUUID } from "../../lib/utils";
+import {
   primaryServerObservabilityAtom,
   primaryServerProvidersAtom,
   serverEnvironment,
 } from "../../state/server";
-import { usePrimaryEnvironment } from "../../state/environments";
+import { useEnvironments, usePrimaryEnvironment } from "../../state/environments";
 import { useProjects } from "../../state/entities";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { formatRelativeTime, formatRelativeTimeLabel } from "../../timestampFormat";
@@ -88,6 +108,8 @@ import {
 } from "./settingsLayout";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { useThreadSelectionStore } from "../../threadSelectionStore";
+import { deriveProjectThreadDefaultOverrideKey } from "../../logicalProject";
 
 const THEME_OPTIONS = [
   {
@@ -111,6 +133,30 @@ const TIMESTAMP_FORMAT_LABELS = {
 } as const;
 
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
+const PROJECT_THREAD_DEFAULT_MODE_OPTIONS = [
+  ["inherit", "Use environment default"],
+  ["local", "Local"],
+  ["worktree", "New worktree"],
+] as const;
+
+function moveItem<T>(items: ReadonlyArray<T>, fromIndex: number, toIndex: number): T[] {
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length ||
+    fromIndex === toIndex
+  ) {
+    return [...items];
+  }
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  if (item === undefined) {
+    return next;
+  }
+  next.splice(toIndex, 0, item);
+  return next;
+}
 
 function withoutProviderInstanceKey<V>(
   record: Readonly<Record<ProviderInstanceId, V>> | undefined,
@@ -480,6 +526,8 @@ export function GeneralSettingsPanel() {
   const { theme, setTheme } = useTheme();
   const settings = usePrimarySettings();
   const updateSettings = useUpdatePrimarySettings();
+  const projects = useProjects();
+  const { environments } = useEnvironments();
   const observability = useAtomValue(primaryServerObservabilityAtom);
   const serverProviders = useAtomValue(primaryServerProvidersAtom);
   const diagnosticsDescription = formatDiagnosticsDescription({
@@ -511,6 +559,72 @@ export function GeneralSettingsPanel() {
   const isGitWritingModelDirty = !Equal.equals(
     settings.textGenerationModelSelection ?? null,
     DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
+  );
+  const environmentLabelById = useMemo(
+    () =>
+      new Map(
+        environments.map((environment) => [environment.environmentId, environment.label] as const),
+      ),
+    [environments],
+  );
+  const sortedManualGroups = settings.manualSidebarGroups;
+  const sortedProjectDefaults = useMemo(
+    () =>
+      [...projects]
+        .sort((left, right) => left.title.localeCompare(right.title))
+        .filter((project) => {
+          const overrideKey = deriveProjectThreadDefaultOverrideKey(project);
+          return settings.projectThreadDefaults[overrideKey] !== undefined;
+        }),
+    [projects, settings.projectThreadDefaults],
+  );
+
+  const upsertManualSidebarGroups = useCallback(
+    (nextGroups: ReadonlyArray<ManualSidebarGroup>) => {
+      updateSettings({
+        manualSidebarGroups: [...nextGroups],
+      });
+    },
+    [updateSettings],
+  );
+
+  const addManualSidebarGroup = useCallback(() => {
+    upsertManualSidebarGroups([
+      ...sortedManualGroups,
+      {
+        id: randomUUID(),
+        name: `Section ${sortedManualGroups.length + 1}`,
+        color: DEFAULT_MANUAL_SIDEBAR_GROUP_COLOR_PALETTE,
+        collapsed: false,
+      },
+    ]);
+  }, [sortedManualGroups, upsertManualSidebarGroups]);
+
+  const updateManualSidebarGroup = useCallback(
+    (groupId: string, patch: Partial<ManualSidebarGroup>) => {
+      upsertManualSidebarGroups(
+        sortedManualGroups.map((group) => (group.id === groupId ? { ...group, ...patch } : group)),
+      );
+    },
+    [sortedManualGroups, upsertManualSidebarGroups],
+  );
+
+  const moveManualSidebarGroup = useCallback(
+    (groupId: string, direction: -1 | 1) => {
+      const index = sortedManualGroups.findIndex((group) => group.id === groupId);
+      if (index < 0) {
+        return;
+      }
+      upsertManualSidebarGroups(moveItem(sortedManualGroups, index, index + direction));
+    },
+    [sortedManualGroups, upsertManualSidebarGroups],
+  );
+
+  const deleteManualSidebarGroup = useCallback(
+    (groupId: string) => {
+      upsertManualSidebarGroups(sortedManualGroups.filter((group) => group.id !== groupId));
+    },
+    [sortedManualGroups, upsertManualSidebarGroups],
   );
 
   return (
@@ -950,6 +1064,160 @@ export function GeneralSettingsPanel() {
             </div>
           }
         />
+      </SettingsSection>
+
+      <SettingsSection title="Sidebar">
+        <SettingsRow
+          title="Manual sections"
+          description="Create named sidebar sections, choose their color, and control whether they start collapsed."
+          control={
+            <Button size="xs" variant="outline" onClick={addManualSidebarGroup}>
+              <PlusIcon className="mr-1 size-3.5" />
+              Add section
+            </Button>
+          }
+        >
+          <div className="mt-3 space-y-2 pb-3">
+            {sortedManualGroups.length === 0 ? (
+              <p className="px-1 text-xs text-muted-foreground">
+                No manual sections yet. Add one here, then assign projects from the sidebar project
+                context menu.
+              </p>
+            ) : (
+              sortedManualGroups.map((group, index) => (
+                <div
+                  key={group.id}
+                  className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/20 p-3"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: MANUAL_SIDEBAR_GROUP_COLOR_SWATCH[group.color] }}
+                    />
+                    <DraftInput
+                      className="min-w-0 flex-1"
+                      value={group.name}
+                      onCommit={(next) =>
+                        updateManualSidebarGroup(group.id, { name: next.trim() || group.name })
+                      }
+                      placeholder="Section name"
+                      spellCheck={false}
+                      aria-label={`Section name for ${group.name}`}
+                    />
+                    <Select
+                      value={group.color}
+                      onValueChange={(value) =>
+                        updateManualSidebarGroup(group.id, {
+                          color: value as ManualSidebarGroupColorPalette,
+                        })
+                      }
+                    >
+                      <SelectTrigger size="xs" className="h-8 min-h-8 w-full sm:w-28">
+                        <SelectValue>{MANUAL_SIDEBAR_GROUP_COLOR_LABELS[group.color]}</SelectValue>
+                      </SelectTrigger>
+                      <SelectPopup align="end" alignItemWithTrigger={false}>
+                        {MANUAL_SIDEBAR_GROUP_COLOR_OPTIONS.map(([value, label]) => (
+                          <SelectItem hideIndicator key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectPopup>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Switch
+                        checked={group.collapsed}
+                        onCheckedChange={(checked) =>
+                          updateManualSidebarGroup(group.id, { collapsed: Boolean(checked) })
+                        }
+                        aria-label={`Collapsed by default for ${group.name}`}
+                      />
+                      Start collapsed
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        disabled={index === 0}
+                        aria-label={`Move ${group.name} up`}
+                        onClick={() => moveManualSidebarGroup(group.id, -1)}
+                      >
+                        <ArrowUpIcon className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        disabled={index === sortedManualGroups.length - 1}
+                        aria-label={`Move ${group.name} down`}
+                        onClick={() => moveManualSidebarGroup(group.id, 1)}
+                      >
+                        <ArrowDownIcon className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        aria-label={`Delete ${group.name}`}
+                        onClick={() => deleteManualSidebarGroup(group.id)}
+                      >
+                        <Trash2Icon className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title="Project thread overrides"
+          description="Per-project new-thread defaults are stored on the target environment. Use a project's sidebar context menu to add or change them."
+        >
+          <div className="mt-3 space-y-2 pb-3">
+            {sortedProjectDefaults.length === 0 ? (
+              <p className="px-1 text-xs text-muted-foreground">
+                No project-specific overrides saved yet.
+              </p>
+            ) : (
+              sortedProjectDefaults.map((project) => {
+                const overrideKey = deriveProjectThreadDefaultOverrideKey(project);
+                const override = settings.projectThreadDefaults[overrideKey];
+                if (!override) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={overrideKey}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/20 p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <ProjectFavicon
+                          environmentId={project.environmentId}
+                          cwd={project.workspaceRoot}
+                        />
+                        <span className="truncate text-sm font-medium text-foreground">
+                          {project.title}
+                        </span>
+                      </div>
+                      <p className="truncate pt-1 text-xs text-muted-foreground">
+                        {environmentLabelById.get(project.environmentId) ?? "Unknown environment"}
+                        {" · "}
+                        {project.workspaceRoot}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {PROJECT_THREAD_DEFAULT_MODE_OPTIONS.find(
+                        ([value]) => value === override,
+                      )?.[1] ?? override}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection title="About">
@@ -1433,6 +1701,14 @@ export function ArchivedThreadsPanel() {
     isLoading: isLoadingArchive,
     refresh: refreshArchivedThreads,
   } = useArchivedThreadSnapshots(environmentIds);
+  const selectedThreadKeys = useThreadSelectionStore((state) => state.selectedThreadKeys);
+  const toggleThreadSelection = useThreadSelectionStore((state) => state.toggleThread);
+  const rangeSelectTo = useThreadSelectionStore((state) => state.rangeSelectTo);
+  const setSelectionAnchor = useThreadSelectionStore((state) => state.setAnchor);
+  const removeFromSelection = useThreadSelectionStore((state) => state.removeFromSelection);
+  const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
+
+  useEffect(() => clearSelection, [clearSelection]);
 
   const archivedGroups = useMemo(() => {
     const projectsByEnvironmentAndId = new Map(
@@ -1484,52 +1760,101 @@ export function ArchivedThreadsPanel() {
     return groups;
   }, [archivedSnapshots]);
 
+  const archivedThreadRefsByKey = useMemo(
+    () =>
+      new Map(
+        archivedGroups.flatMap(({ threads }) =>
+          threads.map((thread) => {
+            const ref = scopeThreadRef(thread.environmentId, thread.id);
+            return [scopedThreadKey(ref), ref] as const;
+          }),
+        ),
+      ),
+    [archivedGroups],
+  );
+  const orderedArchivedThreadKeys = useMemo(
+    () =>
+      archivedGroups.flatMap(({ threads }) =>
+        threads.map((thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))),
+      ),
+    [archivedGroups],
+  );
+
+  const runBulkArchivedAction = useCallback(
+    async (action: "unarchive" | "delete", threadRefs: ReadonlyArray<ScopedThreadRef>) => {
+      for (const threadRef of threadRefs) {
+        const result =
+          action === "unarchive"
+            ? await unarchiveThread(threadRef)
+            : await confirmAndDeleteThread(threadRef);
+        if (result._tag === "Failure") {
+          if (!isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: `Failed to ${action} archived thread`,
+                description: `${threadRef.environmentId}/${threadRef.threadId}: ${
+                  error instanceof Error ? error.message : "An error occurred."
+                }`,
+              }),
+            );
+          }
+          return;
+        }
+        removeFromSelection([scopedThreadKey(threadRef)]);
+      }
+      refreshArchivedThreads();
+      clearSelection();
+    },
+    [
+      clearSelection,
+      confirmAndDeleteThread,
+      refreshArchivedThreads,
+      removeFromSelection,
+      unarchiveThread,
+    ],
+  );
+
   const handleArchivedThreadContextMenu = useCallback(
     async (threadRef: ScopedThreadRef, position: { x: number; y: number }) => {
       const api = readLocalApi();
       if (!api) return;
+      const clickedKey = scopedThreadKey(threadRef);
+      const selection = useThreadSelectionStore.getState().selectedThreadKeys;
+      const actionKeys =
+        selection.has(clickedKey) && selection.size > 0 ? [...selection] : [clickedKey];
+      if (!selection.has(clickedKey)) {
+        clearSelection();
+        toggleThreadSelection(clickedKey);
+      }
+      const actionRefs = actionKeys.flatMap((key) => {
+        const ref = archivedThreadRefsByKey.get(key);
+        return ref ? [ref] : [];
+      });
+      const count = actionRefs.length;
       const clicked = await api.contextMenu.show(
         [
-          { id: "unarchive", label: "Unarchive" },
-          { id: "delete", label: "Delete", destructive: true },
+          { id: "unarchive", label: count > 1 ? `Unarchive ${count} threads` : "Unarchive" },
+          {
+            id: "delete",
+            label: count > 1 ? `Delete ${count} threads` : "Delete",
+            destructive: true,
+          },
         ],
         position,
       );
 
       if (clicked === "unarchive") {
-        const result = await unarchiveThread(threadRef);
-        if (result._tag === "Success") {
-          refreshArchivedThreads();
-        } else if (!isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Failed to unarchive thread",
-              description: error instanceof Error ? error.message : "An error occurred.",
-            }),
-          );
-        }
+        await runBulkArchivedAction("unarchive", actionRefs);
         return;
       }
 
       if (clicked === "delete") {
-        const result = await confirmAndDeleteThread(threadRef);
-        if (result._tag === "Success") {
-          refreshArchivedThreads();
-        } else if (!isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Failed to delete thread",
-              description: error instanceof Error ? error.message : "An error occurred.",
-            }),
-          );
-        }
+        await runBulkArchivedAction("delete", actionRefs);
       }
     },
-    [confirmAndDeleteThread, refreshArchivedThreads, unarchiveThread],
+    [archivedThreadRefsByKey, clearSelection, runBulkArchivedAction, toggleThreadSelection],
   );
 
   return (
@@ -1565,77 +1890,91 @@ export function ArchivedThreadsPanel() {
             title={project.name}
             icon={<ProjectFavicon environmentId={project.environmentId} cwd={project.cwd} />}
           >
-            {projectThreads.map((thread) => (
-              <SettingsRow
-                key={thread.id}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  void (async () => {
-                    const result = await settlePromise(() =>
-                      handleArchivedThreadContextMenu(
-                        scopeThreadRef(thread.environmentId, thread.id),
-                        {
+            {projectThreads.map((thread) => {
+              const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+              const threadKey = scopedThreadKey(threadRef);
+              return (
+                <SettingsRow
+                  key={threadKey}
+                  data-thread-item
+                  className={
+                    selectedThreadKeys.has(threadKey)
+                      ? "bg-accent/55 ring-1 ring-inset ring-primary/25"
+                      : undefined
+                  }
+                  onClick={(event) => {
+                    if (event.shiftKey) {
+                      rangeSelectTo(threadKey, orderedArchivedThreadKeys);
+                    } else if (event.metaKey || event.ctrlKey) {
+                      toggleThreadSelection(threadKey);
+                    } else {
+                      setSelectionAnchor(threadKey);
+                    }
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    void (async () => {
+                      const result = await settlePromise(() =>
+                        handleArchivedThreadContextMenu(threadRef, {
                           x: event.clientX,
                           y: event.clientY,
-                        },
-                      ),
-                    );
-                    if (result._tag === "Failure") {
-                      const error = squashAtomCommandFailure(result);
-                      toastManager.add(
-                        stackedThreadToast({
-                          type: "error",
-                          title: "Archived thread action failed",
-                          description:
-                            error instanceof Error ? error.message : "An error occurred.",
                         }),
                       );
-                    }
-                  })();
-                }}
-                title={thread.title}
-                description={
-                  <>
-                    Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
-                    {" \u00b7 Created "}
-                    {formatRelativeTimeLabel(thread.createdAt)}
-                  </>
-                }
-                control={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 shrink-0 cursor-pointer gap-1.5 px-2.5"
-                    onClick={() => {
-                      void (async () => {
-                        const result = await unarchiveThread(
-                          scopeThreadRef(thread.environmentId, thread.id),
+                      if (result._tag === "Failure") {
+                        const error = squashAtomCommandFailure(result);
+                        toastManager.add(
+                          stackedThreadToast({
+                            type: "error",
+                            title: "Archived thread action failed",
+                            description:
+                              error instanceof Error ? error.message : "An error occurred.",
+                          }),
                         );
-                        if (result._tag === "Success") {
-                          refreshArchivedThreads();
-                          return;
-                        }
-                        if (!isAtomCommandInterrupted(result)) {
-                          const error = squashAtomCommandFailure(result);
-                          toastManager.add(
-                            stackedThreadToast({
-                              type: "error",
-                              title: "Failed to unarchive thread",
-                              description:
-                                error instanceof Error ? error.message : "An error occurred.",
-                            }),
-                          );
-                        }
-                      })();
-                    }}
-                  >
-                    <ArchiveX className="size-3.5" />
-                    <span>Unarchive</span>
-                  </Button>
-                }
-              />
-            ))}
+                      }
+                    })();
+                  }}
+                  title={thread.title}
+                  description={
+                    <>
+                      Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
+                      {" \u00b7 Created "}
+                      {formatRelativeTimeLabel(thread.createdAt)}
+                    </>
+                  }
+                  control={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 shrink-0 cursor-pointer gap-1.5 px-2.5"
+                      onClick={() => {
+                        void (async () => {
+                          const result = await unarchiveThread(threadRef);
+                          if (result._tag === "Success") {
+                            refreshArchivedThreads();
+                            return;
+                          }
+                          if (!isAtomCommandInterrupted(result)) {
+                            const error = squashAtomCommandFailure(result);
+                            toastManager.add(
+                              stackedThreadToast({
+                                type: "error",
+                                title: "Failed to unarchive thread",
+                                description:
+                                  error instanceof Error ? error.message : "An error occurred.",
+                              }),
+                            );
+                          }
+                        })();
+                      }}
+                    >
+                      <ArchiveX className="size-3.5" />
+                      <span>Unarchive</span>
+                    </Button>
+                  }
+                />
+              );
+            })}
           </SettingsSection>
         ))
       )}

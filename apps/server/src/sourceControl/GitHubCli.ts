@@ -7,6 +7,7 @@ import * as Schema from "effect/Schema";
 
 import {
   TrimmedNonEmptyString,
+  type ChangeRequestLabel,
   type SourceControlRepositoryVisibility,
   type VcsError,
 } from "@t3tools/contracts";
@@ -185,10 +186,54 @@ export interface GitHubPullRequestSummary {
   readonly baseRefName: string;
   readonly headRefName: string;
   readonly state?: "open" | "closed" | "merged";
+  readonly labels?: ReadonlyArray<ChangeRequestLabel>;
   readonly isCrossRepository?: boolean;
   readonly headRepositoryNameWithOwner?: string | null;
   readonly headRepositoryOwnerLogin?: string | null;
 }
+
+function gitHubPullRequestJsonFields(input: {
+  readonly includeUpdatedAt?: boolean;
+  readonly includeLabels: boolean;
+}): string {
+  return [
+    "number",
+    "title",
+    "url",
+    "baseRefName",
+    "headRefName",
+    "state",
+    "mergedAt",
+    ...(input.includeUpdatedAt ? ["updatedAt"] : []),
+    "isCrossRepository",
+    "headRepository",
+    "headRepositoryOwner",
+    ...(input.includeLabels ? ["labels"] : []),
+  ].join(",");
+}
+
+const executePullRequestJson = (input: {
+  readonly execute: GitHubCli["Service"]["execute"];
+  readonly cwd: string;
+  readonly argsPrefix: ReadonlyArray<string>;
+  readonly includeUpdatedAt?: boolean;
+}) => {
+  const run = (includeLabels: boolean) =>
+    input.execute({
+      cwd: input.cwd,
+      args: [
+        ...input.argsPrefix,
+        "--json",
+        gitHubPullRequestJsonFields({
+          includeLabels,
+          ...(input.includeUpdatedAt !== undefined
+            ? { includeUpdatedAt: input.includeUpdatedAt }
+            : {}),
+        }),
+      ],
+    });
+  return run(true).pipe(Effect.catchTag("GitHubCliCommandError", () => run(false)));
+};
 
 export interface GitHubRepositoryCloneUrls {
   readonly nameWithOwner: string;
@@ -320,9 +365,10 @@ export const make = Effect.gen(function* () {
   return GitHubCli.of({
     execute,
     listOpenPullRequests: (input) =>
-      execute({
+      executePullRequestJson({
+        execute,
         cwd: input.cwd,
-        args: [
+        argsPrefix: [
           "pr",
           "list",
           "--head",
@@ -331,8 +377,6 @@ export const make = Effect.gen(function* () {
           "open",
           "--limit",
           String(input.limit ?? 1),
-          "--json",
-          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
         ],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),
@@ -359,15 +403,10 @@ export const make = Effect.gen(function* () {
         ),
       ),
     getPullRequest: (input) =>
-      execute({
+      executePullRequestJson({
+        execute,
         cwd: input.cwd,
-        args: [
-          "pr",
-          "view",
-          input.reference,
-          "--json",
-          "number,title,url,baseRefName,headRefName,state,mergedAt,isCrossRepository,headRepository,headRepositoryOwner",
-        ],
+        argsPrefix: ["pr", "view", input.reference],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),
         Effect.flatMap((raw) =>

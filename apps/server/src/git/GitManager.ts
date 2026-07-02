@@ -109,6 +109,7 @@ interface OpenPrInfo {
   url: string;
   baseRefName: string;
   headRefName: string;
+  labels?: ReadonlyArray<{ readonly name: string; readonly color?: string | undefined }>;
 }
 
 interface PullRequestInfo extends OpenPrInfo, PullRequestHeadRemoteInfo {
@@ -307,6 +308,7 @@ function toPullRequestInfo(summary: ChangeRequest): PullRequestInfo {
     baseRefName: summary.baseRefName,
     headRefName: summary.headRefName,
     state: summary.state ?? "open",
+    ...(summary.labels ? { labels: [...summary.labels] } : {}),
     updatedAt: summary.updatedAt,
     ...(summary.isCrossRepository !== undefined
       ? { isCrossRepository: summary.isCrossRepository }
@@ -461,6 +463,7 @@ function toStatusPr(pr: PullRequestInfo): {
   baseRef: string;
   headRef: string;
   state: "open" | "closed" | "merged";
+  labels?: ReadonlyArray<{ readonly name: string; readonly color?: string | undefined }>;
 } {
   return {
     number: pr.number,
@@ -469,6 +472,7 @@ function toStatusPr(pr: PullRequestInfo): {
     baseRef: pr.baseRefName,
     headRef: pr.headRefName,
     state: pr.state,
+    ...(pr.labels ? { labels: [...pr.labels] } : {}),
   };
 }
 

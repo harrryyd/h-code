@@ -13,6 +13,24 @@ import {
 } from "./serverSettings.ts";
 
 describe("serverSettings helpers", () => {
+  it("replaces scoped maps and removes assignments to deleted manual groups", () => {
+    const current = {
+      ...DEFAULT_SERVER_SETTINGS,
+      projectThreadDefaults: { one: "local" as const, stale: "worktree" as const },
+      manualSidebarGroups: [
+        { id: "one", name: "One", color: "sky" as const, collapsed: false },
+        { id: "stale", name: "Stale", color: "rose" as const, collapsed: false },
+      ],
+      projectManualSidebarGroupAssignments: { project: "stale" },
+    };
+    const next = applyServerSettingsPatch(current, {
+      projectThreadDefaults: { one: "worktree" },
+      manualSidebarGroups: [{ id: "one", name: "One", color: "sky", collapsed: false }],
+    });
+    expect(next.projectThreadDefaults).toEqual({ one: "worktree" });
+    expect(next.projectManualSidebarGroupAssignments).toEqual({});
+  });
+
   it("normalizes optional persisted strings", () => {
     expect(normalizePersistedServerSettingString(undefined)).toBeUndefined();
     expect(normalizePersistedServerSettingString("   ")).toBeUndefined();

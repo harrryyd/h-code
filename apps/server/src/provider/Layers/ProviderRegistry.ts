@@ -683,6 +683,10 @@ export const ProviderRegistryLive = Layer.effect(
     });
 
     return {
+      listRuntimeAdapters: () =>
+        instanceRegistry.listInstances.pipe(
+          Effect.map((instances) => instances.map((instance) => instance.adapter)),
+        ),
       getProviders: Ref.get(providersRef),
       refresh: (provider?: ProviderDriverKind) =>
         refresh(provider).pipe(Effect.catchCause(recoverRefreshFailure)),

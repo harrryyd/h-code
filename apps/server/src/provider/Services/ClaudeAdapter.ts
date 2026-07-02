@@ -9,6 +9,8 @@
  *
  * @module ClaudeAdapter
  */
+import type { McpServerSnapshot, ThreadId } from "@t3tools/contracts";
+import type * as Effect from "effect/Effect";
 import type { ProviderAdapterError } from "../Errors.ts";
 import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
 
@@ -16,4 +18,19 @@ import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
  * ClaudeAdapterShape — per-instance Claude adapter contract. Carries
  * a branded driver kind as the nominal discriminant.
  */
-export interface ClaudeAdapterShape extends ProviderAdapterShape<ProviderAdapterError> {}
+export interface ClaudeAdapterShape extends ProviderAdapterShape<ProviderAdapterError> {
+  readonly toggleMcpServerOnThread: (
+    threadId: ThreadId,
+    mcpServerName: string,
+    enabled: boolean,
+  ) => Effect.Effect<void, ProviderAdapterError>;
+  readonly listMcpServersOnThread: (
+    threadId: ThreadId,
+  ) => Effect.Effect<ReadonlyArray<McpServerSnapshot>, ProviderAdapterError>;
+}
+
+export function isClaudeAdapter(
+  adapter: ProviderAdapterShape<ProviderAdapterError>,
+): adapter is ClaudeAdapterShape {
+  return adapter.provider === "claudeAgent" && adapter.capabilities.supportsMcpToggle === true;
+}

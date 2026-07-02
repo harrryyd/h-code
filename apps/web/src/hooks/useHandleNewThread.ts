@@ -21,17 +21,21 @@ import { orderItemsByPreferredIds } from "../components/Sidebar.logic";
 import {
   deriveLogicalProjectKeyFromSettings,
   getProjectOrderKey,
+  resolveProjectThreadEnvMode,
   selectProjectGroupingSettings,
+  selectProjectThreadDefaultsSettings,
 } from "../logicalProject";
 import { readThreadShell, useProjects, useServerConfigs, useThread } from "../state/entities";
 import { resolveNewDraftStartFromOrigin } from "../lib/chatThreadActions";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
 import { useClientSettings } from "./useSettings";
+import { usePrimaryEnvironmentId } from "../state/environments";
 
 export function useNewThreadHandler() {
   const projects = useProjects();
   const serverConfigs = useServerConfigs();
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const router = useRouter();
   const getCurrentRouteTarget = useCallback(() => {
@@ -65,6 +69,10 @@ export function useNewThreadHandler() {
       );
       const environmentSettings =
         serverConfigs.get(projectRef.environmentId)?.settings ?? DEFAULT_SERVER_SETTINGS;
+      const primaryEnvironmentSettings =
+        primaryEnvironmentId === null
+          ? undefined
+          : (serverConfigs.get(primaryEnvironmentId)?.settings ?? DEFAULT_SERVER_SETTINGS);
       const logicalProjectKey = project
         ? deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings)
         : scopedProjectKey(projectRef);
@@ -159,7 +167,19 @@ export function useNewThreadHandler() {
       const draftId = newDraftId();
       const threadId = newThreadId();
       const createdAt = new Date().toISOString();
-      const initialEnvMode = options?.envMode ?? environmentSettings.defaultThreadEnvMode;
+      const initialEnvMode =
+        options?.envMode ??
+        (project
+          ? resolveProjectThreadEnvMode({
+              project,
+              target: selectProjectThreadDefaultsSettings(environmentSettings),
+              ...(primaryEnvironmentSettings
+                ? {
+                    legacyPrimary: selectProjectThreadDefaultsSettings(primaryEnvironmentSettings),
+                  }
+                : {}),
+            })
+          : environmentSettings.defaultThreadEnvMode);
       return (async () => {
         setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
           threadId,
@@ -183,7 +203,14 @@ export function useNewThreadHandler() {
         });
       })();
     },
-    [getCurrentRouteTarget, projectGroupingSettings, projects, router, serverConfigs],
+    [
+      getCurrentRouteTarget,
+      primaryEnvironmentId,
+      projectGroupingSettings,
+      projects,
+      router,
+      serverConfigs,
+    ],
   );
 }
 

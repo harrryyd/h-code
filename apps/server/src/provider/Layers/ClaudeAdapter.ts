@@ -31,6 +31,7 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   type ModelSelection,
+  type McpServerSnapshot,
   ProviderItemId,
   type ProviderRuntimeEvent,
   type ProviderRuntimeTurnStatus,
@@ -70,6 +71,8 @@ import * as Stream from "effect/Stream";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
+import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
 import {
   getClaudeModelCapabilities,
@@ -92,6 +95,7 @@ const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.UnknownFromJ
 const decodeUnknownJsonStringExit = Schema.decodeUnknownExit(Schema.UnknownFromJsonString);
 
 const PROVIDER = ProviderDriverKind.make("claudeAgent");
+export const RESERVED_PREVIEW_MCP_SERVER_NAME = "t3-code";
 type ClaudeTextStreamKind = Extract<RuntimeContentStreamKind, "assistant_text" | "reasoning_text">;
 type ClaudeToolResultStreamKind = Extract<
   RuntimeContentStreamKind,
@@ -208,6 +212,8 @@ interface ClaudeQueryRuntime extends AsyncIterable<SDKMessage> {
   readonly setPermissionMode: (mode: PermissionMode) => Promise<void>;
   readonly setMaxThinkingTokens: (maxThinkingTokens: number | null) => Promise<void>;
   readonly getContextUsage?: () => Promise<SDKControlGetContextUsageResponse>;
+  readonly toggleMcpServer: (serverName: string, enabled: boolean) => Promise<void>;
+  readonly mcpServerStatus: () => Promise<ReadonlyArray<McpServerSnapshot>>;
   readonly close: () => void;
 }
 
@@ -1343,6 +1349,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig;
+  const settingsService = yield* ServerSettingsService;
+  const threadMcpToggleRepository = yield* ThreadMcpToggleRepository;
   const crypto = yield* Crypto.Crypto;
   const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, options?.environment).pipe(
     Effect.provideService(Path.Path, path),
@@ -3056,6 +3064,65 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     return Effect.succeed(context);
   };
 
+  const mcpPersistenceError = (threadId: ThreadId, detail: string, cause: unknown) =>
+    new ProviderAdapterProcessError({ provider: PROVIDER, threadId, detail, cause });
+
+  const applyPersistedMcpToggles = Effect.fn("applyPersistedMcpToggles")(function* (
+    context: ClaudeSessionContext,
+  ) {
+    const threadId = context.session.threadId;
+    const settings = yield* settingsService.getSettings.pipe(
+      Effect.mapError((cause) =>
+        mcpPersistenceError(threadId, "Failed to load MCP default preferences.", cause),
+      ),
+    );
+    const rows = yield* threadMcpToggleRepository
+      .listByThreadId({ threadId })
+      .pipe(
+        Effect.mapError((cause) =>
+          mcpPersistenceError(threadId, "Failed to load persisted MCP toggles.", cause),
+        ),
+      );
+    const effective = new Map<string, boolean>(
+      Object.entries(settings.mcpDefaultPreferences[boundInstanceId] ?? {}),
+    );
+    for (const row of rows) {
+      if (row.providerKind !== PROVIDER) continue;
+      if (row.mcpServerName === RESERVED_PREVIEW_MCP_SERVER_NAME) {
+        yield* threadMcpToggleRepository
+          .delete({
+            threadId,
+            providerKind: PROVIDER,
+            mcpServerName: RESERVED_PREVIEW_MCP_SERVER_NAME,
+          })
+          .pipe(
+            Effect.mapError((cause) =>
+              mcpPersistenceError(threadId, "Failed to remove a reserved MCP override.", cause),
+            ),
+          );
+        continue;
+      }
+      effective.set(row.mcpServerName, row.enabled);
+    }
+    yield* Effect.forEach(
+      effective,
+      ([name, enabled]) =>
+        name === RESERVED_PREVIEW_MCP_SERVER_NAME
+          ? Effect.void
+          : Effect.tryPromise({
+              try: () => context.query.toggleMcpServer(name, enabled),
+              catch: (cause) =>
+                new ProviderAdapterProcessError({
+                  provider: PROVIDER,
+                  threadId,
+                  detail: `Failed to apply MCP toggle '${name}'.`,
+                  cause,
+                }),
+            }),
+      { discard: true },
+    );
+  });
+
   const startSession: ClaudeAdapterShape["startSession"] = Effect.fn("startSession")(
     function* (input) {
       if (input.provider !== undefined && input.provider !== PROVIDER) {
@@ -3563,6 +3630,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       };
       yield* Ref.set(contextRef, context);
       sessions.set(threadId, context);
+      yield* applyPersistedMcpToggles(context);
 
       const sessionStartedStamp = yield* makeEventStamp();
       yield* offerRuntimeEvent({
@@ -3814,6 +3882,59 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const listSessions: ClaudeAdapterShape["listSessions"] = () =>
     Effect.sync(() => Array.from(sessions.values(), ({ session }) => ({ ...session })));
 
+  const toggleMcpServerOnThread: ClaudeAdapterShape["toggleMcpServerOnThread"] = Effect.fn(
+    "toggleMcpServerOnThread",
+  )(function* (threadId, mcpServerName, enabled) {
+    if (mcpServerName === RESERVED_PREVIEW_MCP_SERVER_NAME) {
+      return yield* new ProviderAdapterValidationError({
+        provider: PROVIDER,
+        operation: "mcp.toggleServer",
+        issue: "The t3-code preview MCP server is reserved and cannot be toggled.",
+      });
+    }
+    const context = yield* requireSession(threadId);
+    yield* Effect.tryPromise({
+      try: () => context.query.toggleMcpServer(mcpServerName, enabled),
+      catch: (cause) =>
+        new ProviderAdapterProcessError({
+          provider: PROVIDER,
+          threadId,
+          detail: `Failed to toggle MCP server '${mcpServerName}'.`,
+          cause,
+        }),
+    });
+    yield* threadMcpToggleRepository
+      .upsert({
+        threadId,
+        providerKind: PROVIDER,
+        mcpServerName,
+        enabled,
+        updatedAt: yield* nowIso,
+      })
+      .pipe(
+        Effect.mapError((cause) =>
+          mcpPersistenceError(threadId, `Failed to persist MCP toggle '${mcpServerName}'.`, cause),
+        ),
+      );
+  });
+
+  const listMcpServersOnThread: ClaudeAdapterShape["listMcpServersOnThread"] = Effect.fn(
+    "listMcpServersOnThread",
+  )(function* (threadId) {
+    const context = yield* requireSession(threadId);
+    const servers = yield* Effect.tryPromise({
+      try: () => context.query.mcpServerStatus(),
+      catch: (cause) =>
+        new ProviderAdapterProcessError({
+          provider: PROVIDER,
+          threadId,
+          detail: "Failed to list MCP servers.",
+          cause,
+        }),
+    });
+    return servers.filter((server) => server.name !== RESERVED_PREVIEW_MCP_SERVER_NAME);
+  });
+
   const hasSession: ClaudeAdapterShape["hasSession"] = (threadId) =>
     Effect.sync(() => {
       const context = sessions.get(threadId);
@@ -3850,6 +3971,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     provider: PROVIDER,
     capabilities: {
       sessionModelSwitch: "in-session",
+      supportsMcpToggle: true,
     },
     startSession,
     sendTurn,
@@ -3860,6 +3982,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     respondToUserInput,
     stopSession,
     listSessions,
+    toggleMcpServerOnThread,
+    listMcpServersOnThread,
     hasSession,
     stopAll,
     get streamEvents() {

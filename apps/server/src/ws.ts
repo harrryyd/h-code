@@ -46,6 +46,7 @@ import {
   OrchestrationReplayEventsError,
   type FilesystemBrowseFailure,
   FilesystemBrowseError,
+  McpToggleError,
   AssetWorkspaceContextNotFoundError,
   AssetWorkspaceContextResolutionError,
   EnvironmentAuthorizationError,
@@ -74,6 +75,9 @@ import {
   observeRpcStreamEffect as instrumentRpcStreamEffect,
 } from "./observability/RpcInstrumentation.ts";
 import * as ProviderRegistry from "./provider/Services/ProviderRegistry.ts";
+import { isClaudeAdapter, type ClaudeAdapterShape } from "./provider/Services/ClaudeAdapter.ts";
+import type { ProviderAdapterError } from "./provider/Errors.ts";
+import { RESERVED_PREVIEW_MCP_SERVER_NAME } from "./provider/Layers/ClaudeAdapter.ts";
 import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
@@ -113,6 +117,7 @@ import * as SessionStore from "./auth/SessionStore.ts";
 import { failEnvironmentAuthInvalid, failEnvironmentInternal } from "./auth/http.ts";
 import * as RelayClient from "@t3tools/shared/relayClient";
 const isOrchestrationDispatchCommandError = Schema.is(OrchestrationDispatchCommandError);
+const isMcpToggleError = Schema.is(McpToggleError);
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
@@ -306,6 +311,8 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.shellOpenInEditor, AuthOrchestrationOperateScope],
   [WS_METHODS.filesystemBrowse, AuthOrchestrationReadScope],
   [WS_METHODS.assetsCreateUrl, AuthOrchestrationReadScope],
+  [WS_METHODS.mcpListServers, AuthOrchestrationReadScope],
+  [WS_METHODS.mcpToggleServer, AuthOrchestrationOperateScope],
   [WS_METHODS.subscribeVcsStatus, AuthOrchestrationReadScope],
   [WS_METHODS.vcsRefreshStatus, AuthOrchestrationReadScope],
   [WS_METHODS.vcsPull, AuthOrchestrationOperateScope],
@@ -344,6 +351,14 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.subscribeServerLifecycle, AuthOrchestrationReadScope],
   [WS_METHODS.subscribeAuthAccess, AuthAccessReadScope],
 ]);
+
+export const missingRpcScopeDeclarations = (): ReadonlyArray<string> => {
+  const missing: Array<string> = [];
+  for (const tag of WsRpcGroup.requests.keys()) {
+    if (!RPC_REQUIRED_SCOPE.has(tag)) missing.push(tag);
+  }
+  return missing;
+};
 
 function toAuthAccessStreamEvent(
   change: PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange,
@@ -419,6 +434,38 @@ const makeWsRpcLayer = (
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const sourceControlDiscovery = yield* SourceControlDiscovery.SourceControlDiscovery;
+      const loadClaudeAdapterForThread = Effect.fn("loadClaudeAdapterForThread")(function* (
+        threadId: ThreadId,
+      ) {
+        let sawClaude = false;
+        const adapters = providerRegistry.listRuntimeAdapters
+          ? yield* providerRegistry.listRuntimeAdapters()
+          : [];
+        for (const adapter of adapters) {
+          if (!isClaudeAdapter(adapter)) continue;
+          sawClaude = true;
+          if (yield* adapter.hasSession(threadId)) return adapter;
+        }
+        return yield* new McpToggleError({
+          kind: sawClaude ? "session-not-found" : "provider-not-claude",
+          detail: sawClaude
+            ? "No active Claude session exists for this thread."
+            : "MCP toggles are supported only by Claude.",
+        });
+      });
+      const toMcpToggleError = (cause: ProviderAdapterError): McpToggleError =>
+        new McpToggleError({
+          kind:
+            cause._tag === "ProviderAdapterValidationError" &&
+            cause.issue.includes(RESERVED_PREVIEW_MCP_SERVER_NAME)
+              ? "reserved-server"
+              : cause._tag === "ProviderAdapterSessionNotFoundError" ||
+                  cause._tag === "ProviderAdapterSessionClosedError"
+                ? "session-not-found"
+                : "sdk-failure",
+          detail: cause.message,
+          cause,
+        });
       const automaticGitFetchInterval = serverSettings.getSettings.pipe(
         Effect.map((settings) => settings.automaticGitFetchInterval),
         Effect.catch((cause) =>
@@ -1449,6 +1496,45 @@ const makeWsRpcLayer = (
               });
             }),
             { "rpc.aggregate": "workspace" },
+          ),
+        [WS_METHODS.mcpListServers]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.mcpListServers,
+            loadClaudeAdapterForThread(input.threadId).pipe(
+              Effect.flatMap((adapter: ClaudeAdapterShape) =>
+                adapter.listMcpServersOnThread(input.threadId),
+              ),
+              Effect.map((servers) => ({ servers })),
+              Effect.mapError((cause) =>
+                isMcpToggleError(cause) ? cause : toMcpToggleError(cause),
+              ),
+            ),
+            { "rpc.aggregate": "mcp" },
+          ),
+        [WS_METHODS.mcpToggleServer]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.mcpToggleServer,
+            input.mcpServerName === RESERVED_PREVIEW_MCP_SERVER_NAME
+              ? Effect.fail(
+                  new McpToggleError({
+                    kind: "reserved-server",
+                    detail: "The t3-code preview MCP server cannot be toggled.",
+                  }),
+                )
+              : loadClaudeAdapterForThread(input.threadId).pipe(
+                  Effect.flatMap((adapter: ClaudeAdapterShape) =>
+                    adapter.toggleMcpServerOnThread(
+                      input.threadId,
+                      input.mcpServerName,
+                      input.enabled,
+                    ),
+                  ),
+                  Effect.as({}),
+                  Effect.mapError((cause) =>
+                    isMcpToggleError(cause) ? cause : toMcpToggleError(cause),
+                  ),
+                ),
+            { "rpc.aggregate": "mcp" },
           ),
         [WS_METHODS.subscribeVcsStatus]: (input) =>
           observeRpcStream(

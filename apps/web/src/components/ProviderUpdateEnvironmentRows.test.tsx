@@ -110,6 +110,7 @@ function provider(updateStatus?: "succeeded"): ServerProvider {
   const result: ServerProvider = {
     instanceId: ProviderInstanceId.make("codex-wsl"),
     driver: ProviderDriverKind.make("codex"),
+    supportsMcpToggle: false,
     enabled: true,
     installed: true,
     version: updateStatus ? "1.1.0" : "1.0.0",

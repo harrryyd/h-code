@@ -19,6 +19,7 @@ function provider(input: {
   return {
     instanceId: ProviderInstanceId.make(input.instanceId),
     driver: input.provider,
+    supportsMcpToggle: input.provider === "claudeAgent",
     ...(input.displayName ? { displayName: input.displayName } : {}),
     enabled: input.enabled ?? true,
     installed: true,

@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
+import { ThreadId } from "./baseSchemas.ts";
 
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
@@ -161,6 +162,10 @@ export const WS_METHODS = {
   filesystemBrowse: "filesystem.browse",
   assetsCreateUrl: "assets.createUrl",
 
+  // MCP methods
+  mcpListServers: "mcp.listServers",
+  mcpToggleServer: "mcp.toggleServer",
+
   // VCS methods
   vcsPull: "vcs.pull",
   vcsRefreshStatus: "vcs.refreshStatus",
@@ -234,6 +239,38 @@ export const WS_METHODS = {
   subscribeAuthAccess: "subscribeAuthAccess",
 } as const;
 
+export const McpServerSnapshotSchema = Schema.Struct({
+  name: Schema.String,
+  status: Schema.Literals(["connected", "failed", "needs-auth", "pending", "disabled"]),
+});
+export type McpServerSnapshot = typeof McpServerSnapshotSchema.Type;
+
+export const WsMcpListServersInput = Schema.Struct({ threadId: ThreadId });
+export const WsMcpListServersResult = Schema.Struct({
+  servers: Schema.Array(McpServerSnapshotSchema),
+});
+export const WsMcpToggleServerInput = Schema.Struct({
+  threadId: ThreadId,
+  mcpServerName: Schema.String,
+  enabled: Schema.Boolean,
+});
+export const WsMcpToggleServerResult = Schema.Struct({});
+
+export class McpToggleError extends Schema.TaggedErrorClass<McpToggleError>()("McpToggleError", {
+  kind: Schema.Literals([
+    "provider-not-claude",
+    "session-not-found",
+    "reserved-server",
+    "sdk-failure",
+  ]),
+  detail: Schema.String,
+  cause: Schema.optional(Schema.Defect()),
+}) {
+  override get message(): string {
+    return `MCP toggle error (${this.kind}): ${this.detail}`;
+  }
+}
+
 export const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
   payload: ServerUpsertKeybindingInput,
   success: ServerUpsertKeybindingResult,
@@ -282,6 +319,18 @@ export const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSetting
   payload: Schema.Struct({ patch: ServerSettingsPatch }),
   success: ServerSettings,
   error: Schema.Union([ServerSettingsError, EnvironmentAuthorizationError]),
+});
+
+export const WsMcpListServersRpc = Rpc.make(WS_METHODS.mcpListServers, {
+  payload: WsMcpListServersInput,
+  success: WsMcpListServersResult,
+  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
+});
+
+export const WsMcpToggleServerRpc = Rpc.make(WS_METHODS.mcpToggleServer, {
+  payload: WsMcpToggleServerInput,
+  success: WsMcpToggleServerResult,
+  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
 });
 
 export const WsServerDiscoverSourceControlRpc = Rpc.make(WS_METHODS.serverDiscoverSourceControl, {
@@ -706,6 +755,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,
   WsAssetsCreateUrlRpc,
+  WsMcpListServersRpc,
+  WsMcpToggleServerRpc,
   WsSubscribeVcsStatusRpc,
   WsVcsPullRpc,
   WsVcsRefreshStatusRpc,
