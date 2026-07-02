@@ -1,19 +1,15 @@
 import * as React from "react";
-import {
-  DEFAULT_SIDEBAR_PROJECT_SORT_ORDER,
-  type SidebarProjectSortOrder,
-  type SidebarThreadSortOrder,
-} from "@t3tools/contracts/settings";
+import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
 import {
   getThreadSortTimestamp,
   sortThreads,
   toSortableTimestamp,
   type ThreadSortInput,
 } from "../lib/threadSort";
-import { resolveProjectDefaultedNewThreadSeedContext } from "../lib/newThreadSeedContext";
 import type { SidebarThreadSummary, Thread } from "../types";
 import { cn } from "../lib/utils";
 import { isLatestTurnSettled } from "../session-logic";
+import { resolveServerBackedAppStageLabel } from "../branding.logic";
 
 export const THREAD_SELECTION_SAFE_SELECTOR = "[data-thread-item], [data-thread-selection-safe]";
 export const THREAD_JUMP_HINT_SHOW_DELAY_MS = 100;
@@ -23,7 +19,7 @@ export const SIDEBAR_THREAD_PREWARM_LIMIT = 10;
 export type SidebarNewThreadEnvMode = "local" | "worktree";
 type SidebarProject = {
   id: string;
-  name: string;
+  title: string;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
 };
@@ -67,6 +63,13 @@ type ThreadStatusInput = Pick<
 export interface ThreadJumpHintVisibilityController {
   sync: (shouldShow: boolean) => void;
   dispose: () => void;
+}
+
+export function resolveSidebarStageBadgeLabel(input: {
+  primaryServerVersion: string | null | undefined;
+  fallbackStageLabel: string;
+}): string {
+  return resolveServerBackedAppStageLabel(input);
 }
 
 export function createThreadJumpHintVisibilityController(input: {
@@ -153,7 +156,7 @@ export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
   if (!thread.latestTurn?.completedAt) return false;
   const completedAt = Date.parse(thread.latestTurn.completedAt);
   if (Number.isNaN(completedAt)) return false;
-  if (!thread.lastVisitedAt) return true;
+  if (!thread.lastVisitedAt) return false;
 
   const lastVisitedAt = Date.parse(thread.lastVisitedAt);
   if (Number.isNaN(lastVisitedAt)) return true;
@@ -163,6 +166,15 @@ export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
 export function shouldClearThreadSelectionOnMouseDown(target: HTMLElement | null): boolean {
   if (target === null) return true;
   return !target.closest(THREAD_SELECTION_SAFE_SELECTOR);
+}
+
+// A double-click dispatches two `click` events before `dblclick`: the first has
+// `detail === 1`, the second `detail === 2`. The second click must not run the
+// row's single-click navigation, otherwise double-click-to-rename would also
+// navigate. `MouseEvent.detail` is 0 for synthetic/keyboard activations, which
+// still count as a normal single activation.
+export function isTrailingDoubleClick(detail: number): boolean {
+  return detail > 1;
 }
 
 export function resolveSidebarNewThreadEnvMode(input: {
@@ -185,76 +197,79 @@ export function resolveSidebarNewThreadSeedContext(input: {
     branch: string | null;
     worktreePath: string | null;
     envMode: SidebarNewThreadEnvMode;
+    startFromOrigin: boolean;
   } | null;
 }): {
   branch?: string | null;
   worktreePath?: string | null;
   envMode: SidebarNewThreadEnvMode;
+  startFromOrigin?: boolean;
 } {
-  return resolveProjectDefaultedNewThreadSeedContext(input);
+  if (input.defaultEnvMode === "worktree") {
+    return {
+      envMode: "worktree",
+    };
+  }
+
+  if (input.activeDraftThread?.projectId === input.projectId) {
+    return {
+      branch: input.activeDraftThread.branch,
+      worktreePath: input.activeDraftThread.worktreePath,
+      envMode: input.activeDraftThread.envMode,
+      startFromOrigin: input.activeDraftThread.startFromOrigin,
+    };
+  }
+
+  if (input.activeThread?.projectId === input.projectId) {
+    return {
+      branch: input.activeThread.branch,
+      worktreePath: input.activeThread.worktreePath,
+      envMode: input.activeThread.worktreePath ? "worktree" : "local",
+    };
+  }
+
+  return {
+    envMode: input.defaultEnvMode,
+  };
 }
 
 export function orderItemsByPreferredIds<TItem, TId>(input: {
   items: readonly TItem[];
   preferredIds: readonly TId[];
   getId: (item: TItem) => TId;
+  getPreferenceIds?: (item: TItem) => readonly TId[];
 }): TItem[] {
-  const { getId, items, preferredIds } = input;
+  const { getId, getPreferenceIds, items, preferredIds } = input;
   if (preferredIds.length === 0) {
     return [...items];
   }
 
-  const itemsById = new Map(items.map((item) => [getId(item), item] as const));
-  const preferredIdSet = new Set(preferredIds);
-  const emittedPreferredIds = new Set<TId>();
+  const indexesByPreferenceId = new Map<TId, number[]>();
+  for (const [index, item] of items.entries()) {
+    const preferenceIds = getPreferenceIds?.(item) ?? [getId(item)];
+    for (const preferenceId of new Set(preferenceIds)) {
+      const indexes = indexesByPreferenceId.get(preferenceId);
+      if (indexes) {
+        indexes.push(index);
+      } else {
+        indexesByPreferenceId.set(preferenceId, [index]);
+      }
+    }
+  }
+
+  const emittedIndexes = new Set<number>();
   const ordered = preferredIds.flatMap((id) => {
-    if (emittedPreferredIds.has(id)) {
+    const index = indexesByPreferenceId
+      .get(id)
+      ?.find((candidate) => !emittedIndexes.has(candidate));
+    if (index === undefined) {
       return [];
     }
-    const item = itemsById.get(id);
-    if (!item) {
-      return [];
-    }
-    emittedPreferredIds.add(id);
-    return [item];
+    emittedIndexes.add(index);
+    return [items[index]!];
   });
-  const remaining = items.filter((item) => !preferredIdSet.has(getId(item)));
+  const remaining = items.filter((_, index) => !emittedIndexes.has(index));
   return [...ordered, ...remaining];
-}
-
-export function resolveEffectiveSidebarProjectSortOrder(input: {
-  sortOrder: SidebarProjectSortOrder;
-  hasManualSidebarGroups: boolean;
-}): SidebarProjectSortOrder {
-  return input.hasManualSidebarGroups && input.sortOrder === "manual"
-    ? DEFAULT_SIDEBAR_PROJECT_SORT_ORDER
-    : input.sortOrder;
-}
-
-export function getVisibleSidebarProjects<TProject>(input: {
-  sections: readonly {
-    kind: "manual" | "ungrouped";
-    collapsed: boolean;
-    projects: readonly TProject[];
-  }[];
-}): TProject[] {
-  return input.sections.flatMap((section) =>
-    section.kind === "manual" && section.collapsed ? [] : section.projects,
-  );
-}
-
-export function orderSidebarSectionProjectsByPreferredIds<
-  TProject extends { projectKey: string },
-  TSection extends { projects: readonly TProject[] },
->(input: { sections: readonly TSection[]; preferredProjectKeys: readonly string[] }): TSection[] {
-  return input.sections.map((section) => ({
-    ...section,
-    projects: orderItemsByPreferredIds({
-      items: section.projects,
-      preferredIds: input.preferredProjectKeys,
-      getId: (project) => project.projectKey,
-    }),
-  }));
 }
 
 export function getVisibleSidebarThreadIds<TThreadId>(
@@ -374,7 +389,7 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (thread.session?.status === "connecting") {
+  if (thread.session?.status === "starting") {
     return {
       label: "Connecting",
       colorClass: "text-sky-600 dark:text-sky-300/80",
@@ -552,6 +567,6 @@ export function sortProjectsForSidebar<
     const byTimestamp =
       rightTimestamp === leftTimestamp ? 0 : rightTimestamp > leftTimestamp ? 1 : -1;
     if (byTimestamp !== 0) return byTimestamp;
-    return left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+    return left.title.localeCompare(right.title) || left.id.localeCompare(right.id);
   });
 }

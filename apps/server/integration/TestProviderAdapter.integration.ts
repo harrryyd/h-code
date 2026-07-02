@@ -492,7 +492,6 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
       provider,
       capabilities: {
         sessionModelSwitch: "in-session",
-        supportsMcpToggle: false,
       },
       startSession,
       sendTurn,
@@ -504,14 +503,6 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
       hasSession,
       readThread,
       rollbackThread,
-      compactThread: () =>
-        Effect.fail(
-          new ProviderAdapterValidationError({
-            provider,
-            operation: "compactThread",
-            issue: "Test provider does not support compaction.",
-          }),
-        ),
       stopAll,
       streamEvents: Stream.fromQueue(runtimeEvents),
     };

@@ -7,7 +7,6 @@ import {
   KeybindingRule,
   ResolvedKeybindingRule,
   ResolvedKeybindingsConfig,
-  STATIC_KEYBINDING_COMMANDS,
 } from "./keybindings.ts";
 
 const decode = <S extends Schema.Top>(
@@ -29,6 +28,18 @@ it.effect("parses keybinding rules", () =>
       command: "terminal.toggle",
     });
     assert.strictEqual(parsed.command, "terminal.toggle");
+
+    const parsedSidebarToggle = yield* decode(KeybindingRule, {
+      key: "mod+b",
+      command: "sidebar.toggle",
+    });
+    assert.strictEqual(parsedSidebarToggle.command, "sidebar.toggle");
+
+    const parsedRightPanelToggle = yield* decode(KeybindingRule, {
+      key: "mod+alt+b",
+      command: "rightPanel.toggle",
+    });
+    assert.strictEqual(parsedRightPanelToggle.command, "rightPanel.toggle");
 
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
@@ -54,12 +65,6 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedLocal.command, "chat.newLocal");
 
-    const parsedRenameCurrent = yield* decode(KeybindingRule, {
-      key: "mod+shift+e",
-      command: "thread.renameCurrent",
-    });
-    assert.strictEqual(parsedRenameCurrent.command, "thread.renameCurrent");
-
     const parsedModelPickerToggle = yield* decode(KeybindingRule, {
       key: "mod+shift+m",
       command: "modelPicker.toggle",
@@ -77,12 +82,6 @@ it.effect("parses keybinding rules", () =>
       command: "thread.previous",
     });
     assert.strictEqual(parsedThreadPrevious.command, "thread.previous");
-
-    const parsedTodoToggle = yield* decode(KeybindingRule, {
-      key: "mod+l",
-      command: "todo.toggle",
-    });
-    assert.strictEqual(parsedTodoToggle.command, "todo.toggle");
   }),
 );
 
@@ -113,8 +112,9 @@ it.effect("parses keybindings array payload", () =>
     const parsed = yield* decode(KeybindingsConfig, [
       { key: "mod+j", command: "terminal.toggle" },
       { key: "mod+d", command: "terminal.split", when: "terminalFocus" },
+      { key: "mod+shift+d", command: "terminal.splitVertical", when: "terminalFocus" },
     ]);
-    assert.lengthOf(parsed, 2);
+    assert.lengthOf(parsed, 3);
   }),
 );
 
@@ -192,10 +192,4 @@ it.effect("drops unknown fields in resolved keybinding rules", () =>
       assert.strictEqual(view.command, "terminal.toggle");
     }),
   ),
-);
-
-it.effect("STATIC_KEYBINDING_COMMANDS includes todo.toggle", () =>
-  Effect.sync(() => {
-    assert.isTrue(STATIC_KEYBINDING_COMMANDS.includes("todo.toggle"));
-  }),
 );

@@ -1,14 +1,8 @@
-import { serializeComposerMentionPath } from "@t3tools/shared/composerTrigger";
 import { splitPromptIntoComposerSegments } from "./composer-editor-mentions";
 import { INLINE_TERMINAL_CONTEXT_PLACEHOLDER } from "./lib/terminalContext";
 
 export type ComposerTriggerKind = "path" | "slash-command" | "skill";
-export type ComposerSlashCommand = "model" | "plan" | "default" | "clear" | "new" | "compact";
-
-export interface ComposerClearSlashCommand {
-  command: "clear";
-  keepLastNTurns?: number;
-}
+export type ComposerSlashCommand = "model" | "plan" | "default";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -60,7 +54,7 @@ export function expandCollapsedComposerCursor(text: string, cursorInput: number)
 
   for (const segment of segments) {
     if (segment.type === "mention") {
-      const expandedLength = serializeComposerMentionPath(segment.path).length + 1;
+      const expandedLength = segment.source.length;
       if (remaining <= 1) {
         return expandedCursor + (remaining === 0 ? 0 : expandedLength);
       }
@@ -148,7 +142,7 @@ export function collapseExpandedComposerCursor(text: string, cursorInput: number
 
   for (const segment of segments) {
     if (segment.type === "mention") {
-      const expandedLength = serializeComposerMentionPath(segment.path).length + 1;
+      const expandedLength = segment.source.length;
       if (remaining === 0) {
         return collapsedCursor;
       }
@@ -263,23 +257,8 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
 
 export function parseStandaloneComposerSlashCommand(
   text: string,
-): "plan" | "default" | "new" | "compact" | ComposerClearSlashCommand | null {
-  const trimmed = text.trim();
-  const clearMatch = /^\/clear(?:\s+(\d+))?\s*$/i.exec(trimmed);
-  if (clearMatch) {
-    const n = clearMatch[1];
-    return {
-      command: "clear",
-      ...(n !== undefined ? { keepLastNTurns: parseInt(n, 10) } : {}),
-    };
-  }
-  if (/^\/new\s*$/i.test(trimmed)) {
-    return "new";
-  }
-  if (/^\/compact\s*$/i.test(trimmed)) {
-    return "compact";
-  }
-  const match = /^\/(plan|default)\s*$/i.exec(trimmed);
+): Exclude<ComposerSlashCommand, "model"> | null {
+  const match = /^\/(plan|default)\s*$/i.exec(text.trim());
   if (!match) {
     return null;
   }

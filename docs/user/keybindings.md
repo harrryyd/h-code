@@ -23,12 +23,16 @@ See the full schema for more details: [`packages/contracts/src/keybindings.ts`](
   { "key": "mod+d", "command": "terminal.split", "when": "terminalFocus" },
   { "key": "mod+n", "command": "terminal.new", "when": "terminalFocus" },
   { "key": "mod+w", "command": "terminal.close", "when": "terminalFocus" },
-  { "key": "mod+d", "command": "diff.toggle", "when": "!terminalFocus" },
+  { "key": "mod+shift+j", "command": "preview.toggle" },
+  { "key": "mod+r", "command": "preview.refresh", "when": "previewFocus" },
+  { "key": "mod+l", "command": "preview.focusUrl", "when": "previewFocus" },
+  { "key": "mod+=", "command": "preview.zoomIn", "when": "previewFocus" },
+  { "key": "mod+-", "command": "preview.zoomOut", "when": "previewFocus" },
+  { "key": "mod+0", "command": "preview.resetZoom", "when": "previewFocus" },
   { "key": "mod+k", "command": "commandPalette.toggle", "when": "!terminalFocus" },
   { "key": "mod+n", "command": "chat.new", "when": "!terminalFocus" },
   { "key": "mod+shift+o", "command": "chat.new", "when": "!terminalFocus" },
   { "key": "mod+shift+n", "command": "chat.newLocal", "when": "!terminalFocus" },
-  { "key": "mod+shift+e", "command": "thread.renameCurrent", "when": "!terminalFocus" },
   { "key": "mod+o", "command": "editor.openFavorite" }
 ]
 ```
@@ -53,12 +57,16 @@ Invalid rules are ignored. Invalid config files are ignored. Warnings are logged
 - `terminal.split`: split terminal (in focused terminal context by default)
 - `terminal.new`: create new terminal (in focused terminal context by default)
 - `terminal.close`: close/kill the focused terminal (in focused terminal context by default)
-- `diff.toggle`: open or close the diff panel
+- `preview.toggle`: open/close the in-app browser preview panel (desktop app only)
+- `preview.refresh`: reload the active preview tab (in focused preview context by default)
+- `preview.focusUrl`: focus the URL input of the preview panel (in focused preview context by default)
+- `preview.zoomIn`: zoom the preview viewport in one step (in focused preview context by default)
+- `preview.zoomOut`: zoom the preview viewport out one step (in focused preview context by default)
+- `preview.resetZoom`: reset the preview zoom to 100% (in focused preview context by default)
 - `commandPalette.toggle`: open or close the global command palette
 - `chat.new`: create a new chat thread preserving the active thread's branch/worktree state
 - `chat.newLocal`: create a new chat thread for the active project in a new environment (local/worktree determined by app settings (default `local`))
 - `editor.openFavorite`: open current project/worktree in the last-used editor
-- `thread.renameCurrent`: open inline rename for the current thread in the sidebar
 - `script.{id}.run`: run a project script by id (for example `script.test.run`)
 
 ### Key Syntax
@@ -84,6 +92,8 @@ Currently available context keys:
 
 - `terminalFocus`
 - `terminalOpen`
+- `previewFocus`
+- `previewOpen`
 
 Supported operators:
 

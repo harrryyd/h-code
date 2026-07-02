@@ -55,20 +55,6 @@ export function deriveOrchestrationBatchEffects(
         break;
       }
 
-      case "thread.archived-and-new-created": {
-        threadLifecycleEffects.set(event.payload.archivedThreadId, {
-          clearPromotedDraft: false,
-          clearDeletedThread: false,
-          removeTerminalUiState: true,
-        });
-        threadLifecycleEffects.set(event.payload.newThreadId, {
-          clearPromotedDraft: true,
-          clearDeletedThread: false,
-          removeTerminalUiState: false,
-        });
-        break;
-      }
-
       case "thread.unarchived": {
         threadLifecycleEffects.set(event.payload.threadId, {
           clearPromotedDraft: false,

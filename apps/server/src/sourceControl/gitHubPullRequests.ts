@@ -14,20 +14,11 @@ export interface NormalizedGitHubPullRequestRecord {
   readonly baseRefName: string;
   readonly headRefName: string;
   readonly state: "open" | "closed" | "merged";
-  readonly labels?: ReadonlyArray<{
-    readonly name: string;
-    readonly color?: string;
-  }>;
   readonly updatedAt: Option.Option<DateTime.Utc>;
   readonly isCrossRepository?: boolean;
   readonly headRepositoryNameWithOwner?: string | null;
   readonly headRepositoryOwnerLogin?: string | null;
 }
-
-const GitHubLabelSchema = Schema.Struct({
-  name: TrimmedNonEmptyString,
-  color: Schema.optional(Schema.NullOr(Schema.String)),
-});
 
 const GitHubPullRequestSchema = Schema.Struct({
   number: PositiveInt,
@@ -37,7 +28,6 @@ const GitHubPullRequestSchema = Schema.Struct({
   headRefName: TrimmedNonEmptyString,
   state: Schema.optional(Schema.NullOr(Schema.String)),
   mergedAt: Schema.optional(Schema.NullOr(Schema.String)),
-  labels: Schema.optional(Schema.Array(GitHubLabelSchema)),
   updatedAt: Schema.optional(Schema.OptionFromNullOr(Schema.DateTimeUtcFromString)),
   isCrossRepository: Schema.optional(Schema.Boolean),
   headRepository: Schema.optional(
@@ -59,13 +49,6 @@ const GitHubPullRequestSchema = Schema.Struct({
 function trimOptionalString(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeGitHubLabelColor(value: string | null | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
-  if (/^[0-9a-f]{6}$/iu.test(trimmed)) return `#${trimmed.toLowerCase()}`;
-  if (/^#[0-9a-f]{6}$/iu.test(trimmed)) return trimmed.toLowerCase();
-  return null;
 }
 
 function normalizeGitHubPullRequestState(input: {
@@ -94,19 +77,6 @@ function normalizeGitHubPullRequestRecord(
     (typeof headRepositoryNameWithOwner === "string" && headRepositoryNameWithOwner.includes("/")
       ? (headRepositoryNameWithOwner.split("/")[0] ?? null)
       : null);
-  const labels = raw.labels
-    ?.map((label) => {
-      const color = normalizeGitHubLabelColor(label.color);
-      return {
-        name: label.name,
-        ...(color ? { color } : {}),
-      };
-    })
-    .filter(
-      (label, index, allLabels) =>
-        allLabels.findIndex((item) => item.name.toLowerCase() === label.name.toLowerCase()) ===
-        index,
-    );
 
   return {
     number: raw.number,
@@ -115,7 +85,6 @@ function normalizeGitHubPullRequestRecord(
     baseRefName: raw.baseRefName,
     headRefName: raw.headRefName,
     state: normalizeGitHubPullRequestState(raw),
-    ...(labels && labels.length > 0 ? { labels } : {}),
     updatedAt: raw.updatedAt ?? Option.none(),
     ...(typeof raw.isCrossRepository === "boolean"
       ? { isCrossRepository: raw.isCrossRepository }

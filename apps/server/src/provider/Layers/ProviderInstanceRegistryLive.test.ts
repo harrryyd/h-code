@@ -39,10 +39,12 @@ import * as Layer from "effect/Layer";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 
 import { ServerConfig } from "../../config.ts";
-import { ThreadMcpToggleRepository } from "../../persistence/Services/ThreadMcpToggles.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
+import { ClaudeDriver } from "../Drivers/ClaudeDriver.ts";
 import { CodexDriver } from "../Drivers/CodexDriver.ts";
-import { BUILT_IN_DRIVERS } from "../builtInDrivers.ts";
+import { CursorDriver } from "../Drivers/CursorDriver.ts";
+import { GrokDriver } from "../Drivers/GrokDriver.ts";
+import { OpenCodeDriver } from "../Drivers/OpenCodeDriver.ts";
 import { OpenCodeRuntimeLive } from "../opencodeRuntime.ts";
 import { NoOpProviderEventLoggers, ProviderEventLoggers } from "./ProviderEventLoggers.ts";
 import { makeProviderInstanceRegistry } from "./ProviderInstanceRegistryLive.ts";
@@ -53,12 +55,6 @@ const TestHttpClientLive = Layer.succeed(
     Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ version: "0.0.0" }))),
   ),
 );
-
-const NoOpThreadMcpToggleRepository = Layer.succeed(ThreadMcpToggleRepository, {
-  upsert: () => Effect.void,
-  listByThreadId: () => Effect.succeed([]),
-  deleteAllForThread: () => Effect.void,
-});
 
 const makeCodexConfig = (overrides: Partial<CodexSettings>): CodexSettings => ({
   enabled: false,
@@ -112,9 +108,9 @@ describe("ProviderInstanceRegistryLive — multi-instance codex slice", () => {
     prefix: "provider-instance-registry-test",
   }).pipe(
     Layer.provideMerge(NodeServices.layer),
+    Layer.provideMerge(ServerSettingsService.layerTest()),
     Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
-    Layer.provideMerge(NoOpThreadMcpToggleRepository),
   );
 
   it.live("boots two independent codex instances from a ProviderInstanceConfigMap", () =>
@@ -250,10 +246,9 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
     prefix: "provider-instance-registry-all-drivers-test",
   }).pipe(
     Layer.provideMerge(infraLayer),
-    Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(ServerSettingsService.layerTest()),
+    Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
-    Layer.provideMerge(NoOpThreadMcpToggleRepository),
   );
 
   it.live("boots one instance of every shipped driver from a single config map", () =>
@@ -305,8 +300,9 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
           config: makeOpenCodeConfig({}),
         },
       };
+
       const { registry } = yield* makeProviderInstanceRegistry({
-        drivers: BUILT_IN_DRIVERS,
+        drivers: [CodexDriver, ClaudeDriver, CursorDriver, GrokDriver, OpenCodeDriver],
         configMap,
       });
 

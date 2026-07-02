@@ -15,7 +15,6 @@ import {
   ProjectDeletedPayload,
   ProjectMetaUpdatedPayload,
   ThreadActivityAppendedPayload,
-  ThreadArchivedAndNewCreatedPayload,
   ThreadArchivedPayload,
   ThreadCreatedPayload,
   ThreadDeletedPayload,
@@ -27,7 +26,6 @@ import {
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
   ThreadTurnDiffCompletedPayload,
-  ThreadTrimPointCreatedPayload,
 } from "./Schemas.ts";
 
 type ThreadPatch = Partial<Omit<OrchestrationThread, "id" | "projectId">>;
@@ -38,6 +36,29 @@ function checkpointStatusToLatestTurnState(status: "ready" | "missing" | "error"
   if (status === "error") return "error" as const;
   if (status === "missing") return "interrupted" as const;
   return "completed" as const;
+}
+
+/**
+ * Turn state to settle a still-running latest turn with when its session
+ * leaves the "running" status, or null while the session is (re)starting or
+ * running and the turn must stay unsettled.
+ */
+function settledTurnStateForSessionStatus(
+  status: OrchestrationSession["status"],
+): "completed" | "interrupted" | "error" | null {
+  switch (status) {
+    case "idle":
+    case "ready":
+      return "completed";
+    case "error":
+      return "error";
+    case "interrupted":
+    case "stopped":
+      return "interrupted";
+    case "starting":
+    case "running":
+      return null;
+  }
 }
 
 function updateThread(
@@ -267,10 +288,8 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
-            proposedPlans: [],
             activities: [],
             checkpoints: [],
-            contextTrimPoints: [],
             session: null,
           },
           event.type,
@@ -295,11 +314,6 @@ export function projectEvent(
           }),
         })),
       );
-
-    case "thread.seeded-work-items-upserted":
-    case "thread.seeded-work-item-writeback-requested":
-    case "thread.manager-queue-items-upserted":
-      return Effect.succeed(nextBase);
 
     case "thread.archived":
       return decodeForEvent(ThreadArchivedPayload, event.payload, event.type, "payload").pipe(
@@ -447,6 +461,9 @@ export function projectEvent(
           "session",
         );
 
+        // Leaving the "running" session status is the turn-end signal: settle
+        // a still-running latest turn so its duration reflects the whole turn.
+        const settledTurnState = settledTurnStateForSessionStatus(session.status);
         return {
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
@@ -470,7 +487,18 @@ export function projectEvent(
                         ? thread.latestTurn.assistantMessageId
                         : null,
                   }
-                : thread.latestTurn,
+                : thread.latestTurn !== null &&
+                    thread.latestTurn.state === "running" &&
+                    settledTurnState !== null
+                  ? {
+                      ...thread.latestTurn,
+                      state: settledTurnState,
+                      // A running turn's completedAt can only hold a mid-turn
+                      // placeholder checkpoint timestamp — the session leaving
+                      // "running" is the authoritative turn end.
+                      completedAt: session.updatedAt,
+                    }
+                  : thread.latestTurn,
             updatedAt: event.occurredAt,
           }),
         };
@@ -553,24 +581,31 @@ export function projectEvent(
           .toSorted((left, right) => left.checkpointTurnCount - right.checkpointTurnCount)
           .slice(-MAX_THREAD_CHECKPOINTS);
 
+        // Mid-turn diff updates produce placeholder checkpoints; record the
+        // checkpoint, but don't settle a turn its session is still running.
+        const turnStillRunning =
+          thread.session?.status === "running" && thread.session.activeTurnId === payload.turnId;
+
         return {
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             checkpoints,
-            latestTurn: {
-              turnId: payload.turnId,
-              state: checkpointStatusToLatestTurnState(payload.status),
-              requestedAt:
-                thread.latestTurn?.turnId === payload.turnId
-                  ? thread.latestTurn.requestedAt
-                  : payload.completedAt,
-              startedAt:
-                thread.latestTurn?.turnId === payload.turnId
-                  ? (thread.latestTurn.startedAt ?? payload.completedAt)
-                  : payload.completedAt,
-              completedAt: payload.completedAt,
-              assistantMessageId: payload.assistantMessageId,
-            },
+            latestTurn: turnStillRunning
+              ? thread.latestTurn
+              : {
+                  turnId: payload.turnId,
+                  state: checkpointStatusToLatestTurnState(payload.status),
+                  requestedAt:
+                    thread.latestTurn?.turnId === payload.turnId
+                      ? thread.latestTurn.requestedAt
+                      : payload.completedAt,
+                  startedAt:
+                    thread.latestTurn?.turnId === payload.turnId
+                      ? (thread.latestTurn.startedAt ?? payload.completedAt)
+                      : payload.completedAt,
+                  completedAt: payload.completedAt,
+                  assistantMessageId: payload.assistantMessageId,
+                },
             updatedAt: event.occurredAt,
           }),
         };
@@ -656,84 +691,6 @@ export function projectEvent(
           };
         }),
       );
-
-    case "thread.trim-point-created":
-      return decodeForEvent(
-        ThreadTrimPointCreatedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
-        Effect.map((payload) => {
-          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
-          if (!thread) {
-            return nextBase;
-          }
-          const contextTrimPoints = [
-            ...(thread.contextTrimPoints ?? []),
-            payload.trimPoint,
-          ].toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-          return {
-            ...nextBase,
-            threads: updateThread(nextBase.threads, payload.threadId, {
-              contextTrimPoints,
-              updatedAt: event.occurredAt,
-            }),
-          };
-        }),
-      );
-
-    case "thread.archived-and-new-created":
-      return Effect.gen(function* () {
-        const payload = yield* decodeForEvent(
-          ThreadArchivedAndNewCreatedPayload,
-          event.payload,
-          event.type,
-          "payload",
-        );
-        const oldThread = nextBase.threads.find((entry) => entry.id === payload.archivedThreadId);
-        if (!oldThread) {
-          return nextBase;
-        }
-
-        const newThread: OrchestrationThread = yield* decodeForEvent(
-          OrchestrationThread,
-          {
-            id: payload.newThreadId,
-            projectId: oldThread.projectId,
-            title: oldThread.title,
-            modelSelection: oldThread.modelSelection,
-            runtimeMode: oldThread.runtimeMode,
-            interactionMode: oldThread.interactionMode,
-            branch: oldThread.branch,
-            worktreePath: oldThread.worktreePath,
-            latestTurn: null,
-            createdAt: payload.createdAt,
-            updatedAt: payload.createdAt,
-            archivedAt: null,
-            deletedAt: null,
-            messages: [],
-            proposedPlans: [],
-            activities: [],
-            checkpoints: [],
-            session: null,
-          },
-          event.type,
-          "thread",
-        );
-
-        return {
-          ...nextBase,
-          threads: [
-            ...nextBase.threads.map((entry) =>
-              entry.id === payload.archivedThreadId
-                ? { ...entry, archivedAt: payload.createdAt, updatedAt: payload.createdAt }
-                : entry,
-            ),
-            newThread,
-          ],
-        };
-      });
 
     default:
       return Effect.succeed(nextBase);

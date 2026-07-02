@@ -30,10 +30,6 @@ export interface ProviderAdapterCapabilities {
    * Declares whether changing the model on an existing session is supported.
    */
   readonly sessionModelSwitch: ProviderSessionModelSwitchMode;
-  /**
-   * Declares whether the adapter supports per-thread MCP server toggles.
-   */
-  readonly supportsMcpToggle: boolean;
 }
 
 export interface ProviderThreadTurnSnapshot {
@@ -117,16 +113,6 @@ export interface ProviderAdapterShape<TError> {
     threadId: ThreadId,
     numTurns: number,
   ) => Effect.Effect<ProviderThreadSnapshot, TError>;
-
-  /**
-   * Compact a provider thread context into a summary.
-   * Returns the compaction summary text and the duration the compaction took.
-   * Providers that don't support compaction should fail with an error
-   * (callers fall back to a trim-only flow).
-   */
-  readonly compactThread: (
-    threadId: ThreadId,
-  ) => Effect.Effect<{ summary: string; durationMs: number }, TError>;
 
   /**
    * Stop all sessions owned by this adapter.

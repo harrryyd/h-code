@@ -2,7 +2,6 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
-import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
   AuthAccessStreamError,
@@ -14,6 +13,7 @@ import {
   FilesystemBrowseResult,
   FilesystemBrowseError,
 } from "./filesystem.ts";
+import { AssetAccessError, AssetCreateUrlInput, AssetCreateUrlResult } from "./assets.ts";
 import {
   GitActionProgressEvent,
   VcsSwitchRefInput,
@@ -65,6 +65,12 @@ import {
   RelayClientStatusSchema,
 } from "./relayClient.ts";
 import {
+  ProjectListEntriesError,
+  ProjectListEntriesInput,
+  ProjectListEntriesResult,
+  ProjectReadFileError,
+  ProjectReadFileInput,
+  ProjectReadFileResult,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
@@ -86,6 +92,27 @@ import {
   TerminalSessionSnapshot,
   TerminalWriteInput,
 } from "./terminal.ts";
+import {
+  DiscoveredLocalServerList,
+  PreviewCloseInput,
+  PreviewError,
+  PreviewEvent,
+  PreviewListInput,
+  PreviewListResult,
+  PreviewNavigateInput,
+  PreviewOpenInput,
+  PreviewRefreshInput,
+  PreviewReportStatusInput,
+  PreviewResizeInput,
+  PreviewSessionSnapshot,
+} from "./preview.ts";
+import {
+  PreviewAutomationError,
+  PreviewAutomationHost,
+  PreviewAutomationHostFocus,
+  PreviewAutomationResponse,
+  PreviewAutomationStreamEvent,
+} from "./previewAutomation.ts";
 import {
   ServerConfigStreamEvent,
   ServerConfig,
@@ -115,7 +142,6 @@ import {
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
 } from "./sourceControl.ts";
-import { TodoCategory, TodoItem, TodoItemPriority } from "./todos.ts";
 import { VcsError } from "./vcs.ts";
 
 export const WS_METHODS = {
@@ -123,6 +149,8 @@ export const WS_METHODS = {
   projectsList: "projects.list",
   projectsAdd: "projects.add",
   projectsRemove: "projects.remove",
+  projectsListEntries: "projects.listEntries",
+  projectsReadFile: "projects.readFile",
   projectsSearchEntries: "projects.searchEntries",
   projectsWriteFile: "projects.writeFile",
 
@@ -131,10 +159,7 @@ export const WS_METHODS = {
 
   // Filesystem methods
   filesystemBrowse: "filesystem.browse",
-
-  // MCP methods
-  mcpListServers: "mcp.listServers",
-  mcpToggleServer: "mcp.toggleServer",
+  assetsCreateUrl: "assets.createUrl",
 
   // VCS methods
   vcsPull: "vcs.pull",
@@ -163,6 +188,18 @@ export const WS_METHODS = {
   terminalRestart: "terminal.restart",
   terminalClose: "terminal.close",
 
+  // Preview methods
+  previewOpen: "preview.open",
+  previewNavigate: "preview.navigate",
+  previewResize: "preview.resize",
+  previewRefresh: "preview.refresh",
+  previewClose: "preview.close",
+  previewList: "preview.list",
+  previewReportStatus: "preview.reportStatus",
+  previewAutomationConnect: "previewAutomation.connect",
+  previewAutomationRespond: "previewAutomation.respond",
+  previewAutomationFocusHost: "previewAutomation.focusHost",
+
   // Server meta
   serverGetConfig: "server.getConfig",
   serverRefreshProviders: "server.refreshProviders",
@@ -186,54 +223,16 @@ export const WS_METHODS = {
   sourceControlCloneRepository: "sourceControl.cloneRepository",
   sourceControlPublishRepository: "sourceControl.publishRepository",
 
-  // Todo methods
-  todosLoad: "todo.load",
-  todosMutate: "todo.mutate",
-
   // Streaming subscriptions
   subscribeVcsStatus: "subscribeVcsStatus",
   subscribeTerminalEvents: "subscribeTerminalEvents",
   subscribeTerminalMetadata: "subscribeTerminalMetadata",
+  subscribePreviewEvents: "subscribePreviewEvents",
+  subscribeDiscoveredLocalServers: "subscribeDiscoveredLocalServers",
   subscribeServerConfig: "subscribeServerConfig",
   subscribeServerLifecycle: "subscribeServerLifecycle",
   subscribeAuthAccess: "subscribeAuthAccess",
 } as const;
-
-export const McpServerSnapshotSchema = Schema.Struct({
-  name: Schema.String,
-  status: Schema.Literals(["connected", "failed", "needs-auth", "pending", "disabled"]),
-});
-export type McpServerSnapshot = typeof McpServerSnapshotSchema.Type;
-
-export const WsMcpListServersInput = Schema.Struct({
-  threadId: ThreadId,
-});
-export type WsMcpListServersInput = typeof WsMcpListServersInput.Type;
-
-export const WsMcpListServersResult = Schema.Struct({
-  servers: Schema.Array(McpServerSnapshotSchema),
-});
-export type WsMcpListServersResult = typeof WsMcpListServersResult.Type;
-
-export const WsMcpToggleServerInput = Schema.Struct({
-  threadId: ThreadId,
-  mcpServerName: Schema.String,
-  enabled: Schema.Boolean,
-});
-export type WsMcpToggleServerInput = typeof WsMcpToggleServerInput.Type;
-
-export const WsMcpToggleServerResult = Schema.Struct({});
-export type WsMcpToggleServerResult = typeof WsMcpToggleServerResult.Type;
-
-export class McpToggleError extends Schema.TaggedErrorClass<McpToggleError>()("McpToggleError", {
-  kind: Schema.Literals(["provider-not-claude", "session-not-found", "sdk-failure"]),
-  detail: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {
-  override get message(): string {
-    return `MCP toggle error (${this.kind}): ${this.detail}`;
-  }
-}
 
 export const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
   payload: ServerUpsertKeybindingInput,
@@ -361,6 +360,18 @@ export const WsProjectsSearchEntriesRpc = Rpc.make(WS_METHODS.projectsSearchEntr
   error: Schema.Union([ProjectSearchEntriesError, EnvironmentAuthorizationError]),
 });
 
+export const WsProjectsListEntriesRpc = Rpc.make(WS_METHODS.projectsListEntries, {
+  payload: ProjectListEntriesInput,
+  success: ProjectListEntriesResult,
+  error: Schema.Union([ProjectListEntriesError, EnvironmentAuthorizationError]),
+});
+
+export const WsProjectsReadFileRpc = Rpc.make(WS_METHODS.projectsReadFile, {
+  payload: ProjectReadFileInput,
+  success: ProjectReadFileResult,
+  error: Schema.Union([ProjectReadFileError, EnvironmentAuthorizationError]),
+});
+
 export const WsProjectsWriteFileRpc = Rpc.make(WS_METHODS.projectsWriteFile, {
   payload: ProjectWriteFileInput,
   success: ProjectWriteFileResult,
@@ -378,16 +389,10 @@ export const WsFilesystemBrowseRpc = Rpc.make(WS_METHODS.filesystemBrowse, {
   error: Schema.Union([FilesystemBrowseError, EnvironmentAuthorizationError]),
 });
 
-export const WsMcpListServersRpc = Rpc.make(WS_METHODS.mcpListServers, {
-  payload: WsMcpListServersInput,
-  success: WsMcpListServersResult,
-  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
-});
-
-export const WsMcpToggleServerRpc = Rpc.make(WS_METHODS.mcpToggleServer, {
-  payload: WsMcpToggleServerInput,
-  success: WsMcpToggleServerResult,
-  error: Schema.Union([McpToggleError, EnvironmentAuthorizationError]),
+export const WsAssetsCreateUrlRpc = Rpc.make(WS_METHODS.assetsCreateUrl, {
+  payload: AssetCreateUrlInput,
+  success: AssetCreateUrlResult,
+  error: Schema.Union([AssetAccessError, EnvironmentAuthorizationError]),
 });
 
 export const WsSubscribeVcsStatusRpc = Rpc.make(WS_METHODS.subscribeVcsStatus, {
@@ -473,184 +478,6 @@ export const WsReviewGetDiffPreviewRpc = Rpc.make(WS_METHODS.reviewGetDiffPrevie
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
 });
 
-export const TodosLoadResult = Schema.Struct({
-  categories: Schema.Array(TodoCategory),
-  items: Schema.Array(TodoItem),
-  jiraBaseUrl: Schema.optional(Schema.String),
-});
-export type TodosLoadResult = typeof TodosLoadResult.Type;
-
-export class TodosLoadError extends Schema.TaggedErrorClass<TodosLoadError>()("TodosLoadError", {
-  kind: Schema.Literals(["io-failure", "parse-failure"]),
-  detail: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {
-  override get message(): string {
-    return `Todo load error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const WsTodosLoadRpc = Rpc.make(WS_METHODS.todosLoad, {
-  payload: Schema.Struct({}),
-  success: TodosLoadResult,
-  error: Schema.Union([TodosLoadError, EnvironmentAuthorizationError]),
-});
-
-export const TodoMutationType = Schema.Literals([
-  "createCategory",
-  "renameCategory",
-  "setCategoryColor",
-  "setCategoryJiraLink",
-  "deleteCategory",
-  "toggleCategory",
-  "createItem",
-  "cycleItemStatus",
-  "reorderItems",
-  "reorderCategories",
-  "updateItemDescription",
-  "setItemJiraLink",
-  "renameItem",
-  "setItemPriority",
-  "setJiraBaseUrl",
-  "deleteItem",
-]);
-export type TodoMutationType = typeof TodoMutationType.Type;
-
-export const CreateCategoryMutation = Schema.Struct({
-  type: Schema.Literal("createCategory"),
-  name: Schema.String,
-  color: Schema.String,
-});
-export const RenameCategoryMutation = Schema.Struct({
-  type: Schema.Literal("renameCategory"),
-  categoryId: Schema.String,
-  name: Schema.String,
-});
-export const SetCategoryColorMutation = Schema.Struct({
-  type: Schema.Literal("setCategoryColor"),
-  categoryId: Schema.String,
-  color: Schema.String,
-});
-export const SetCategoryJiraLinkMutation = Schema.Struct({
-  type: Schema.Literal("setCategoryJiraLink"),
-  categoryId: Schema.String,
-  jiraLink: Schema.String,
-});
-export const DeleteCategoryMutation = Schema.Struct({
-  type: Schema.Literal("deleteCategory"),
-  categoryId: Schema.String,
-});
-
-export const CreateItemMutation = Schema.Struct({
-  type: Schema.Literal("createItem"),
-  categoryId: Schema.String,
-  title: TrimmedNonEmptyString,
-});
-
-export const CycleItemStatusMutation = Schema.Struct({
-  type: Schema.Literal("cycleItemStatus"),
-  itemId: Schema.String,
-});
-
-export const ReorderItemsMutation = Schema.Struct({
-  type: Schema.Literal("reorderItems"),
-  updates: Schema.Array(
-    Schema.Struct({
-      id: Schema.String,
-      categoryId: Schema.String,
-      sortOrder: Schema.Number,
-    }),
-  ),
-});
-
-export const ReorderCategoriesMutation = Schema.Struct({
-  type: Schema.Literal("reorderCategories"),
-  orderedIds: Schema.Array(Schema.String),
-});
-
-export const UpdateItemDescriptionMutation = Schema.Struct({
-  type: Schema.Literal("updateItemDescription"),
-  itemId: Schema.String,
-  description: Schema.String,
-});
-
-export const SetItemJiraLinkMutation = Schema.Struct({
-  type: Schema.Literal("setItemJiraLink"),
-  itemId: Schema.String,
-  jiraLink: Schema.String,
-});
-
-export const SetJiraBaseUrlMutation = Schema.Struct({
-  type: Schema.Literal("setJiraBaseUrl"),
-  jiraBaseUrl: Schema.String,
-});
-
-export const RenameItemMutation = Schema.Struct({
-  type: Schema.Literal("renameItem"),
-  itemId: Schema.String,
-  title: TrimmedNonEmptyString,
-});
-
-export const SetItemPriorityMutation = Schema.Struct({
-  type: Schema.Literal("setItemPriority"),
-  itemId: Schema.String,
-  priority: TodoItemPriority,
-});
-
-export const DeleteItemMutation = Schema.Struct({
-  type: Schema.Literal("deleteItem"),
-  itemId: Schema.String,
-});
-
-export const ToggleCategoryMutation = Schema.Struct({
-  type: Schema.Literal("toggleCategory"),
-  categoryId: Schema.String,
-});
-
-export const TodoMutation = Schema.Union([
-  CreateCategoryMutation,
-  RenameCategoryMutation,
-  SetCategoryColorMutation,
-  SetCategoryJiraLinkMutation,
-  DeleteCategoryMutation,
-  ToggleCategoryMutation,
-  CreateItemMutation,
-  CycleItemStatusMutation,
-  ReorderItemsMutation,
-  ReorderCategoriesMutation,
-  UpdateItemDescriptionMutation,
-  SetItemJiraLinkMutation,
-  RenameItemMutation,
-  SetItemPriorityMutation,
-  SetJiraBaseUrlMutation,
-  DeleteItemMutation,
-]);
-export type TodoMutation = typeof TodoMutation.Type;
-
-export const TodosMutateInput = Schema.Struct({
-  mutations: Schema.Array(TodoMutation),
-});
-export type TodosMutateInput = typeof TodosMutateInput.Type;
-
-export class TodosMutateError extends Schema.TaggedErrorClass<TodosMutateError>()(
-  "TodosMutateError",
-  {
-    kind: Schema.Literals(["io-failure", "validation-failure"]),
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Todo mutate error (${this.kind}): ${this.detail}`;
-  }
-}
-
-export const WsTodosMutateRpc = Rpc.make(WS_METHODS.todosMutate, {
-  payload: TodosMutateInput,
-  success: TodosLoadResult,
-  error: Schema.Union([TodosMutateError, EnvironmentAuthorizationError]),
-});
-
 export const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
   payload: TerminalOpenInput,
   success: TerminalSessionSnapshot,
@@ -689,6 +516,79 @@ export const WsTerminalCloseRpc = Rpc.make(WS_METHODS.terminalClose, {
   payload: TerminalCloseInput,
   error: Schema.Union([TerminalError, EnvironmentAuthorizationError]),
 });
+
+export const WsPreviewOpenRpc = Rpc.make(WS_METHODS.previewOpen, {
+  payload: PreviewOpenInput,
+  success: PreviewSessionSnapshot,
+  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
+});
+
+export const WsPreviewNavigateRpc = Rpc.make(WS_METHODS.previewNavigate, {
+  payload: PreviewNavigateInput,
+  success: PreviewSessionSnapshot,
+  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
+});
+
+export const WsPreviewResizeRpc = Rpc.make(WS_METHODS.previewResize, {
+  payload: PreviewResizeInput,
+  success: PreviewSessionSnapshot,
+  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
+});
+
+export const WsPreviewRefreshRpc = Rpc.make(WS_METHODS.previewRefresh, {
+  payload: PreviewRefreshInput,
+  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
+});
+
+export const WsPreviewCloseRpc = Rpc.make(WS_METHODS.previewClose, {
+  payload: PreviewCloseInput,
+  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
+});
+
+export const WsPreviewListRpc = Rpc.make(WS_METHODS.previewList, {
+  payload: PreviewListInput,
+  success: PreviewListResult,
+  error: EnvironmentAuthorizationError,
+});
+
+export const WsPreviewReportStatusRpc = Rpc.make(WS_METHODS.previewReportStatus, {
+  payload: PreviewReportStatusInput,
+  error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
+});
+
+export const WsPreviewAutomationConnectRpc = Rpc.make(WS_METHODS.previewAutomationConnect, {
+  payload: PreviewAutomationHost,
+  success: PreviewAutomationStreamEvent,
+  error: Schema.Union([PreviewAutomationError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+export const WsPreviewAutomationRespondRpc = Rpc.make(WS_METHODS.previewAutomationRespond, {
+  payload: PreviewAutomationResponse,
+  error: Schema.Union([PreviewAutomationError, EnvironmentAuthorizationError]),
+});
+
+export const WsPreviewAutomationFocusHostRpc = Rpc.make(WS_METHODS.previewAutomationFocusHost, {
+  payload: PreviewAutomationHostFocus,
+  error: EnvironmentAuthorizationError,
+});
+
+export const WsSubscribePreviewEventsRpc = Rpc.make(WS_METHODS.subscribePreviewEvents, {
+  payload: Schema.Struct({}),
+  success: PreviewEvent,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
+export const WsSubscribeDiscoveredLocalServersRpc = Rpc.make(
+  WS_METHODS.subscribeDiscoveredLocalServers,
+  {
+    payload: Schema.Struct({}),
+    success: DiscoveredLocalServerList,
+    error: EnvironmentAuthorizationError,
+    stream: true,
+  },
+);
 
 export const WsOrchestrationDispatchCommandRpc = Rpc.make(
   ORCHESTRATION_WS_METHODS.dispatchCommand,
@@ -799,12 +699,13 @@ export const WsRpcGroup = RpcGroup.make(
   WsSourceControlLookupRepositoryRpc,
   WsSourceControlCloneRepositoryRpc,
   WsSourceControlPublishRepositoryRpc,
+  WsProjectsListEntriesRpc,
+  WsProjectsReadFileRpc,
   WsProjectsSearchEntriesRpc,
   WsProjectsWriteFileRpc,
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,
-  WsMcpListServersRpc,
-  WsMcpToggleServerRpc,
+  WsAssetsCreateUrlRpc,
   WsSubscribeVcsStatusRpc,
   WsVcsPullRpc,
   WsVcsRefreshStatusRpc,
@@ -818,8 +719,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsSwitchRefRpc,
   WsVcsInitRpc,
   WsReviewGetDiffPreviewRpc,
-  WsTodosLoadRpc,
-  WsTodosMutateRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalWriteRpc,
@@ -829,6 +728,18 @@ export const WsRpcGroup = RpcGroup.make(
   WsTerminalCloseRpc,
   WsSubscribeTerminalEventsRpc,
   WsSubscribeTerminalMetadataRpc,
+  WsPreviewOpenRpc,
+  WsPreviewNavigateRpc,
+  WsPreviewResizeRpc,
+  WsPreviewRefreshRpc,
+  WsPreviewCloseRpc,
+  WsPreviewListRpc,
+  WsPreviewReportStatusRpc,
+  WsPreviewAutomationConnectRpc,
+  WsPreviewAutomationRespondRpc,
+  WsPreviewAutomationFocusHostRpc,
+  WsSubscribePreviewEventsRpc,
+  WsSubscribeDiscoveredLocalServersRpc,
   WsSubscribeServerConfigRpc,
   WsSubscribeServerLifecycleRpc,
   WsSubscribeAuthAccessRpc,
