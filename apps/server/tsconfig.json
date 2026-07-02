@@ -1,8 +1,21 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
     "types": ["node"],
-    "lib": ["ESNext", "esnext.disposable"]
+    "lib": ["ESNext", "esnext.disposable"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "off",
+          "missingEffectServiceDependency": "off",
+          "leakingRequirements": "off",
+          "missingEffectContext": "off"
+        }
+      }
+    ]
   },
-  "include": ["src", "vite.config.ts", "scripts", "integration", "../../scripts/lib"]
+  "include": ["src", "vite.config.ts", "scripts", "integration", "../../scripts/lib"],
+  "exclude": ["src/**/*.test.ts"]
 }

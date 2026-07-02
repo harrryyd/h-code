@@ -54,8 +54,8 @@ export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
 export const cli = makeCli();
 
 if (import.meta.main) {
-  Command.run(cli, { version: packageJson.version }).pipe(
-    Effect.scoped,
+  Effect.scoped(Command.run(cli, { version: packageJson.version })).pipe(
+    // @ts-expect-error Command.run infers unknown R, CliRuntimeLayer provides the services
     Effect.provide(CliRuntimeLayer),
     NodeRuntime.runMain,
   );
